@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MRCH - Cotizador Profesional</title>
+<meta name="description" content="Sistema profesional de cotizaciones para servicios de corte láser, DTF, DTF UV, sublimado y cortadores de galleta 3D">
+
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useMemo, useEffect } = React;
+
+/* ===================== DATOS BASE (simulan NocoDB) ===================== */
+const DISENOS_DTF = {
+  "Espalda Full Size":      { Hombre: { S:[28,39], M:[29,41], L:[33,43], XL:[35,45] }, Mujer: { S:[26,37], M:[28,39], L:[31,42], XL:[33,43] } },
+  "Espalda Mediano":        { Hombre: { S:[25,34], M:[26,35], L:[28,36], XL:[29,37] }, Mujer: { S:[23,32], M:[24,33], L:[26,24], XL:[27,36] } },
+  "Espalda Extendido":      { Hombre: { S:[27,9],  M:[29,10], L:[32,11], XL:[34,13] }, Mujer: { S:[26,9],  M:[27,9],  L:[28,10], XL:[30,12] } },
+  "Frontal Extendido Pecho":{ Hombre: { S:[25,9],  M:[26,10], L:[28,11], XL:[29,13] }, Mujer: { S:[23,8],  M:[24,9],  L:[26,10], XL:[27,12] } },
+  "Frontal Cuadro Grande":  { Hombre: { S:[25,25], M:[26,26], L:[28,28], XL:[29,29] }, Mujer: { S:[23,23], M:[24,24], L:[26,26], XL:[27,27] } },
+  "Frontal Cuadro Mediano": { Hombre: { S:[20,20], M:[22,22], L:[24,24], XL:[25,25] }, Mujer: { S:[17,17], M:[19,19], L:[21,21], XL:[23,23] } },
+  "Frontal Cuadro Chico":   { Hombre: { S:[15,15], M:[16,16], L:[17,17], XL:[19,19] }, Mujer: { S:[14,14], M:[15,15], L:[16,16], XL:[18,18] } },
+  "Frontal Logo":           { Hombre: { S:[5,7],   M:[5,8],   L:[6,9],   XL:[7,9]   }, Mujer: { S:[5,7],   M:[5,8],   L:[6,9],   XL:[7,9]   } },
+};
+const SUSTRATOS_DTF = { "Playera básica 32702": 65, "Playera premium 3440": 95, "Tote bag negra": 29.5, "Tote bag café": 26.2 };
+const OBJETOS_UV = {
+  "Vaso de vidrio": { sustrato: 18, w: 24, h: 9 },
+  "Termo 1 lt":     { sustrato: 95, w: 30, h: 22 },
+  "Termo 500ml":    { sustrato: 75, w: 24, h: 18 },
+  "Personalizado":  { sustrato: 0,  w: 10, h: 10 },
+};
+const SUBLI_PRODUCTOS = {
+  "Taza 11oz":      { sustrato: 18.73, w: 9.5, h: 21, continuo: false },
+  "Llavero":        { sustrato: 4,     w: 5,   h: 5,  continuo: false },
+  "Lanyard":        { sustrato: 8,     w: 2,   h: 90, continuo: false },
+  "Listón (por m)": { sustrato: 0,     ancho: 2.5, continuo: true },
+  "Solo impresión": { sustrato: 0,     w: 10,  h: 10, continuo: false },
+};
+const TIERS = { "Cliente final": 0.65, "Amigo": 0.35, "Familia": 0.18, "Revendedor": 0.25 };
+const EMOJI_TIER = { "Cliente final": "👤", "Amigo": "🤝", "Familia": "👨‍👩‍👧", "Revendedor": "🏪" };
+const CFG = {
+  dtfPrecioMetro: 240, dtfAnchoCm: 60,
+  uvPrecioMetro: 350,  uvAnchoCm: 30,
+  subliMetro: 150, subliArea: 11000,
+  planchado: 25, manipProporc: 20, disenoSencillo: 15, disenoComplejo: 40, tarifaHr: 250, anticipoPct: 0.5,
+};
+const PACK_TALLA = { S: 2.5, M: 2.5, L: 3.5, XL: 3.5 };
+const MAT_LASER = [
+  { n: "MDF 3mm (40×40)", c: 12.22 }, { n: "Caobilla 3mm (40×40)", c: 12.78 }, { n: "Dije militar metálico", c: 31.10 },
+  { n: "Plato perro grande", c: 85.47 }, { n: "Termo 500ml azul", c: 87.50 }, { n: "Termo 500ml negro", c: 75.00 },
+  { n: "Termo digital 500ml", c: 57.45 }, { n: "Placa perro aluminio", c: 7.45 },
+];
+const CORTADORES = [
+  { rango: "5–6 cm", base: 50, desc: null }, { rango: "7–8 cm", base: 70, desc: { min: 4, precio: 60 } },
+  { rango: "9–11 cm", base: 85, desc: { min: 3, precio: 75 } }, { rango: "15 cm", base: 120, desc: { min: 3, precio: 110 } },
+];
+const DTF_CM2 = CFG.dtfPrecioMetro / (CFG.dtfAnchoCm * 100);
+const UV_CM2 = CFG.uvPrecioMetro / (CFG.uvAnchoCm * 100);
+
+const fmt = (n) => "$" + (n || 0).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const precio = (costo, pct, modo) => (modo === "venta" ? costo / (1 - pct) : costo * (1 + pct));
+let _id = 0; const nid = () => ++_id;
+
+const SERVICIOS = {
+  DTF: { nombre: "DTF", color: "#E91E8C", icono: "👕" }, SUBLI: { nombre: "Sublimación", color: "#0FA3B1", icono: "☕" },
+  LASER: { nombre: "Láser", color: "#F4561D", icono: "🔥" }, UV: { nombre: "DTF UV", color: "#7B5CFF", icono: "✨" },
+  TRESD: { nombre: "Cortadores", color: "#2EA84F", icono: "🍪" },
+};
+
+/* ===================== LOCALSTORAGE ===================== */
+function loadLS(key, fallback) {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch (e) { return fallback; }
+}
+function saveLS(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {}
+}
+
+/* ===================== TEXTO TICKET (para WhatsApp / guardar / imprimir) ===================== */
+function generarTextoTicket(partidas, tier, mults, modoMargen, refPedido) {
+  const pv = (p) => (p.esFijo ? p.precioFijo : precio(p.costo, mults[tier], modoMargen));
+  const total = partidas.reduce((s, p) => s + pv(p), 0);
+  let t = `*EL MERCHENARIO*\n`;
+  if (refPedido) t += `📌 ${refPedido}\n`;
+  t += `🗓️ ${new Date().toLocaleDateString("es-MX")}\n`;
+  t += `— — — — — — — — —\n`;
+  partidas.forEach((p) => {
+    t += `${SERVICIOS[p.servicio].icono} ${p.nombre || p.desc}\n`;
+    if (p.nombre) t += `   ${p.desc}\n`;
+    t += `   ${fmt(pv(p))}\n`;
+  });
+  t += `— — — — — — — — —\n`;
+  t += `*TOTAL (${tier}): ${fmt(total)}*\n`;
+  t += `Anticipo 50%: ${fmt(total * CFG.anticipoPct)}\n`;
+  t += `\n_Precio sujeto a confirmación de medidas y diseño final._`;
+  return t;
+}
+
+/* ===================== ESTILOS ===================== */
+const css = `
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+.cz *{box-sizing:border-box}
+.cz{font-family:-apple-system,'Segoe UI',Roboto,sans-serif;background:#EEF0F2;min-height:100vh;color:#1A1D26}
+.cz-d{font-family:'Barlow Condensed',sans-serif;letter-spacing:.04em}
+.cz-m{font-family:'IBM Plex Mono',monospace}
+.cz-nav{background:#14161D;color:#fff;display:flex;align-items:center;gap:2px;padding:0 12px;overflow-x:auto}
+.cz-tab{background:none;border:none;color:#9AA0AE;padding:14px 12px 11px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;border-bottom:3px solid transparent;white-space:nowrap}
+.cz-tab.on{color:#fff;border-color:#F4561D}
+.cz-card{background:#fff;border-radius:10px;padding:16px;box-shadow:0 1px 3px rgba(20,22,29,.08)}
+.cz-in{width:100%;border:1.5px solid #D8DBE0;border-radius:8px;padding:9px 10px;font-size:14px;background:#fff}
+.cz-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#7B8290;margin-bottom:4px;display:block}
+.cz-btn{background:#14161D;color:#fff;border:none;border-radius:8px;padding:11px 16px;font-weight:700;cursor:pointer;font-size:14px}
+.cz-btn.org{background:#F4561D}
+.svc{border:1.5px solid #D8DBE0;background:#fff;border-radius:8px;padding:8px 6px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:12px;font-weight:600;color:#555B68;flex:1;min-width:64px}
+.svc.on{color:#fff;border-color:transparent}
+.ticket{background:#fff;font-family:'IBM Plex Mono',monospace;font-size:12.5px;padding:18px 16px 26px;box-shadow:0 4px 14px rgba(20,22,29,.15);
+  -webkit-mask:radial-gradient(circle at 8px 100%,transparent 7px,#000 7.5px) -8px 0/16px 100%;mask:radial-gradient(circle at 8px 100%,transparent 7px,#000 7.5px) -8px 0/16px 100%}
+.ticket .sep{border:none;border-top:1.5px dashed #C7CBD2;margin:9px 0}
+.trow{display:flex;justify-content:space-between;gap:8px;padding:1.5px 0}
+.tierbox{border:2px solid #E2E5EA;border-radius:9px;padding:7px 6px;cursor:pointer;flex:1;text-align:center;background:#fff}
+.tierbox.on{border-color:#F4561D;background:#FFF4EE}
+.imp{display:flex;align-items:center;gap:8px;padding:7px 9px;background:#F6F7F9;border-radius:7px;margin-bottom:6px;font-size:13px}
+.preview{background:#FFF4EE;border:1.5px dashed #F4A26155;border-radius:8px;padding:10px 12px;margin-top:12px;font-size:13px}
+.refbox{background:#14161D;color:#fff;border-radius:6px;padding:6px 10px;text-align:center;font-weight:600;margin:2px 0 6px;font-family:'Barlow Condensed',sans-serif;letter-spacing:.05em;font-size:15px;text-transform:uppercase}
+@media(max-width:880px){.cz-grid{grid-template-columns:1fr!important}}
+`;
+
+function PieForm({ costo, desc, onAdd, color, fijo }) {
+  return (
+    <div className="preview" style={{ borderColor: color + "55" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontWeight: 600 }}>{desc}</span>
+        <span className="cz-m" style={{ fontWeight: 600 }}>{fijo ? "precio " : "costo "}{fmt(costo)}</span>
+      </div>
+      <button className="cz-btn org" style={{ width: "100%", marginTop: 10 }} onClick={onAdd}>+ Agregar a la cotización</button>
+    </div>
+  );
+}
+
+/* ===================== FORM: DTF (multi-impresión) ===================== */
+function FormDTF({ onAdd }) {
+  const disenos = Object.keys(DISENOS_DTF);
+  const [sustrato, setSustrato] = useState("Playera básica 32702");
+  const [genero, setGenero] = useState("Hombre");
+  const [talla, setTalla] = useState("M");
+  const [cant, setCant] = useState(10);
+  const [tipoDiseno, setTipoDiseno] = useState("proporcionado");
+  const [imps, setImps] = useState([{ id: nid(), diseno: "Espalda Full Size", custom: false, w: 0, h: 0 }]);
+  const [nd, setNd] = useState("Frontal Logo"), [nCustom, setNCustom] = useState(false), [nw, setNw] = useState(10), [nh, setNh] = useState(10);
+  const medidaDe = (imp) => (imp.custom ? [Number(imp.w), Number(imp.h)] : DISENOS_DTF[imp.diseno][genero][talla]);
+
+  const r = useMemo(() => {
+    const costoSus = SUSTRATOS_DTF[sustrato]; let costoImp = 0;
+    imps.forEach((imp) => { const [w, h] = medidaDe(imp); costoImp += Math.ceil(w * h) * DTF_CM2; });
+    const pack = PACK_TALLA[talla] || 2.5;
+    const porPieza = costoSus + costoImp + CFG.planchado * imps.length + pack;
+    let manip = CFG.manipProporc;
+    if (tipoDiseno === "sencillo") manip = (CFG.disenoSencillo / 60) * CFG.tarifaHr;
+    if (tipoDiseno === "complejo") manip = (CFG.disenoComplejo / 60) * CFG.tarifaHr;
+    const ubic = imps.map((i) => (i.custom ? "pers." : i.diseno.replace("Frontal ", "").replace("Espalda ", "Esp."))).join(" + ");
+    return { costo: porPieza * cant + manip, cant, desc: `${sustrato} (${talla}) · ${ubic}` };
+  }, [sustrato, genero, talla, cant, tipoDiseno, imps]);
+
+  return (
+    <>
+      <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 8 }}>
+        <div><label className="cz-lbl">Sustrato</label><select className="cz-in" value={sustrato} onChange={(e) => setSustrato(e.target.value)}>{Object.keys(SUSTRATOS_DTF).map((s) => <option key={s}>{s}</option>)}</select></div>
+        <div><label className="cz-lbl">Cantidad</label><input className="cz-in" type="number" value={cant} onChange={(e) => setCant(Number(e.target.value))} /></div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
+        <div><label className="cz-lbl">Género</label><select className="cz-in" value={genero} onChange={(e) => setGenero(e.target.value)}><option>Hombre</option><option>Mujer</option></select></div>
+        <div><label className="cz-lbl">Talla</label><select className="cz-in" value={talla} onChange={(e) => setTalla(e.target.value)}>{["S","M","L","XL"].map((t) => <option key={t}>{t}</option>)}</select></div>
+      </div>
+      <label className="cz-lbl" style={{ marginTop: 14 }}>Impresiones en esta prenda ({imps.length})</label>
+      {imps.map((imp) => { const [w, h] = medidaDe(imp); return (
+        <div className="imp" key={imp.id}>
+          <span style={{ flex: 1, fontWeight: 600 }}>{imp.custom ? "Personalizada" : imp.diseno}</span>
+          <span className="cz-m" style={{ color: "#7B8290" }}>{w}×{h}cm · {Math.ceil(w * h)}cm²</span>
+          {imps.length > 1 && <button onClick={() => setImps(imps.filter((x) => x.id !== imp.id))} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 16 }}>×</button>}
+        </div>
+      ); })}
+      <div style={{ border: "1.5px dashed #D8DBE0", borderRadius: 8, padding: 10, marginTop: 4 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <span className="cz-lbl" style={{ margin: 0 }}>+ Otra impresión</span>
+          <label style={{ fontSize: 11, display: "flex", gap: 4, alignItems: "center", cursor: "pointer" }}><input type="checkbox" checked={nCustom} onChange={(e) => setNCustom(e.target.checked)} /> personalizada</label>
+        </div>
+        {!nCustom ? <select className="cz-in" value={nd} onChange={(e) => setNd(e.target.value)}>{disenos.map((d) => <option key={d}>{d}</option>)}</select>
+          : <div style={{ display: "flex", gap: 8 }}><input className="cz-in" type="number" placeholder="ancho" value={nw} onChange={(e) => setNw(e.target.value)} /><input className="cz-in" type="number" placeholder="alto" value={nh} onChange={(e) => setNh(e.target.value)} /></div>}
+        <button className="cz-btn" style={{ width: "100%", marginTop: 8, padding: 8 }} onClick={() => setImps([...imps, { id: nid(), diseno: nd, custom: nCustom, w: nw, h: nh }])}>Añadir impresión a la prenda</button>
+      </div>
+      <label className="cz-lbl" style={{ marginTop: 12 }}>Diseño (manipulación)</label>
+      <div style={{ display: "flex", gap: 8 }}>
+        {[["proporcionado", "Lo trae el cliente"], ["sencillo", "Propio sencillo"], ["complejo", "Propio complejo"]].map(([k, t]) => (
+          <div key={k} className={"tierbox" + (tipoDiseno === k ? " on" : "")} onClick={() => setTipoDiseno(k)} style={{ fontSize: 12 }}>{t}</div>
+        ))}
+      </div>
+      <PieForm costo={r.costo} desc={`${imps.length} impresión(es) · ${cant} pz`} onAdd={() => onAdd(r)} color={SERVICIOS.DTF.color} />
+    </>
+  );
+}
+
+/* ===================== FORM: DTF UV (objetos) ===================== */
+function FormUV({ onAdd }) {
+  const objetos = Object.keys(OBJETOS_UV);
+  const [obj, setObj] = useState(objetos[0]);
+  const [w, setW] = useState(OBJETOS_UV[objetos[0]].w);
+  const [h, setH] = useState(OBJETOS_UV[objetos[0]].h);
+  const [sus, setSus] = useState(OBJETOS_UV[objetos[0]].sustrato);
+  const [cant, setCant] = useState(1);
+  const cambiarObj = (o) => { setObj(o); setW(OBJETOS_UV[o].w); setH(OBJETOS_UV[o].h); setSus(OBJETOS_UV[o].sustrato); };
+  const r = useMemo(() => {
+    const area = Math.ceil(Number(w) * Number(h));
+    const costo = (Number(sus) + area * UV_CM2) * cant;
+    return { costo, cant, desc: `${obj} · UV ${w}×${h}cm ×${cant}` };
+  }, [obj, w, h, sus, cant]);
+  return (
+    <>
+      <label className="cz-lbl">Objeto a decorar</label>
+      <select className="cz-in" value={obj} onChange={(e) => cambiarObj(e.target.value)}>{objetos.map((o) => <option key={o}>{o}</option>)}<option disabled>+ Agregar objeto (NocoDB)</option></select>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginTop: 10 }}>
+        <div><label className="cz-lbl">Ancho cm</label><input className="cz-in" type="number" value={w} onChange={(e) => setW(e.target.value)} /></div>
+        <div><label className="cz-lbl">Alto cm</label><input className="cz-in" type="number" value={h} onChange={(e) => setH(e.target.value)} /></div>
+        <div><label className="cz-lbl">Sustrato $</label><input className="cz-in" type="number" value={sus} onChange={(e) => setSus(e.target.value)} /></div>
+        <div><label className="cz-lbl">Cantidad</label><input className="cz-in" type="number" value={cant} onChange={(e) => setCant(Number(e.target.value))} /></div>
+      </div>
+      <div style={{ fontSize: 12, color: "#7B8290", marginTop: 8 }}>Área "full wrap" precargada por objeto · editable. Film UV: ${UV_CM2.toFixed(3)}/cm² <b>(placeholder)</b>.</div>
+      <PieForm costo={r.costo} desc={`${obj} ×${cant}`} onAdd={() => onAdd(r)} color={SERVICIOS.UV.color} />
+    </>
+  );
+}
+
+/* ===================== FORM: SUBLIMACIÓN (flexible) ===================== */
+function FormSubli({ onAdd }) {
+  const prods = Object.keys(SUBLI_PRODUCTOS);
+  const [prod, setProd] = useState("Taza 11oz");
+  const def = SUBLI_PRODUCTOS[prod];
+  const [w, setW] = useState(def.w || 10), [h, setH] = useState(def.h || 10);
+  const [ancho, setAncho] = useState(def.ancho || 2.5);
+  const [cant, setCant] = useState(prod === "Listón (por m)" ? 10 : 12);
+  const [sus, setSus] = useState(def.sustrato);
+  const cambiar = (p) => { const d = SUBLI_PRODUCTOS[p]; setProd(p); setW(d.w || 10); setH(d.h || 10); setAncho(d.ancho || 2.5); setSus(d.sustrato); setCant(d.continuo ? 10 : 12); };
+  const r = useMemo(() => {
+    const continuo = SUBLI_PRODUCTOS[prod].continuo;
+    const areaUnit = continuo ? Number(ancho) * 100 : Number(w) * Number(h);
+    const areaTot = areaUnit * cant;
+    const costoImp = (areaTot / CFG.subliArea) * CFG.subliMetro;
+    const costo = Number(sus) * cant + costoImp;
+    const u = continuo ? `${cant}m × ${ancho}cm` : `${w}×${h}cm ×${cant}`;
+    return { costo, cant, desc: `${prod} · ${u}` };
+  }, [prod, w, h, ancho, cant, sus]);
+  const continuo = def.continuo;
+  return (
+    <>
+      <label className="cz-lbl">Producto</label>
+      <select className="cz-in" value={prod} onChange={(e) => cambiar(e.target.value)}>{prods.map((p) => <option key={p}>{p}</option>)}<option disabled>+ Agregar producto (NocoDB)</option></select>
+      {continuo ? (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 10 }}>
+          <div><label className="cz-lbl">Metros</label><input className="cz-in" type="number" value={cant} onChange={(e) => setCant(Number(e.target.value))} /></div>
+          <div><label className="cz-lbl">Ancho cinta cm</label><input className="cz-in" type="number" value={ancho} onChange={(e) => setAncho(e.target.value)} /></div>
+          <div><label className="cz-lbl">$ listón / m</label><input className="cz-in" type="number" value={sus} onChange={(e) => setSus(e.target.value)} /></div>
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginTop: 10 }}>
+          <div><label className="cz-lbl">Cantidad</label><input className="cz-in" type="number" value={cant} onChange={(e) => setCant(Number(e.target.value))} /></div>
+          <div><label className="cz-lbl">Ancho cm</label><input className="cz-in" type="number" value={w} onChange={(e) => setW(e.target.value)} /></div>
+          <div><label className="cz-lbl">Alto cm</label><input className="cz-in" type="number" value={h} onChange={(e) => setH(e.target.value)} /></div>
+          <div><label className="cz-lbl">Sustrato $</label><input className="cz-in" type="number" value={sus} onChange={(e) => setSus(e.target.value)} /></div>
+        </div>
+      )}
+      <div style={{ fontSize: 12, color: "#7B8290", marginTop: 8 }}>Impresión proporcional a tu hoja de $150/m (área 11,000 cm²). El listón calcula el transfer que gastas por metro.</div>
+      <PieForm costo={r.costo} desc={r.desc} onAdd={() => onAdd(r)} color={SERVICIOS.SUBLI.color} />
+    </>
+  );
+}
+
+/* ===================== FORM: LÁSER ===================== */
+function FormLaser({ onAdd }) {
+  const [matIdx, setMatIdx] = useState(4), [cant, setCant] = useState(1), [minMaquina, setMinMaquina] = useState(8);
+  const [disenoPropio, setDisenoPropio] = useState(false), [minDiseno, setMinDiseno] = useState(10);
+  const r = useMemo(() => {
+    const mat = MAT_LASER[matIdx];
+    const costo = mat.c * cant + (Number(minMaquina) / 60) * 18 * cant + (disenoPropio ? (Number(minDiseno) / 60) * CFG.tarifaHr : 0);
+    return { costo, cant, desc: `${mat.n} ×${cant}${disenoPropio ? " (diseño propio)" : ""}` };
+  }, [matIdx, cant, minMaquina, disenoPropio, minDiseno]);
+  return (
+    <>
+      <label className="cz-lbl">Material</label>
+      <select className="cz-in" value={matIdx} onChange={(e) => setMatIdx(Number(e.target.value))}>{MAT_LASER.map((m, i) => <option key={i} value={i}>{m.n} — {fmt(m.c)}</option>)}</select>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
+        <div><label className="cz-lbl">Cantidad</label><input className="cz-in" type="number" value={cant} onChange={(e) => setCant(Number(e.target.value))} /></div>
+        <div><label className="cz-lbl">Min máquina</label><input className="cz-in" type="number" value={minMaquina} onChange={(e) => setMinMaquina(e.target.value)} /></div>
+      </div>
+      <label style={{ fontSize: 13, display: "flex", gap: 6, alignItems: "center", marginTop: 12, cursor: "pointer" }}><input type="checkbox" checked={disenoPropio} onChange={(e) => setDisenoPropio(e.target.checked)} /> El diseño lo hago yo (+ mi tiempo)</label>
+      {disenoPropio && <div style={{ marginTop: 8 }}><label className="cz-lbl">Min de diseño</label><input className="cz-in" type="number" value={minDiseno} onChange={(e) => setMinDiseno(e.target.value)} /></div>}
+      <PieForm costo={r.costo} desc={`Láser ×${cant}`} onAdd={() => onAdd(r)} color={SERVICIOS.LASER.color} />
+    </>
+  );
+}
+
+/* ===================== FORM: CORTADORES DE GALLETA (precio fijo) ===================== */
+function FormCortadores({ onAdd }) {
+  const [idx, setIdx] = useState(2), [cant, setCant] = useState(3), [conSello, setConSello] = useState(true);
+  const r = useMemo(() => {
+    const c = CORTADORES[idx]; let unit = c.base;
+    if (c.desc && cant >= c.desc.min) unit = c.desc.precio;
+    if (!conSello) unit = unit * 0.6;
+    let promo = null;
+    if (c.desc) {
+      if (cant < c.desc.min) {
+        const faltan = c.desc.min - cant;
+        let precioProm = c.desc.precio;
+        if (!conSello) precioProm = precioProm * 0.6;
+        promo = `🎁 Agrega ${faltan} pieza${faltan > 1 ? "s" : ""} más y cada una te sale en ${fmt(precioProm)} (llevando ${c.desc.min})`;
+      } else {
+        promo = `✅ Ya tienes el mejor precio por volumen: ${fmt(unit)} c/u`;
+      }
+    }
+    return { esFijo: true, precioFijo: unit * cant, cant, desc: `Cortador ${c.rango} ${conSello ? "+sello" : "(solo)"} ×${cant}`, promo };
+  }, [idx, cant, conSello]);
+  return (
+    <>
+      <label className="cz-lbl">Tamaño</label>
+      <select className="cz-in" value={idx} onChange={(e) => setIdx(Number(e.target.value))}>{CORTADORES.map((c, i) => <option key={i} value={i}>{c.rango} — {fmt(c.base)}{c.desc ? ` (${c.desc.min}+ → ${fmt(c.desc.precio)})` : ""}</option>)}</select>
+      <div style={{ marginTop: 10 }}><label className="cz-lbl">Cantidad</label><input className="cz-in" type="number" value={cant} onChange={(e) => setCant(Number(e.target.value))} /></div>
+      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+        <div className={"tierbox" + (conSello ? " on" : "")} onClick={() => setConSello(true)} style={{ fontSize: 12 }}>Cortador + sello<br /><span className="cz-m" style={{ fontSize: 11, color: "#7B8290" }}>100%</span></div>
+        <div className={"tierbox" + (!conSello ? " on" : "")} onClick={() => setConSello(false)} style={{ fontSize: 12 }}>Solo cortador<br /><span className="cz-m" style={{ fontSize: 11, color: "#7B8290" }}>60%</span></div>
+      </div>
+      <div style={{ fontSize: 11, color: "#7B8290", marginTop: 8 }}>🎨 El diseño siempre está incluido, nunca se cobra aparte.</div>
+      {r.promo && <div style={{ fontSize: 12, color: "#2EA84F", marginTop: 8 }}>{r.promo}</div>}
+      <PieForm costo={r.precioFijo} desc={r.desc} onAdd={() => onAdd(r)} color={SERVICIOS.TRESD.color} fijo />
+    </>
+  );
+}
+
+/* ===================== VISTA COTIZAR ===================== */
+function VistaCotizar({ mults, modoMargen, clientes, onGuardarHistorial }) {
+  const [svc, setSvc] = useState("DTF");
+  const [tier, setTier] = useState(Object.keys(mults)[0] || "Cliente final");
+  const [refPedido, setRefPedido] = useState("");
+  const [clienteSel, setClienteSel] = useState("");
+  const [nombrePartida, setNombrePartida] = useState("");
+  const [partidas, setPartidas] = useState([]);
+  const [guardadoOk, setGuardadoOk] = useState(false);
+
+  const add = (p) => { setPartidas((prev) => [...prev, { ...p, id: nid(), servicio: svc, nombre: nombrePartida.trim() }]); setNombrePartida(""); };
+  const forms = { DTF: <FormDTF onAdd={add} />, UV: <FormUV onAdd={add} />, SUBLI: <FormSubli onAdd={add} />, LASER: <FormLaser onAdd={add} />, TRESD: <FormCortadores onAdd={add} /> };
+
+  const total = partidas.reduce((s, p) => s + (p.esFijo ? p.precioFijo : precio(p.costo, mults[tier], modoMargen)), 0);
+
+  const seleccionarCliente = (id) => {
+    setClienteSel(id);
+    const c = clientes.find((c) => String(c.id) === id);
+    if (c) {
+      setRefPedido(c.nombre);
+      if (mults[c.tipoCliente] !== undefined) setTier(c.tipoCliente);
+    }
+  };
+
+  const handleWhatsApp = () => {
+    const texto = generarTextoTicket(partidas, tier, mults, modoMargen, refPedido);
+    window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, "_blank");
+  };
+
+  const handleGuardar = () => {
+    const texto = generarTextoTicket(partidas, tier, mults, modoMargen, refPedido);
+    onGuardarHistorial({ id: nid(), fecha: new Date().toLocaleString("es-MX"), refPedido, tier, total, texto, partidas });
+    setGuardadoOk(true);
+    setTimeout(() => setGuardadoOk(false), 2000);
+  };
+
+  const handleImprimir = () => {
+    const texto = generarTextoTicket(partidas, tier, mults, modoMargen, refPedido).replace(/\*/g, "");
+    const w = window.open("", "_blank", "width=380,height=640");
+    if (w) {
+      w.document.write(`<pre style="font-family:'IBM Plex Mono',monospace;font-size:12px;white-space:pre-wrap;width:58mm;padding:8px;margin:0;">${texto}</pre>`);
+      w.document.close();
+      w.focus();
+      w.print();
+    }
+  };
+
+  return (
+    <div className="cz-grid" style={{ display: "grid", gridTemplateColumns: "1.1fr .9fr", gap: 16, alignItems: "start" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {clientes.length > 0 && (
+          <div className="cz-card">
+            <label className="cz-lbl">Cliente (opcional)</label>
+            <select className="cz-in" value={clienteSel} onChange={(e) => seleccionarCliente(e.target.value)}>
+              <option value="">Sin cliente</option>
+              {clientes.map((c) => <option key={c.id} value={c.id}>{EMOJI_TIER[c.tipoCliente] || ""} {c.nombre}</option>)}
+            </select>
+          </div>
+        )}
+        <div className="cz-card">
+          <label className="cz-lbl">Cliente / referencia del pedido (sale en el ticket de envío)</label>
+          <input className="cz-in" placeholder="Ej. Caro — Evento XV Sofía" value={refPedido} onChange={(e) => setRefPedido(e.target.value)} />
+        </div>
+        <div className="cz-card">
+          <label className="cz-lbl">Agregar partida — servicio</label>
+          <div style={{ display: "flex", gap: 6 }}>
+            {Object.entries(SERVICIOS).map(([k, s]) => (
+              <button key={k} className={"svc" + (svc === k ? " on" : "")} style={svc === k ? { background: s.color } : {}} onClick={() => setSvc(k)}><span style={{ fontSize: 18 }}>{s.icono}</span>{s.nombre}</button>
+            ))}
+          </div>
+          <label className="cz-lbl" style={{ marginTop: 12 }}>Nombre/etiqueta de esta partida (opcional)</label>
+          <input className="cz-in" placeholder="Ej. Playera de Juan" value={nombrePartida} onChange={(e) => setNombrePartida(e.target.value)} />
+        </div>
+        <div className="cz-card" key={svc}>{forms[svc]}</div>
+        <div className="cz-card">
+          <label className="cz-lbl">Tipo de cliente (aplica a toda la cotización)</label>
+          <div style={{ display: "flex", gap: 8 }}>
+            {Object.keys(mults).map((t) => (
+              <div key={t} className={"tierbox" + (tier === t ? " on" : "")} onClick={() => setTier(t)}>
+                <div className="cz-d" style={{ fontSize: 13, fontWeight: 700 }}>{t}</div><div className="cz-m" style={{ fontSize: 11, color: "#7B8290" }}>{Math.round(mults[t] * 100)}%</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div style={{ position: "sticky", top: 12 }}>
+        <TicketCarrito partidas={partidas} tier={tier} mults={mults} modoMargen={modoMargen} refPedido={refPedido} onRemove={(id) => setPartidas(partidas.filter((p) => p.id !== id))} />
+        {partidas.length > 0 && (<>
+          <button className="cz-btn" style={{ width: "100%", marginTop: 10, background: "#25D366" }} onClick={handleWhatsApp}>📲 Enviar por WhatsApp</button>
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <button className="cz-btn" style={{ flex: 1 }} onClick={handleImprimir}>🖨 Ticket 58mm</button>
+            <button className="cz-btn org" style={{ flex: 1 }} onClick={handleGuardar}>{guardadoOk ? "✅ Guardado" : "💾 Guardar"}</button>
+          </div>
+        </>)}
+      </div>
+    </div>
+  );
+}
+
+function TicketCarrito({ partidas, tier, mults, modoMargen, refPedido, onRemove }) {
+  const pv = (p) => (p.esFijo ? p.precioFijo : precio(p.costo, mults[tier], modoMargen));
+  const total = partidas.reduce((s, p) => s + pv(p), 0);
+  const totalCon = (t) => partidas.reduce((s, p) => s + (p.esFijo ? p.precioFijo : precio(p.costo, mults[t], modoMargen)), 0);
+  if (partidas.length === 0) return <div className="ticket"><div style={{ textAlign: "center", color: "#9AA0AE", padding: "30px 10px", fontSize: 13 }}>Agrega partidas y se irán sumando aquí.<br /><br />Ej: vaso + DTF UV full, un listón de 10m, y unas playeras — todo en una cotización.</div></div>;
+  return (
+    <div className="ticket">
+      <div style={{ textAlign: "center", fontWeight: 600, fontSize: 14 }}>EL MERCHENARIO</div>
+      {refPedido && <div className="refbox">{refPedido}</div>}
+      <div style={{ textAlign: "center", fontSize: 10.5, color: "#7B8290" }}>COTIZACIÓN · {new Date().toLocaleDateString("es-MX")}</div>
+      <hr className="sep" />
+      {partidas.map((p) => (
+        <div key={p.id} style={{ marginBottom: 5 }}>
+          <div className="trow">
+            <span style={{ display: "flex", gap: 5, alignItems: "center" }}><span>{SERVICIOS[p.servicio].icono}</span><span style={{ maxWidth: 165, fontWeight: p.nombre ? 600 : 400 }}>{p.nombre || p.desc}</span></span>
+            <span style={{ whiteSpace: "nowrap" }}>{fmt(pv(p))} <button onClick={() => onRemove(p.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer" }}>×</button></span>
+          </div>
+          {p.nombre && <div style={{ fontSize: 10.5, color: "#9AA0AE", paddingLeft: 20 }}>{p.desc}</div>}
+        </div>
+      ))}
+      <hr className="sep" />
+      <div className="trow" style={{ fontWeight: 600, fontSize: 15, background: "#FFF4EE", margin: "0 -6px", padding: "5px 6px", borderRadius: 4 }}><span>TOTAL ({tier})</span><span>{fmt(total)}</span></div>
+      <div style={{ marginTop: 6 }}>{Object.keys(mults).filter((t) => t !== tier).map((t) => (<div className="trow" key={t} style={{ color: "#9AA0AE", fontSize: 11 }}><span>{t}</span><span>{fmt(totalCon(t))}</span></div>))}</div>
+      <hr className="sep" />
+      <div className="trow" style={{ fontWeight: 600, color: "#F4561D" }}><span>ANTICIPO 50%</span><span>{fmt(total * CFG.anticipoPct)}</span></div>
+      <div style={{ textAlign: "center", fontSize: 9.5, color: "#7B8290", marginTop: 8 }}>Para iniciar producción se requiere el 50% de anticipo.</div>
+      <div style={{ textAlign: "center", fontSize: 9, color: "#C7CBD2", marginTop: 10 }}>[ aquí irían tus redes + QR a Linktree ]</div>
+    </div>
+  );
+}
+
+/* ===================== VISTA COTIZACIÓN INVERSA ===================== */
+function VistaInversa({ mults, modoMargen }) {
+  const [precioRef, setPrecioRef] = useState("");
+  const [modoPrecio, setModoPrecio] = useState("total");
+  const [cantidadRef, setCantidadRef] = useState(1);
+  const [notaRef, setNotaRef] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  const r = useMemo(() => {
+    const precioNum = Number(precioRef) || 0;
+    const cantNum = Number(cantidadRef) || 1;
+    const precioPorPieza = modoPrecio === "pieza" ? precioNum : precioNum / cantNum;
+    const filas = Object.keys(mults).map((t) => {
+      const pct = mults[t];
+      const costoMax = modoMargen === "venta" ? precioPorPieza * (1 - pct) : precioPorPieza / (1 + pct);
+      const ganancia = precioPorPieza - costoMax;
+      return { tier: t, costoMax, ganancia, pct };
+    });
+    return { precioPorPieza, filas, cantNum };
+  }, [precioRef, modoPrecio, cantidadRef, mults, modoMargen]);
+
+  const textoResumen = () => {
+    let t = `🔄 *COTIZACIÓN INVERSA*\n`;
+    if (notaRef) t += `📎 Referencia: ${notaRef}\n`;
+    t += `💵 Precio visto: ${fmt(r.precioPorPieza)} por pieza`;
+    t += modoPrecio === "total" ? ` (total ${fmt(Number(precioRef) || 0)} ÷ ${r.cantNum} pz)\n` : ` (precio directo por pieza)\n`;
+    t += `— — — — — — — — —\n`;
+    r.filas.forEach((f) => {
+      t += `${EMOJI_TIER[f.tier] || ""} ${f.tier}: costo máx ${fmt(f.costoMax)}/pz (ganancia ${fmt(f.ganancia)}/pz)\n`;
+    });
+    t += `— — — — — — — — —\n`;
+    t += `_Si tu costo real por pieza es menor a estos montos, puedes igualar o mejorar este precio con ganancia._`;
+    return t;
+  };
+
+  const copiar = () => {
+    navigator.clipboard.writeText(textoResumen());
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div style={{ maxWidth: 620, display: "flex", flexDirection: "column", gap: 14 }}>
+      <div className="cz-card">
+        <span className="cz-d" style={{ fontSize: 18, fontWeight: 700, textTransform: "uppercase" }}>Cotización inversa</span>
+        <div style={{ fontSize: 12, color: "#7B8290", marginTop: 6 }}>Encontraste una publicación parecida a lo que vas a cotizar y quieres saber cuánto te podría costar cada pieza para igualar ese precio y aún ganar.</div>
+      </div>
+      <div className="cz-card">
+        <label className="cz-lbl">¿Qué es lo que viste? (opcional, solo referencia)</label>
+        <input className="cz-in" placeholder="Ej. Cortador de galleta 8cm en Facebook Marketplace" value={notaRef} onChange={(e) => setNotaRef(e.target.value)} />
+      </div>
+      <div className="cz-card">
+        <label className="cz-lbl">¿El precio que viste es total o por pieza?</label>
+        <div style={{ display: "flex", gap: 8 }}>
+          <div className={"tierbox" + (modoPrecio === "total" ? " on" : "")} onClick={() => setModoPrecio("total")}>Precio total del pedido</div>
+          <div className={"tierbox" + (modoPrecio === "pieza" ? " on" : "")} onClick={() => setModoPrecio("pieza")}>Precio por pieza</div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: modoPrecio === "total" ? "1fr 1fr" : "1fr", gap: 8, marginTop: 10 }}>
+          <div>
+            <label className="cz-lbl">{modoPrecio === "total" ? "Precio total visto" : "Precio por pieza visto"}</label>
+            <input className="cz-in" type="number" value={precioRef} onChange={(e) => setPrecioRef(e.target.value)} placeholder="$0.00" />
+          </div>
+          {modoPrecio === "total" && (
+            <div>
+              <label className="cz-lbl">Cantidad de piezas</label>
+              <input className="cz-in" type="number" value={cantidadRef} onChange={(e) => setCantidadRef(e.target.value)} />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {precioRef && (
+        <div className="ticket">
+          <div style={{ textAlign: "center", fontWeight: 600, fontSize: 14 }}>COTIZACIÓN INVERSA</div>
+          <div style={{ textAlign: "center", fontSize: 10.5, color: "#7B8290" }}>Precio por pieza de referencia: {fmt(r.precioPorPieza)}</div>
+          <hr className="sep" />
+          {r.filas.map((f) => (
+            <div key={f.tier} className="trow" style={{ marginBottom: 4 }}>
+              <span>{EMOJI_TIER[f.tier]} {f.tier} ({Math.round(f.pct * 100)}%)</span>
+              <span className="cz-m">{fmt(f.costoMax)}/pz</span>
+            </div>
+          ))}
+          <hr className="sep" />
+          <div style={{ fontSize: 11, color: "#7B8290" }}>Ese es el costo máximo por pieza (material + tiempo + diseño) que puedes tener para igualar ese precio y quedarte con el margen de cada tier.</div>
+        </div>
+      )}
+
+      {precioRef && (
+        <button className="cz-btn org" onClick={copiar}>{copied ? "✅ Copiado" : "📋 Copiar resumen"}</button>
+      )}
+    </div>
+  );
+}
+
+/* ===================== VISTA CLIENTES ===================== */
+function VistaClientes({ clientes, onAgregar, onEliminar }) {
+  const [nombre, setNombre] = useState("");
+  const [telefono, setTelefono] = useState("");
+  const [email, setEmail] = useState("");
+  const [notas, setNotas] = useState("");
+  const [tipoCliente, setTipoCliente] = useState("Cliente final");
+
+  const agregar = () => {
+    if (!nombre || !telefono) { alert("Nombre y teléfono son obligatorios"); return; }
+    onAgregar({ id: nid(), nombre, telefono, email, notas, tipoCliente, fechaRegistro: new Date().toLocaleDateString("es-MX") });
+    setNombre(""); setTelefono(""); setEmail(""); setNotas("");
+  };
+
+  return (
+    <div style={{ maxWidth: 720, display: "flex", flexDirection: "column", gap: 14 }}>
+      <div className="cz-card">
+        <span className="cz-d" style={{ fontSize: 18, fontWeight: 700, textTransform: "uppercase" }}>Nuevo cliente</span>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
+          <input className="cz-in" placeholder="Nombre completo *" value={nombre} onChange={(e) => setNombre(e.target.value)} />
+          <input className="cz-in" placeholder="Teléfono *" value={telefono} onChange={(e) => setTelefono(e.target.value)} />
+          <input className="cz-in" placeholder="Email (opcional)" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <select className="cz-in" value={tipoCliente} onChange={(e) => setTipoCliente(e.target.value)}>
+            {Object.keys(TIERS).map((t) => <option key={t} value={t}>{EMOJI_TIER[t]} {t}</option>)}
+          </select>
+        </div>
+        <input className="cz-in" style={{ marginTop: 8 }} placeholder="Notas (opcional)" value={notas} onChange={(e) => setNotas(e.target.value)} />
+        <button className="cz-btn org" style={{ width: "100%", marginTop: 10 }} onClick={agregar}>+ Agregar cliente</button>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {clientes.length === 0 && <div className="cz-card" style={{ textAlign: "center", color: "#9AA0AE" }}>No hay clientes registrados aún.</div>}
+        {clientes.map((c) => (
+          <div className="cz-card" key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div>
+              <div style={{ fontWeight: 700 }}>{EMOJI_TIER[c.tipoCliente]} {c.nombre} <span style={{ fontWeight: 400, fontSize: 11, color: "#7B8290" }}>· {c.tipoCliente}</span></div>
+              <div style={{ fontSize: 12, color: "#7B8290", marginTop: 4 }}>📱 {c.telefono}{c.email ? ` · 📧 ${c.email}` : ""}</div>
+              {c.notas && <div style={{ fontSize: 12, color: "#7B8290" }}>📝 {c.notas}</div>}
+            </div>
+            <button onClick={() => onEliminar(c.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 18 }}>×</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ===================== VISTA HISTORIAL ===================== */
+function VistaHistorial({ historial, onEliminar, onLimpiar }) {
+  const [abierto, setAbierto] = useState(null);
+  return (
+    <div style={{ maxWidth: 720, display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span className="cz-d" style={{ fontSize: 20, fontWeight: 700, textTransform: "uppercase" }}>Historial de cotizaciones</span>
+        {historial.length > 0 && <button onClick={onLimpiar} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>Limpiar todo</button>}
+      </div>
+      {historial.length === 0 && <div className="cz-card" style={{ textAlign: "center", color: "#9AA0AE" }}>Aún no has guardado ninguna cotización.</div>}
+      {historial.map((h) => (
+        <div className="cz-card" key={h.id}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+            <div>
+              <div style={{ fontWeight: 700 }}>{h.refPedido || "Sin referencia"} <span style={{ fontWeight: 400, fontSize: 11, color: "#7B8290" }}>· {h.tier}</span></div>
+              <div style={{ fontSize: 11, color: "#7B8290" }}>{h.fecha}</div>
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <span className="cz-m" style={{ fontWeight: 700 }}>{fmt(h.total)}</span>
+              <button className="cz-btn" style={{ padding: "6px 10px" }} onClick={() => setAbierto(abierto === h.id ? null : h.id)}>{abierto === h.id ? "Ocultar" : "Ver"}</button>
+              <button onClick={() => onEliminar(h.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 18 }}>×</button>
+            </div>
+          </div>
+          {abierto === h.id && <pre style={{ marginTop: 10, background: "#F6F7F9", padding: 10, borderRadius: 8, fontSize: 12, whiteSpace: "pre-wrap" }}>{h.texto}</pre>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ===================== CONFIG ===================== */
+function VistaConfig({ mults, setMults, modoMargen, setModoMargen }) {
+  return (
+    <div style={{ maxWidth: 540, display: "flex", flexDirection: "column", gap: 14 }}>
+      <div className="cz-card">
+        <span className="cz-d" style={{ fontSize: 18, fontWeight: 700, textTransform: "uppercase" }}>Tipo de margen</span>
+        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+          <div className={"tierbox" + (modoMargen === "markup" ? " on" : "")} onClick={() => setModoMargen("markup")}><b>Markup sobre costo</b><div className="cz-m" style={{ fontSize: 11, color: "#7B8290" }}>costo × (1+%)</div></div>
+          <div className={"tierbox" + (modoMargen === "venta" ? " on" : "")} onClick={() => setModoMargen("venta")}><b>Margen sobre venta</b><div className="cz-m" style={{ fontSize: 11, color: "#7B8290" }}>costo ÷ (1−%)</div></div>
+        </div>
+      </div>
+      <div className="cz-card">
+        <span className="cz-d" style={{ fontSize: 18, fontWeight: 700, textTransform: "uppercase" }}>Ganancia por tier</span>
+        {Object.keys(mults).map((t) => (
+          <div key={t} style={{ marginTop: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 14, fontWeight: 600 }}>{t}</span><span className="cz-m" style={{ fontWeight: 600 }}>{Math.round(mults[t] * 100)}%</span></div>
+            <input type="range" min="0.1" max="1" step="0.01" value={mults[t]} style={{ width: "100%", accentColor: "#F4561D" }} onChange={(e) => setMults({ ...mults, [t]: Number(e.target.value) })} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ===================== APP ===================== */
+function App() {
+  const [tab, setTab] = useState("cotizar");
+  const [mults, setMults] = useState(() => loadLS("cz_mults", { ...TIERS }));
+  const [modoMargen, setModoMargen] = useState(() => loadLS("cz_modoMargen", "markup"));
+  const [clientes, setClientes] = useState(() => loadLS("cz_clientes", []));
+  const [historial, setHistorial] = useState(() => loadLS("cz_historial", []));
+
+  useEffect(() => saveLS("cz_mults", mults), [mults]);
+  useEffect(() => saveLS("cz_modoMargen", modoMargen), [modoMargen]);
+  useEffect(() => saveLS("cz_clientes", clientes), [clientes]);
+  useEffect(() => saveLS("cz_historial", historial), [historial]);
+
+  const agregarHistorial = (entry) => setHistorial((prev) => [entry, ...prev]);
+  const eliminarHistorial = (id) => setHistorial((prev) => prev.filter((h) => h.id !== id));
+  const limpiarHistorial = () => { if (confirm("¿Eliminar todo el historial?")) setHistorial([]); };
+
+  const agregarCliente = (c) => setClientes((prev) => [...prev, c]);
+  const eliminarCliente = (id) => { if (confirm("¿Eliminar este cliente?")) setClientes((prev) => prev.filter((c) => c.id !== id)); };
+
+  const tabs = [
+    ["cotizar", "⚡ Cotizar"],
+    ["inversa", "🔄 Inversa"],
+    ["clientes", "👥 Clientes"],
+    ["historial", "🕐 Historial"],
+    ["config", "⚙ Config"],
+  ];
+
+  return (
+    <div className="cz">
+      <style>{css}</style>
+      <div className="cz-nav">
+        <span className="cz-d" style={{ fontSize: 19, fontWeight: 700, color: "#fff", padding: "0 10px 0 4px", whiteSpace: "nowrap" }}>MRCH<span style={{ color: "#F4561D" }}>·</span>COTIZA</span>
+        {tabs.map(([k, t]) => <button key={k} className={"cz-tab" + (tab === k ? " on" : "")} onClick={() => setTab(k)}>{t}</button>)}
+      </div>
+      <div style={{ maxWidth: 1060, margin: "0 auto", padding: 16 }}>
+        {tab === "cotizar" && <VistaCotizar mults={mults} modoMargen={modoMargen} clientes={clientes} onGuardarHistorial={agregarHistorial} />}
+        {tab === "inversa" && <VistaInversa mults={mults} modoMargen={modoMargen} />}
+        {tab === "clientes" && <VistaClientes clientes={clientes} onAgregar={agregarCliente} onEliminar={eliminarCliente} />}
+        {tab === "historial" && <VistaHistorial historial={historial} onEliminar={eliminarHistorial} onLimpiar={limpiarHistorial} />}
+        {tab === "config" && <VistaConfig mults={mults} setMults={setMults} modoMargen={modoMargen} setModoMargen={setModoMargen} />}
+      </div>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App />);
+</script>
+</body>
+</html>
