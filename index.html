@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MRCH - Cotizador Profesional</title>
-<meta name="description" content="Sistema profesional de cotizaciones para servicios de corte láser, DTF, DTF UV, sublimado y cortadores de galleta 3D">
+<meta name="description" content="Sistema profesional de cotizaciones para servicios de corte láser, DTF, DTF UV, sublimado, cortadores de galleta, pines e impresión 3D">
 
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -16,7 +16,7 @@
 <script type="text/plain" id="app-source">
 const { useState, useMemo, useEffect } = React;
 
-/* ===================== DATOS BASE (simulan NocoDB) ===================== */
+/* ===================== DATOS TÉCNICOS FIJOS (no son precios) ===================== */
 const DISENOS_DTF = {
   "Espalda Full Size":      { Hombre: { S:[28,39], M:[29,41], L:[33,43], XL:[35,45] }, Mujer: { S:[26,37], M:[28,39], L:[31,42], XL:[33,43] } },
   "Espalda Mediano":        { Hombre: { S:[25,34], M:[26,35], L:[28,36], XL:[29,37] }, Mujer: { S:[23,32], M:[24,33], L:[26,24], XL:[27,36] } },
@@ -27,49 +27,102 @@ const DISENOS_DTF = {
   "Frontal Cuadro Chico":   { Hombre: { S:[15,15], M:[16,16], L:[17,17], XL:[19,19] }, Mujer: { S:[14,14], M:[15,15], L:[16,16], XL:[18,18] } },
   "Frontal Logo":           { Hombre: { S:[5,7],   M:[5,8],   L:[6,9],   XL:[7,9]   }, Mujer: { S:[5,7],   M:[5,8],   L:[6,9],   XL:[7,9]   } },
 };
-const SUSTRATOS_DTF = { "Playera básica 32702": 65, "Playera premium 3440": 95, "Tote bag negra": 29.5, "Tote bag café": 26.2 };
-const OBJETOS_UV = {
-  "Vaso de vidrio": { sustrato: 18, w: 24, h: 9 },
-  "Termo 1 lt":     { sustrato: 95, w: 30, h: 22 },
-  "Termo 500ml":    { sustrato: 75, w: 24, h: 18 },
-  "Personalizado":  { sustrato: 0,  w: 10, h: 10 },
-};
-const SUBLI_PRODUCTOS = {
-  "Taza 11oz":      { sustrato: 18.73, w: 9.5, h: 21, continuo: false },
-  "Llavero":        { sustrato: 4,     w: 5,   h: 5,  continuo: false },
-  "Lanyard":        { sustrato: 8,     w: 2,   h: 90, continuo: false },
-  "Listón (por m)": { sustrato: 0,     ancho: 2.5, continuo: true },
-  "Solo impresión": { sustrato: 0,     w: 10,  h: 10, continuo: false },
-};
+const PACK_TALLA = { S: 2.5, M: 2.5, L: 3.5, XL: 3.5 };
 const TIERS = { "Cliente final": 0.65, "Amigo": 0.35, "Familia": 0.18, "Revendedor": 0.25 };
 const EMOJI_TIER = { "Cliente final": "👤", "Amigo": "🤝", "Familia": "👨‍👩‍👧", "Revendedor": "🏪" };
-const CFG = {
-  dtfPrecioMetro: 240, dtfAnchoCm: 60,
-  uvPrecioMetro: 350,  uvAnchoCm: 30,
-  subliMetro: 150, subliArea: 11000,
-  planchado: 25, manipProporc: 20, disenoSencillo: 15, disenoComplejo: 40, tarifaHr: 250, anticipoPct: 0.5,
-};
-const PACK_TALLA = { S: 2.5, M: 2.5, L: 3.5, XL: 3.5 };
-const MAT_LASER = [
-  { n: "MDF 3mm (40×40)", c: 12.22 }, { n: "Caobilla 3mm (40×40)", c: 12.78 }, { n: "Dije militar metálico", c: 31.10 },
-  { n: "Plato perro grande", c: 85.47 }, { n: "Termo 500ml azul", c: 87.50 }, { n: "Termo 500ml negro", c: 75.00 },
-  { n: "Termo digital 500ml", c: 57.45 }, { n: "Placa perro aluminio", c: 7.45 },
-];
-const CORTADORES = [
-  { rango: "5–6 cm", base: 50, desc: null }, { rango: "7–8 cm", base: 70, desc: { min: 4, precio: 60 } },
-  { rango: "9–11 cm", base: 85, desc: { min: 3, precio: 75 } }, { rango: "15 cm", base: 120, desc: { min: 3, precio: 110 } },
-];
-const DTF_CM2 = CFG.dtfPrecioMetro / (CFG.dtfAnchoCm * 100);
-const UV_CM2 = CFG.uvPrecioMetro / (CFG.uvAnchoCm * 100);
+const HOURS_PER_MONTH = 240; // 30 días × 8 horas
 
 const fmt = (n) => "$" + (n || 0).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const precio = (costo, pct, modo) => (modo === "venta" ? costo / (1 - pct) : costo * (1 + pct));
 let _id = 0; const nid = () => ++_id;
+const hoy = () => new Date().toLocaleDateString("es-MX");
+const FECHA_INICIAL = hoy();
 
 const SERVICIOS = {
-  DTF: { nombre: "DTF", color: "#E91E8C", icono: "👕" }, SUBLI: { nombre: "Sublimación", color: "#0FA3B1", icono: "☕" },
-  LASER: { nombre: "Láser", color: "#F4561D", icono: "🔥" }, UV: { nombre: "DTF UV", color: "#7B5CFF", icono: "✨" },
+  DTF: { nombre: "DTF", color: "#E91E8C", icono: "👕" },
+  SUBLI: { nombre: "Sublimación", color: "#0FA3B1", icono: "☕" },
+  LASER: { nombre: "Láser", color: "#F4561D", icono: "🔥" },
+  UV: { nombre: "DTF UV", color: "#7B5CFF", icono: "✨" },
   TRESD: { nombre: "Cortadores", color: "#2EA84F", icono: "🍪" },
+  PINES: { nombre: "Pines", color: "#C2410C", icono: "📌" },
+  IMP3D: { nombre: "Impresión 3D", color: "#0EA5E9", icono: "🖨️" },
+};
+
+/* ===================== VALORES INICIALES DE INSUMOS (editables luego en la pestaña Insumos) ===================== */
+const DEFAULT_MATERIALES = {
+  laser: [
+    { id: 1, nombre: "MDF 3mm (40×40)", precio: 12.22, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: 2, nombre: "Caobilla 3mm (40×40)", precio: 12.78, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: 3, nombre: "Dije militar metálico", precio: 31.10, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: 4, nombre: "Plato perro grande", precio: 85.47, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: 5, nombre: "Termo 500ml azul", precio: 87.50, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: 6, nombre: "Termo 500ml negro", precio: 75.00, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: 7, nombre: "Termo digital 500ml", precio: 57.45, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: 8, nombre: "Placa perro aluminio", precio: 7.45, unidad: "pieza", mod: FECHA_INICIAL },
+  ],
+  dtf: [
+    { id: 1, nombre: "Playera básica 32702", precio: 65, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: 2, nombre: "Playera premium 3440", precio: 95, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: 3, nombre: "Tote bag negra", precio: 29.5, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: 4, nombre: "Tote bag café", precio: 26.2, unidad: "pieza", mod: FECHA_INICIAL },
+  ],
+  uv: [
+    { id: 1, nombre: "Vaso de vidrio", precio: 18, w: 24, h: 9, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: 2, nombre: "Termo 1 lt", precio: 95, w: 30, h: 22, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: 3, nombre: "Termo 500ml", precio: 75, w: 24, h: 18, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: 4, nombre: "Personalizado", precio: 0, w: 10, h: 10, unidad: "pieza", mod: FECHA_INICIAL },
+  ],
+  sublimado: [
+    { id: 1, nombre: "Taza 11oz", precio: 18.73, w: 9.5, h: 21, continuo: false, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: 2, nombre: "Llavero", precio: 4, w: 5, h: 5, continuo: false, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: 3, nombre: "Lanyard", precio: 8, w: 2, h: 90, continuo: false, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: 4, nombre: "Listón (por m)", precio: 0, ancho: 2.5, continuo: true, unidad: "metro", mod: FECHA_INICIAL },
+    { id: 5, nombre: "Solo impresión", precio: 0, w: 10, h: 10, continuo: false, unidad: "pieza", mod: FECHA_INICIAL },
+  ],
+  filamento3d: [
+    { id: 1, nombre: "PETG Violeta", precio: 259, unidad: "kg", mod: FECHA_INICIAL },
+    { id: 2, nombre: "PETG Rosa", precio: 262.48, unidad: "kg", mod: FECHA_INICIAL },
+    { id: 3, nombre: "PLA Mármol", precio: 242.59, unidad: "kg", mod: FECHA_INICIAL },
+    { id: 4, nombre: "PLA Blanco", precio: 298, unidad: "kg", mod: FECHA_INICIAL },
+    { id: 5, nombre: "PLA Blanco Mate", precio: 271, unidad: "kg", mod: FECHA_INICIAL },
+    { id: 6, nombre: "PLA Negro Xolo", precio: 298, unidad: "kg", mod: FECHA_INICIAL },
+  ],
+};
+
+const DEFAULT_PRECIOS_FIJOS = {
+  cortadores: [
+    { id: 1, rango: "5–6 cm", base: 50, descMin: null, descPrecio: null, mod: FECHA_INICIAL },
+    { id: 2, rango: "7–8 cm", base: 70, descMin: 4, descPrecio: 60, mod: FECHA_INICIAL },
+    { id: 3, rango: "9–11 cm", base: 85, descMin: 3, descPrecio: 75, mod: FECHA_INICIAL },
+    { id: 4, rango: "15 cm", base: 120, descMin: 3, descPrecio: 110, mod: FECHA_INICIAL },
+  ],
+  pines: [
+    { id: 1, rango: "1–9 pz", min: 1, precioPz: 12, mod: FECHA_INICIAL },
+    { id: 2, rango: "10–49 pz", min: 10, precioPz: 10, mod: FECHA_INICIAL },
+    { id: 3, rango: "50–79 pz", min: 50, precioPz: 9, mod: FECHA_INICIAL },
+    { id: 4, rango: "80–100 pz", min: 80, precioPz: 8, mod: FECHA_INICIAL },
+  ],
+};
+
+const DEFAULT_CONFIG_PRODUCCION = {
+  dtfPrecioMetro: 240, dtfAnchoCm: 60,
+  uvPrecioMetro: 350, uvAnchoCm: 30,
+  subliMetro: 150, subliArea: 11000,
+  tiempoPlanchadoMin: 6,
+  manipProporc: 20,
+  disenoSencilloMin: 15,
+  disenoComplejoMin: 40,
+  mod: FECHA_INICIAL,
+};
+
+const DEFAULT_COSTOS_OPERATIVOS = { renta: 12250, luz: 1123, agua: 100, internet: 899, gasolina: 1800, mod: FECHA_INICIAL };
+const DEFAULT_COSTO_MAQUINAS = { cnc: 9611.20, impresora3d: 223.42, mod: FECHA_INICIAL };
+const DEFAULT_MANO_OBRA = { tarifaHr: 250, mod: FECHA_INICIAL };
+
+const POST_PROCESO_3D = {
+  ninguno: { min: 0, label: "Ninguno" },
+  basico: { min: 15, label: "Básico (soportes + lijado)" },
+  avanzado: { min: 45, label: "Avanzado (lijado fino + pintura)" },
 };
 
 /* ===================== LOCALSTORAGE ===================== */
@@ -95,7 +148,7 @@ function generarTextoTicket(partidas, tier, mults, modoMargen, refPedido) {
   });
   t += `— — — — — — — — —\n`;
   t += `*TOTAL (${tier}): ${fmt(total)}*\n`;
-  t += `Anticipo 50%: ${fmt(total * CFG.anticipoPct)}\n`;
+  t += `Anticipo 50%: ${fmt(total * 0.5)}\n`;
   t += `\n_Precio sujeto a confirmación de medidas y diseño final._`;
   return t;
 }
@@ -110,6 +163,8 @@ const css = `
 .cz-nav{background:#14161D;color:#fff;display:flex;align-items:center;gap:2px;padding:0 12px;overflow-x:auto}
 .cz-tab{background:none;border:none;color:#9AA0AE;padding:14px 12px 11px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;border-bottom:3px solid transparent;white-space:nowrap}
 .cz-tab.on{color:#fff;border-color:#F4561D}
+.cz-extra{margin-left:auto;color:#9AA0AE;text-decoration:none;font-size:13px;font-weight:600;padding:8px 12px;border:1px solid #2A2E3A;border-radius:8px;white-space:nowrap}
+.cz-extra:hover{color:#fff;border-color:#F4561D}
 .cz-card{background:#fff;border-radius:10px;padding:16px;box-shadow:0 1px 3px rgba(20,22,29,.08)}
 .cz-in{width:100%;border:1.5px solid #D8DBE0;border-radius:8px;padding:9px 10px;font-size:14px;background:#fff}
 .cz-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#7B8290;margin-bottom:4px;display:block}
@@ -126,6 +181,8 @@ const css = `
 .imp{display:flex;align-items:center;gap:8px;padding:7px 9px;background:#F6F7F9;border-radius:7px;margin-bottom:6px;font-size:13px}
 .preview{background:#FFF4EE;border:1.5px dashed #F4A26155;border-radius:8px;padding:10px 12px;margin-top:12px;font-size:13px}
 .refbox{background:#14161D;color:#fff;border-radius:6px;padding:6px 10px;text-align:center;font-weight:600;margin:2px 0 6px;font-family:'Barlow Condensed',sans-serif;letter-spacing:.05em;font-size:15px;text-transform:uppercase}
+.insumo-row{display:flex;gap:8px;align-items:center;border-bottom:1px solid #EEF0F2;padding-bottom:8px;flex-wrap:wrap}
+.insumo-mod{font-size:10px;color:#9AA0AE;white-space:nowrap}
 @media(max-width:880px){.cz-grid{grid-template-columns:1fr!important}}
 `;
 
@@ -142,9 +199,9 @@ function PieForm({ costo, desc, onAdd, color, fijo }) {
 }
 
 /* ===================== FORM: DTF (multi-impresión) ===================== */
-function FormDTF({ onAdd }) {
+function FormDTF({ onAdd, materialesDTF, configProduccion, tarifaHr }) {
   const disenos = Object.keys(DISENOS_DTF);
-  const [sustrato, setSustrato] = useState("Playera básica 32702");
+  const [sustrato, setSustrato] = useState((materialesDTF[0] && materialesDTF[0].nombre) || "");
   const [genero, setGenero] = useState("Hombre");
   const [talla, setTalla] = useState("M");
   const [cant, setCant] = useState(10);
@@ -154,21 +211,25 @@ function FormDTF({ onAdd }) {
   const medidaDe = (imp) => (imp.custom ? [Number(imp.w), Number(imp.h)] : DISENOS_DTF[imp.diseno][genero][talla]);
 
   const r = useMemo(() => {
-    const costoSus = SUSTRATOS_DTF[sustrato]; let costoImp = 0;
+    const matObj = materialesDTF.find((m) => m.nombre === sustrato) || materialesDTF[0] || { precio: 0 };
+    const costoSus = matObj.precio;
+    const DTF_CM2 = configProduccion.dtfPrecioMetro / (configProduccion.dtfAnchoCm * 100);
+    let costoImp = 0;
     imps.forEach((imp) => { const [w, h] = medidaDe(imp); costoImp += Math.ceil(w * h) * DTF_CM2; });
     const pack = PACK_TALLA[talla] || 2.5;
-    const porPieza = costoSus + costoImp + CFG.planchado * imps.length + pack;
-    let manip = CFG.manipProporc;
-    if (tipoDiseno === "sencillo") manip = (CFG.disenoSencillo / 60) * CFG.tarifaHr;
-    if (tipoDiseno === "complejo") manip = (CFG.disenoComplejo / 60) * CFG.tarifaHr;
+    const costoPlanchado = (Number(configProduccion.tiempoPlanchadoMin) / 60) * tarifaHr;
+    const porPieza = costoSus + costoImp + costoPlanchado * imps.length + pack;
+    let manip = Number(configProduccion.manipProporc);
+    if (tipoDiseno === "sencillo") manip = (Number(configProduccion.disenoSencilloMin) / 60) * tarifaHr;
+    if (tipoDiseno === "complejo") manip = (Number(configProduccion.disenoComplejoMin) / 60) * tarifaHr;
     const ubic = imps.map((i) => (i.custom ? "pers." : i.diseno.replace("Frontal ", "").replace("Espalda ", "Esp."))).join(" + ");
     return { costo: porPieza * cant + manip, cant, desc: `${sustrato} (${talla}) · ${ubic}` };
-  }, [sustrato, genero, talla, cant, tipoDiseno, imps]);
+  }, [sustrato, genero, talla, cant, tipoDiseno, imps, materialesDTF, configProduccion, tarifaHr]);
 
   return (
     <>
       <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 8 }}>
-        <div><label className="cz-lbl">Sustrato</label><select className="cz-in" value={sustrato} onChange={(e) => setSustrato(e.target.value)}>{Object.keys(SUSTRATOS_DTF).map((s) => <option key={s}>{s}</option>)}</select></div>
+        <div><label className="cz-lbl">Sustrato</label><select className="cz-in" value={sustrato} onChange={(e) => setSustrato(e.target.value)}>{materialesDTF.map((s) => <option key={s.id}>{s.nombre}</option>)}</select></div>
         <div><label className="cz-lbl">Cantidad</label><input className="cz-in" type="number" value={cant} onChange={(e) => setCant(Number(e.target.value))} /></div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
@@ -204,59 +265,70 @@ function FormDTF({ onAdd }) {
 }
 
 /* ===================== FORM: DTF UV (objetos) ===================== */
-function FormUV({ onAdd }) {
-  const objetos = Object.keys(OBJETOS_UV);
-  const [obj, setObj] = useState(objetos[0]);
-  const [w, setW] = useState(OBJETOS_UV[objetos[0]].w);
-  const [h, setH] = useState(OBJETOS_UV[objetos[0]].h);
-  const [sus, setSus] = useState(OBJETOS_UV[objetos[0]].sustrato);
+function FormUV({ onAdd, materialesUV, configProduccion }) {
+  const primero = materialesUV[0] || { id: 0, w: 10, h: 10, precio: 0 };
+  const [objId, setObjId] = useState(primero.id);
+  const [w, setW] = useState(primero.w);
+  const [h, setH] = useState(primero.h);
+  const [sus, setSus] = useState(primero.precio);
   const [cant, setCant] = useState(1);
-  const cambiarObj = (o) => { setObj(o); setW(OBJETOS_UV[o].w); setH(OBJETOS_UV[o].h); setSus(OBJETOS_UV[o].sustrato); };
+  const cambiarObj = (id) => {
+    const o = materialesUV.find((m) => m.id === Number(id));
+    if (!o) return;
+    setObjId(o.id); setW(o.w); setH(o.h); setSus(o.precio);
+  };
   const r = useMemo(() => {
+    const UV_CM2 = configProduccion.uvPrecioMetro / (configProduccion.uvAnchoCm * 100);
     const area = Math.ceil(Number(w) * Number(h));
     const costo = (Number(sus) + area * UV_CM2) * cant;
-    return { costo, cant, desc: `${obj} · UV ${w}×${h}cm ×${cant}` };
-  }, [obj, w, h, sus, cant]);
+    const objName = (materialesUV.find((m) => m.id === objId) || {}).nombre || "Objeto";
+    return { costo, cant, desc: `${objName} · UV ${w}×${h}cm ×${cant}` };
+  }, [objId, w, h, sus, cant, materialesUV, configProduccion]);
   return (
     <>
       <label className="cz-lbl">Objeto a decorar</label>
-      <select className="cz-in" value={obj} onChange={(e) => cambiarObj(e.target.value)}>{objetos.map((o) => <option key={o}>{o}</option>)}<option disabled>+ Agregar objeto (NocoDB)</option></select>
+      <select className="cz-in" value={objId} onChange={(e) => cambiarObj(e.target.value)}>{materialesUV.map((o) => <option key={o.id} value={o.id}>{o.nombre}</option>)}</select>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginTop: 10 }}>
         <div><label className="cz-lbl">Ancho cm</label><input className="cz-in" type="number" value={w} onChange={(e) => setW(e.target.value)} /></div>
         <div><label className="cz-lbl">Alto cm</label><input className="cz-in" type="number" value={h} onChange={(e) => setH(e.target.value)} /></div>
         <div><label className="cz-lbl">Sustrato $</label><input className="cz-in" type="number" value={sus} onChange={(e) => setSus(e.target.value)} /></div>
         <div><label className="cz-lbl">Cantidad</label><input className="cz-in" type="number" value={cant} onChange={(e) => setCant(Number(e.target.value))} /></div>
       </div>
-      <div style={{ fontSize: 12, color: "#7B8290", marginTop: 8 }}>Área "full wrap" precargada por objeto · editable. Film UV: ${UV_CM2.toFixed(3)}/cm² <b>(placeholder)</b>.</div>
-      <PieForm costo={r.costo} desc={`${obj} ×${cant}`} onAdd={() => onAdd(r)} color={SERVICIOS.UV.color} />
+      <div style={{ fontSize: 12, color: "#7B8290", marginTop: 8 }}>Área "full wrap" precargada por objeto · editable. Film UV: ${(configProduccion.uvPrecioMetro / (configProduccion.uvAnchoCm * 100)).toFixed(3)}/cm².</div>
+      <PieForm costo={r.costo} desc={`${(materialesUV.find((m) => m.id === objId) || {}).nombre || ""} ×${cant}`} onAdd={() => onAdd(r)} color={SERVICIOS.UV.color} />
     </>
   );
 }
 
 /* ===================== FORM: SUBLIMACIÓN (flexible) ===================== */
-function FormSubli({ onAdd }) {
-  const prods = Object.keys(SUBLI_PRODUCTOS);
-  const [prod, setProd] = useState("Taza 11oz");
-  const def = SUBLI_PRODUCTOS[prod];
-  const [w, setW] = useState(def.w || 10), [h, setH] = useState(def.h || 10);
-  const [ancho, setAncho] = useState(def.ancho || 2.5);
-  const [cant, setCant] = useState(prod === "Listón (por m)" ? 10 : 12);
-  const [sus, setSus] = useState(def.sustrato);
-  const cambiar = (p) => { const d = SUBLI_PRODUCTOS[p]; setProd(p); setW(d.w || 10); setH(d.h || 10); setAncho(d.ancho || 2.5); setSus(d.sustrato); setCant(d.continuo ? 10 : 12); };
+function FormSubli({ onAdd, materialesSublimado, configProduccion }) {
+  const primero = materialesSublimado[0] || { id: 0, w: 10, h: 10, ancho: 2.5, continuo: false, precio: 0 };
+  const [prodId, setProdId] = useState(primero.id);
+  const [w, setW] = useState(primero.w || 10), [h, setH] = useState(primero.h || 10);
+  const [ancho, setAncho] = useState(primero.ancho || 2.5);
+  const [cant, setCant] = useState(primero.continuo ? 10 : 12);
+  const [sus, setSus] = useState(primero.precio);
+  const cambiar = (id) => {
+    const d = materialesSublimado.find((m) => m.id === Number(id));
+    if (!d) return;
+    setProdId(d.id); setW(d.w || 10); setH(d.h || 10); setAncho(d.ancho || 2.5); setSus(d.precio); setCant(d.continuo ? 10 : 12);
+  };
   const r = useMemo(() => {
-    const continuo = SUBLI_PRODUCTOS[prod].continuo;
+    const prod = materialesSublimado.find((m) => m.id === prodId) || primero;
+    const continuo = prod.continuo;
     const areaUnit = continuo ? Number(ancho) * 100 : Number(w) * Number(h);
     const areaTot = areaUnit * cant;
-    const costoImp = (areaTot / CFG.subliArea) * CFG.subliMetro;
+    const costoImp = (areaTot / configProduccion.subliArea) * configProduccion.subliMetro;
     const costo = Number(sus) * cant + costoImp;
     const u = continuo ? `${cant}m × ${ancho}cm` : `${w}×${h}cm ×${cant}`;
-    return { costo, cant, desc: `${prod} · ${u}` };
-  }, [prod, w, h, ancho, cant, sus]);
-  const continuo = def.continuo;
+    return { costo, cant, desc: `${prod.nombre || ""} · ${u}` };
+  }, [prodId, w, h, ancho, cant, sus, materialesSublimado, configProduccion]);
+  const prodActual = materialesSublimado.find((m) => m.id === prodId) || primero;
+  const continuo = prodActual.continuo;
   return (
     <>
       <label className="cz-lbl">Producto</label>
-      <select className="cz-in" value={prod} onChange={(e) => cambiar(e.target.value)}>{prods.map((p) => <option key={p}>{p}</option>)}<option disabled>+ Agregar producto (NocoDB)</option></select>
+      <select className="cz-in" value={prodId} onChange={(e) => cambiar(e.target.value)}>{materialesSublimado.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select>
       {continuo ? (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 10 }}>
           <div><label className="cz-lbl">Metros</label><input className="cz-in" type="number" value={cant} onChange={(e) => setCant(Number(e.target.value))} /></div>
@@ -271,60 +343,63 @@ function FormSubli({ onAdd }) {
           <div><label className="cz-lbl">Sustrato $</label><input className="cz-in" type="number" value={sus} onChange={(e) => setSus(e.target.value)} /></div>
         </div>
       )}
-      <div style={{ fontSize: 12, color: "#7B8290", marginTop: 8 }}>Impresión proporcional a tu hoja de $150/m (área 11,000 cm²). El listón calcula el transfer que gastas por metro.</div>
+      <div style={{ fontSize: 12, color: "#7B8290", marginTop: 8 }}>Impresión proporcional a tu hoja de sublimación (ver Insumos → Producción). El listón calcula el transfer que gastas por metro.</div>
       <PieForm costo={r.costo} desc={r.desc} onAdd={() => onAdd(r)} color={SERVICIOS.SUBLI.color} />
     </>
   );
 }
 
 /* ===================== FORM: LÁSER ===================== */
-function FormLaser({ onAdd }) {
-  const [matIdx, setMatIdx] = useState(4), [cant, setCant] = useState(1), [minMaquina, setMinMaquina] = useState(8);
+function FormLaser({ onAdd, materialesLaser, costosPorHora, tarifaHr }) {
+  const [matIdx, setMatIdx] = useState(Math.min(4, materialesLaser.length - 1)), [cant, setCant] = useState(1), [minMaquina, setMinMaquina] = useState(8);
   const [disenoPropio, setDisenoPropio] = useState(false), [minDiseno, setMinDiseno] = useState(10);
   const r = useMemo(() => {
-    const mat = MAT_LASER[matIdx];
-    const costo = mat.c * cant + (Number(minMaquina) / 60) * 18 * cant + (disenoPropio ? (Number(minDiseno) / 60) * CFG.tarifaHr : 0);
-    return { costo, cant, desc: `${mat.n} ×${cant}${disenoPropio ? " (diseño propio)" : ""}` };
-  }, [matIdx, cant, minMaquina, disenoPropio, minDiseno]);
+    const mat = materialesLaser[matIdx] || materialesLaser[0] || { nombre: "", precio: 0 };
+    const costoMaquinaHr = costosPorHora.generalPorHora + costosPorHora.cncPorHora;
+    const costo = mat.precio * cant + (Number(minMaquina) / 60) * costoMaquinaHr * cant + (disenoPropio ? (Number(minDiseno) / 60) * tarifaHr : 0);
+    return { costo, cant, desc: `${mat.nombre} ×${cant}${disenoPropio ? " (diseño propio)" : ""}` };
+  }, [matIdx, cant, minMaquina, disenoPropio, minDiseno, materialesLaser, costosPorHora, tarifaHr]);
   return (
     <>
       <label className="cz-lbl">Material</label>
-      <select className="cz-in" value={matIdx} onChange={(e) => setMatIdx(Number(e.target.value))}>{MAT_LASER.map((m, i) => <option key={i} value={i}>{m.n} — {fmt(m.c)}</option>)}</select>
+      <select className="cz-in" value={matIdx} onChange={(e) => setMatIdx(Number(e.target.value))}>{materialesLaser.map((m, i) => <option key={m.id} value={i}>{m.nombre} — {fmt(m.precio)}</option>)}</select>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
         <div><label className="cz-lbl">Cantidad</label><input className="cz-in" type="number" value={cant} onChange={(e) => setCant(Number(e.target.value))} /></div>
         <div><label className="cz-lbl">Min máquina</label><input className="cz-in" type="number" value={minMaquina} onChange={(e) => setMinMaquina(e.target.value)} /></div>
       </div>
       <label style={{ fontSize: 13, display: "flex", gap: 6, alignItems: "center", marginTop: 12, cursor: "pointer" }}><input type="checkbox" checked={disenoPropio} onChange={(e) => setDisenoPropio(e.target.checked)} /> El diseño lo hago yo (+ mi tiempo)</label>
       {disenoPropio && <div style={{ marginTop: 8 }}><label className="cz-lbl">Min de diseño</label><input className="cz-in" type="number" value={minDiseno} onChange={(e) => setMinDiseno(e.target.value)} /></div>}
+      <div style={{ fontSize: 11, color: "#7B8290", marginTop: 8 }}>Incluye luz/renta/CNC prorrateados: {fmt(costosPorHora.generalPorHora + costosPorHora.cncPorHora)}/hora de máquina.</div>
       <PieForm costo={r.costo} desc={`Láser ×${cant}`} onAdd={() => onAdd(r)} color={SERVICIOS.LASER.color} />
     </>
   );
 }
 
 /* ===================== FORM: CORTADORES DE GALLETA (precio fijo) ===================== */
-function FormCortadores({ onAdd }) {
-  const [idx, setIdx] = useState(2), [cant, setCant] = useState(3), [conSello, setConSello] = useState(true);
+function FormCortadores({ onAdd, cortadores }) {
+  const [idx, setIdx] = useState(Math.min(2, cortadores.length - 1)), [cant, setCant] = useState(3), [conSello, setConSello] = useState(true);
   const r = useMemo(() => {
-    const c = CORTADORES[idx]; let unit = c.base;
-    if (c.desc && cant >= c.desc.min) unit = c.desc.precio;
+    const c = cortadores[idx] || cortadores[0] || { rango: "", base: 0, descMin: null, descPrecio: null };
+    let unit = c.base;
+    if (c.descMin && cant >= c.descMin) unit = c.descPrecio;
     if (!conSello) unit = unit * 0.6;
     let promo = null;
-    if (c.desc) {
-      if (cant < c.desc.min) {
-        const faltan = c.desc.min - cant;
-        let precioProm = c.desc.precio;
+    if (c.descMin) {
+      if (cant < c.descMin) {
+        const faltan = c.descMin - cant;
+        let precioProm = c.descPrecio;
         if (!conSello) precioProm = precioProm * 0.6;
-        promo = `🎁 Agrega ${faltan} pieza${faltan > 1 ? "s" : ""} más y cada una te sale en ${fmt(precioProm)} (llevando ${c.desc.min})`;
+        promo = `🎁 Agrega ${faltan} pieza${faltan > 1 ? "s" : ""} más y cada una te sale en ${fmt(precioProm)} (llevando ${c.descMin})`;
       } else {
         promo = `✅ Ya tienes el mejor precio por volumen: ${fmt(unit)} c/u`;
       }
     }
     return { esFijo: true, precioFijo: unit * cant, cant, desc: `Cortador ${c.rango} ${conSello ? "+sello" : "(solo)"} ×${cant}`, promo };
-  }, [idx, cant, conSello]);
+  }, [idx, cant, conSello, cortadores]);
   return (
     <>
       <label className="cz-lbl">Tamaño</label>
-      <select className="cz-in" value={idx} onChange={(e) => setIdx(Number(e.target.value))}>{CORTADORES.map((c, i) => <option key={i} value={i}>{c.rango} — {fmt(c.base)}{c.desc ? ` (${c.desc.min}+ → ${fmt(c.desc.precio)})` : ""}</option>)}</select>
+      <select className="cz-in" value={idx} onChange={(e) => setIdx(Number(e.target.value))}>{cortadores.map((c, i) => <option key={c.id} value={i}>{c.rango} — {fmt(c.base)}{c.descMin ? ` (${c.descMin}+ → ${fmt(c.descPrecio)})` : ""}</option>)}</select>
       <div style={{ marginTop: 10 }}><label className="cz-lbl">Cantidad</label><input className="cz-in" type="number" value={cant} onChange={(e) => setCant(Number(e.target.value))} /></div>
       <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
         <div className={"tierbox" + (conSello ? " on" : "")} onClick={() => setConSello(true)} style={{ fontSize: 12 }}>Cortador + sello<br /><span className="cz-m" style={{ fontSize: 11, color: "#7B8290" }}>100%</span></div>
@@ -337,8 +412,81 @@ function FormCortadores({ onAdd }) {
   );
 }
 
+/* ===================== FORM: PINES (precio fijo por cantidad) ===================== */
+function FormPines({ onAdd, pines }) {
+  const [cant, setCant] = useState(20);
+  const ordenados = useMemo(() => [...pines].sort((a, b) => a.min - b.min), [pines]);
+  const r = useMemo(() => {
+    const cantNum = Number(cant) || 0;
+    let tier = ordenados[0] || { precioPz: 0, min: 1 };
+    ordenados.forEach((t) => { if (cantNum >= t.min) tier = t; });
+    const unit = tier.precioPz;
+    const idxActual = ordenados.indexOf(tier);
+    const siguiente = ordenados[idxActual + 1];
+    let promo = null;
+    if (siguiente && cantNum < siguiente.min) {
+      const faltan = siguiente.min - cantNum;
+      promo = `🎁 Agrega ${faltan} pin${faltan > 1 ? "es" : ""} más y cada uno te sale en ${fmt(siguiente.precioPz)} (llevando ${siguiente.min})`;
+    } else if (!siguiente && ordenados.length) {
+      promo = `✅ Ya tienes el mejor precio por volumen: ${fmt(unit)} c/u`;
+    }
+    return { esFijo: true, precioFijo: unit * cantNum, cant: cantNum, desc: `Pines metálicos ×${cantNum}`, promo };
+  }, [cant, ordenados]);
+  return (
+    <>
+      <label className="cz-lbl">Cantidad de pines</label>
+      <input className="cz-in" type="number" value={cant} onChange={(e) => setCant(e.target.value)} />
+      <div style={{ fontSize: 11, color: "#7B8290", marginTop: 10, display: "flex", flexDirection: "column", gap: 2 }}>
+        {ordenados.map((t) => <div key={t.id}>{t.rango}: {fmt(t.precioPz)} c/u</div>)}
+      </div>
+      <div style={{ fontSize: 11, color: "#7B8290", marginTop: 8 }}>🎨 Diseño incluido, sin costo extra.</div>
+      {r.promo && <div style={{ fontSize: 12, color: "#2EA84F", marginTop: 8 }}>{r.promo}</div>}
+      <PieForm costo={r.precioFijo} desc={r.desc} onAdd={() => onAdd(r)} color={SERVICIOS.PINES.color} fijo />
+    </>
+  );
+}
+
+/* ===================== FORM: IMPRESIÓN 3D ===================== */
+function FormImpresion3D({ onAdd, filamentos, costosPorHora, tarifaHr }) {
+  const primero = filamentos[0] || { id: 0, nombre: "", precio: 0 };
+  const [filId, setFilId] = useState(primero.id);
+  const [gramos, setGramos] = useState(50);
+  const [horas, setHoras] = useState(2);
+  const [cant, setCant] = useState(1);
+  const [postProceso, setPostProceso] = useState("ninguno");
+  const r = useMemo(() => {
+    const fil = filamentos.find((f) => f.id === filId) || primero;
+    const costoFilamento = (Number(gramos) / 1000) * fil.precio;
+    const costoMaquinaHr = costosPorHora.generalPorHora + costosPorHora.impresora3dPorHora;
+    const costoMaquina = Number(horas) * costoMaquinaHr;
+    const costoPost = (POST_PROCESO_3D[postProceso].min / 60) * tarifaHr;
+    const costoPorPieza = costoFilamento + costoMaquina + costoPost;
+    const cantNum = Number(cant) || 1;
+    return { costo: costoPorPieza * cantNum, cant: cantNum, desc: `${fil.nombre} · ${gramos}g · ${horas}h ×${cantNum}${postProceso !== "ninguno" ? " + acabado" : ""}` };
+  }, [filId, gramos, horas, cant, postProceso, filamentos, costosPorHora, tarifaHr]);
+  return (
+    <>
+      <label className="cz-lbl">Filamento</label>
+      <select className="cz-in" value={filId} onChange={(e) => setFilId(Number(e.target.value))}>{filamentos.map((f) => <option key={f.id} value={f.id}>{f.nombre} — {fmt(f.precio)}/kg</option>)}</select>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 10 }}>
+        <div><label className="cz-lbl">Gramos (pieza)</label><input className="cz-in" type="number" value={gramos} onChange={(e) => setGramos(e.target.value)} /></div>
+        <div><label className="cz-lbl">Horas de impresión</label><input className="cz-in" type="number" value={horas} onChange={(e) => setHoras(e.target.value)} /></div>
+        <div><label className="cz-lbl">Cantidad</label><input className="cz-in" type="number" value={cant} onChange={(e) => setCant(Number(e.target.value))} /></div>
+      </div>
+      <label className="cz-lbl" style={{ marginTop: 12 }}>Post-procesado</label>
+      <div style={{ display: "flex", gap: 8 }}>
+        {Object.entries(POST_PROCESO_3D).map(([k, v]) => (
+          <div key={k} className={"tierbox" + (postProceso === k ? " on" : "")} onClick={() => setPostProceso(k)} style={{ fontSize: 12 }}>{v.label}</div>
+        ))}
+      </div>
+      <div style={{ fontSize: 11, color: "#7B8290", marginTop: 8 }}>Incluye luz/renta/impresora prorrateados: {fmt(costosPorHora.generalPorHora + costosPorHora.impresora3dPorHora)}/hora de impresión.</div>
+      <PieForm costo={r.costo} desc={r.desc} onAdd={() => onAdd(r)} color={SERVICIOS.IMP3D.color} />
+    </>
+  );
+}
+
 /* ===================== VISTA COTIZAR ===================== */
-function VistaCotizar({ mults, modoMargen, clientes, onGuardarHistorial }) {
+function VistaCotizar({ mults, modoMargen, clientes, onGuardarHistorial, insumos }) {
   const [svc, setSvc] = useState("DTF");
   const [tier, setTier] = useState(Object.keys(mults)[0] || "Cliente final");
   const [refPedido, setRefPedido] = useState("");
@@ -348,7 +496,15 @@ function VistaCotizar({ mults, modoMargen, clientes, onGuardarHistorial }) {
   const [guardadoOk, setGuardadoOk] = useState(false);
 
   const add = (p) => { setPartidas((prev) => [...prev, { ...p, id: nid(), servicio: svc, nombre: nombrePartida.trim() }]); setNombrePartida(""); };
-  const forms = { DTF: <FormDTF onAdd={add} />, UV: <FormUV onAdd={add} />, SUBLI: <FormSubli onAdd={add} />, LASER: <FormLaser onAdd={add} />, TRESD: <FormCortadores onAdd={add} /> };
+  const forms = {
+    DTF: <FormDTF onAdd={add} materialesDTF={insumos.materiales.dtf} configProduccion={insumos.configProduccion} tarifaHr={insumos.manoObra.tarifaHr} />,
+    UV: <FormUV onAdd={add} materialesUV={insumos.materiales.uv} configProduccion={insumos.configProduccion} />,
+    SUBLI: <FormSubli onAdd={add} materialesSublimado={insumos.materiales.sublimado} configProduccion={insumos.configProduccion} />,
+    LASER: <FormLaser onAdd={add} materialesLaser={insumos.materiales.laser} costosPorHora={insumos.costosPorHora} tarifaHr={insumos.manoObra.tarifaHr} />,
+    TRESD: <FormCortadores onAdd={add} cortadores={insumos.preciosFijos.cortadores} />,
+    PINES: <FormPines onAdd={add} pines={insumos.preciosFijos.pines} />,
+    IMP3D: <FormImpresion3D onAdd={add} filamentos={insumos.materiales.filamento3d} costosPorHora={insumos.costosPorHora} tarifaHr={insumos.manoObra.tarifaHr} />,
+  };
 
   const total = partidas.reduce((s, p) => s + (p.esFijo ? p.precioFijo : precio(p.costo, mults[tier], modoMargen)), 0);
 
@@ -402,7 +558,7 @@ function VistaCotizar({ mults, modoMargen, clientes, onGuardarHistorial }) {
         </div>
         <div className="cz-card">
           <label className="cz-lbl">Agregar partida — servicio</label>
-          <div style={{ display: "flex", gap: 6 }}>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {Object.entries(SERVICIOS).map(([k, s]) => (
               <button key={k} className={"svc" + (svc === k ? " on" : "")} style={svc === k ? { background: s.color } : {}} onClick={() => setSvc(k)}><span style={{ fontSize: 18 }}>{s.icono}</span>{s.nombre}</button>
             ))}
@@ -460,7 +616,7 @@ function TicketCarrito({ partidas, tier, mults, modoMargen, refPedido, onRemove 
       <div className="trow" style={{ fontWeight: 600, fontSize: 15, background: "#FFF4EE", margin: "0 -6px", padding: "5px 6px", borderRadius: 4 }}><span>TOTAL ({tier})</span><span>{fmt(total)}</span></div>
       <div style={{ marginTop: 6 }}>{Object.keys(mults).filter((t) => t !== tier).map((t) => (<div className="trow" key={t} style={{ color: "#9AA0AE", fontSize: 11 }}><span>{t}</span><span>{fmt(totalCon(t))}</span></div>))}</div>
       <hr className="sep" />
-      <div className="trow" style={{ fontWeight: 600, color: "#F4561D" }}><span>ANTICIPO 50%</span><span>{fmt(total * CFG.anticipoPct)}</span></div>
+      <div className="trow" style={{ fontWeight: 600, color: "#F4561D" }}><span>ANTICIPO 50%</span><span>{fmt(total * 0.5)}</span></div>
       <div style={{ textAlign: "center", fontSize: 9.5, color: "#7B8290", marginTop: 8 }}>Para iniciar producción se requiere el 50% de anticipo.</div>
       <div style={{ textAlign: "center", fontSize: 9, color: "#C7CBD2", marginTop: 10 }}>[ aquí irían tus redes + QR a Linktree ]</div>
     </div>
@@ -638,6 +794,146 @@ function VistaHistorial({ historial, onEliminar, onLimpiar }) {
   );
 }
 
+/* ===================== VISTA INSUMOS ===================== */
+function VistaInsumos({ materiales, setMateriales, preciosFijos, setPreciosFijos, configProduccion, setConfigProduccion, costosOperativos, setCostosOperativos, costoMaquinas, setCostoMaquinas, manoObra, setManoObra, costosPorHora }) {
+  const [categoriaActiva, setCategoriaActiva] = useState("laser");
+  const CATEGORIAS = [
+    ["laser", "🔥 Láser"], ["dtf", "👕 DTF"], ["sublimado", "☕ Sublimado"], ["uv", "✨ DTF UV"], ["filamento3d", "🧵 Filamento 3D"],
+  ];
+
+  const actualizarMaterial = (cat, id, campo, valor) => {
+    setMateriales((prev) => ({ ...prev, [cat]: prev[cat].map((m) => (m.id === id ? { ...m, [campo]: campo === "nombre" ? valor : Number(valor), mod: hoy() } : m)) }));
+  };
+  const eliminarMaterial = (cat, id) => {
+    setMateriales((prev) => ({ ...prev, [cat]: prev[cat].filter((m) => m.id !== id) }));
+  };
+  const agregarMaterial = (cat) => {
+    const nombre = prompt("Nombre del nuevo insumo:");
+    if (!nombre) return;
+    const extra = cat === "uv" || cat === "sublimado" ? { w: 10, h: 10 } : {};
+    setMateriales((prev) => ({ ...prev, [cat]: [...prev[cat], { id: nid(), nombre, precio: 0, unidad: "pieza", ...extra, mod: hoy() }] }));
+  };
+
+  const actualizarCortador = (id, campo, valor) => {
+    setPreciosFijos((prev) => ({ ...prev, cortadores: prev.cortadores.map((c) => (c.id === id ? { ...c, [campo]: campo === "rango" ? valor : (valor === "" ? null : Number(valor)), mod: hoy() } : c)) }));
+  };
+  const actualizarPin = (id, campo, valor) => {
+    setPreciosFijos((prev) => ({ ...prev, pines: prev.pines.map((p) => (p.id === id ? { ...p, [campo]: campo === "rango" ? valor : Number(valor), mod: hoy() } : p)) }));
+  };
+
+  const editarProduccion = (campo, valor) => setConfigProduccion((prev) => ({ ...prev, [campo]: Number(valor), mod: hoy() }));
+  const editarOperativos = (campo, valor) => setCostosOperativos((prev) => ({ ...prev, [campo]: Number(valor), mod: hoy() }));
+  const editarMaquinas = (campo, valor) => setCostoMaquinas((prev) => ({ ...prev, [campo]: Number(valor), mod: hoy() }));
+  const editarManoObra = (campo, valor) => setManoObra((prev) => ({ ...prev, [campo]: Number(valor), mod: hoy() }));
+
+  const totalOperativoMensual = costosOperativos.renta + costosOperativos.luz + costosOperativos.agua + costosOperativos.internet + costosOperativos.gasolina;
+
+  return (
+    <div style={{ maxWidth: 860, display: "flex", flexDirection: "column", gap: 14 }}>
+      <div className="cz-card">
+        <span className="cz-d" style={{ fontSize: 20, fontWeight: 700, textTransform: "uppercase" }}>Materiales</span>
+        <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+          {CATEGORIAS.map(([k, t]) => (
+            <button key={k} className={"svc" + (categoriaActiva === k ? " on" : "")} style={categoriaActiva === k ? { background: "#14161D" } : {}} onClick={() => setCategoriaActiva(k)}>{t}</button>
+          ))}
+        </div>
+        <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+          {materiales[categoriaActiva].map((m) => (
+            <div key={m.id} className="insumo-row">
+              <input className="cz-in" style={{ flex: 2, minWidth: 140 }} value={m.nombre} onChange={(e) => actualizarMaterial(categoriaActiva, m.id, "nombre", e.target.value)} />
+              <input className="cz-in" style={{ flex: 1, minWidth: 80 }} type="number" value={m.precio} onChange={(e) => actualizarMaterial(categoriaActiva, m.id, "precio", e.target.value)} />
+              {m.w !== undefined && <input className="cz-in" style={{ width: 60 }} type="number" title="Ancho cm" value={m.w} onChange={(e) => actualizarMaterial(categoriaActiva, m.id, "w", e.target.value)} />}
+              {m.h !== undefined && <input className="cz-in" style={{ width: 60 }} type="number" title="Alto cm" value={m.h} onChange={(e) => actualizarMaterial(categoriaActiva, m.id, "h", e.target.value)} />}
+              <span className="insumo-mod">Mod: {m.mod}</span>
+              <button onClick={() => eliminarMaterial(categoriaActiva, m.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 16 }}>×</button>
+            </div>
+          ))}
+        </div>
+        <button className="cz-btn" style={{ marginTop: 10 }} onClick={() => agregarMaterial(categoriaActiva)}>+ Agregar insumo</button>
+      </div>
+
+      <div className="cz-card">
+        <span className="cz-d" style={{ fontSize: 18, fontWeight: 700, textTransform: "uppercase" }}>Precios fijos — Cortadores de galleta</span>
+        <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+          {preciosFijos.cortadores.map((c) => (
+            <div key={c.id} className="insumo-row">
+              <input className="cz-in" style={{ flex: 1, minWidth: 90 }} value={c.rango} onChange={(e) => actualizarCortador(c.id, "rango", e.target.value)} />
+              <div style={{ flex: 1, minWidth: 90 }}><label className="cz-lbl" style={{ margin: 0 }}>Precio +sello</label><input className="cz-in" type="number" value={c.base} onChange={(e) => actualizarCortador(c.id, "base", e.target.value)} /></div>
+              <div style={{ flex: 1, minWidth: 90 }}><label className="cz-lbl" style={{ margin: 0 }}>Desde (pz)</label><input className="cz-in" type="number" value={c.descMin === null ? "" : c.descMin} onChange={(e) => actualizarCortador(c.id, "descMin", e.target.value)} /></div>
+              <div style={{ flex: 1, minWidth: 90 }}><label className="cz-lbl" style={{ margin: 0 }}>Precio volumen</label><input className="cz-in" type="number" value={c.descPrecio === null ? "" : c.descPrecio} onChange={(e) => actualizarCortador(c.id, "descPrecio", e.target.value)} /></div>
+              <span className="insumo-mod">Mod: {c.mod}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="cz-card">
+        <span className="cz-d" style={{ fontSize: 18, fontWeight: 700, textTransform: "uppercase" }}>Precios fijos — Pines</span>
+        <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+          {preciosFijos.pines.map((p) => (
+            <div key={p.id} className="insumo-row">
+              <input className="cz-in" style={{ flex: 1, minWidth: 90 }} value={p.rango} onChange={(e) => actualizarPin(p.id, "rango", e.target.value)} />
+              <div style={{ flex: 1, minWidth: 90 }}><label className="cz-lbl" style={{ margin: 0 }}>Desde (pz)</label><input className="cz-in" type="number" value={p.min} onChange={(e) => actualizarPin(p.id, "min", e.target.value)} /></div>
+              <div style={{ flex: 1, minWidth: 90 }}><label className="cz-lbl" style={{ margin: 0 }}>Precio c/u</label><input className="cz-in" type="number" value={p.precioPz} onChange={(e) => actualizarPin(p.id, "precioPz", e.target.value)} /></div>
+              <span className="insumo-mod">Mod: {p.mod}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="cz-card">
+        <span className="cz-d" style={{ fontSize: 18, fontWeight: 700, textTransform: "uppercase" }}>Config de producción</span>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 10 }}>
+          <div><label className="cz-lbl">DTF $/metro</label><input className="cz-in" type="number" value={configProduccion.dtfPrecioMetro} onChange={(e) => editarProduccion("dtfPrecioMetro", e.target.value)} /></div>
+          <div><label className="cz-lbl">DTF ancho rollo (cm)</label><input className="cz-in" type="number" value={configProduccion.dtfAnchoCm} onChange={(e) => editarProduccion("dtfAnchoCm", e.target.value)} /></div>
+          <div><label className="cz-lbl">Tiempo planchado (min)</label><input className="cz-in" type="number" value={configProduccion.tiempoPlanchadoMin} onChange={(e) => editarProduccion("tiempoPlanchadoMin", e.target.value)} /></div>
+          <div><label className="cz-lbl">DTF UV film $/metro</label><input className="cz-in" type="number" value={configProduccion.uvPrecioMetro} onChange={(e) => editarProduccion("uvPrecioMetro", e.target.value)} /></div>
+          <div><label className="cz-lbl">DTF UV ancho rollo (cm)</label><input className="cz-in" type="number" value={configProduccion.uvAnchoCm} onChange={(e) => editarProduccion("uvAnchoCm", e.target.value)} /></div>
+          <div><label className="cz-lbl">Manipulación DTF ($)</label><input className="cz-in" type="number" value={configProduccion.manipProporc} onChange={(e) => editarProduccion("manipProporc", e.target.value)} /></div>
+          <div><label className="cz-lbl">Hoja sublimación $/metro</label><input className="cz-in" type="number" value={configProduccion.subliMetro} onChange={(e) => editarProduccion("subliMetro", e.target.value)} /></div>
+          <div><label className="cz-lbl">Área hoja sublimación (cm²)</label><input className="cz-in" type="number" value={configProduccion.subliArea} onChange={(e) => editarProduccion("subliArea", e.target.value)} /></div>
+          <div></div>
+          <div><label className="cz-lbl">Diseño sencillo (min)</label><input className="cz-in" type="number" value={configProduccion.disenoSencilloMin} onChange={(e) => editarProduccion("disenoSencilloMin", e.target.value)} /></div>
+          <div><label className="cz-lbl">Diseño complejo (min)</label><input className="cz-in" type="number" value={configProduccion.disenoComplejoMin} onChange={(e) => editarProduccion("disenoComplejoMin", e.target.value)} /></div>
+        </div>
+        <div className="insumo-mod" style={{ marginTop: 8 }}>Mod: {configProduccion.mod}</div>
+      </div>
+
+      <div className="cz-card">
+        <span className="cz-d" style={{ fontSize: 18, fontWeight: 700, textTransform: "uppercase" }}>Costos operativos generales (mensual)</span>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 8, marginTop: 10 }}>
+          <div><label className="cz-lbl">Renta</label><input className="cz-in" type="number" value={costosOperativos.renta} onChange={(e) => editarOperativos("renta", e.target.value)} /></div>
+          <div><label className="cz-lbl">Luz</label><input className="cz-in" type="number" value={costosOperativos.luz} onChange={(e) => editarOperativos("luz", e.target.value)} /></div>
+          <div><label className="cz-lbl">Agua</label><input className="cz-in" type="number" value={costosOperativos.agua} onChange={(e) => editarOperativos("agua", e.target.value)} /></div>
+          <div><label className="cz-lbl">Internet</label><input className="cz-in" type="number" value={costosOperativos.internet} onChange={(e) => editarOperativos("internet", e.target.value)} /></div>
+          <div><label className="cz-lbl">Gasolina</label><input className="cz-in" type="number" value={costosOperativos.gasolina} onChange={(e) => editarOperativos("gasolina", e.target.value)} /></div>
+        </div>
+        <div style={{ fontSize: 12, color: "#7B8290", marginTop: 10 }}>Total mensual: <b>{fmt(totalOperativoMensual)}</b> · Costo por hora (÷{HOURS_PER_MONTH}h): <b>{fmt(costosPorHora.generalPorHora)}</b></div>
+        <div className="insumo-mod" style={{ marginTop: 4 }}>Mod: {costosOperativos.mod}</div>
+      </div>
+
+      <div className="cz-card">
+        <span className="cz-d" style={{ fontSize: 18, fontWeight: 700, textTransform: "uppercase" }}>Costo por máquina (mensual)</span>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
+          <div><label className="cz-lbl">CNC / Láser</label><input className="cz-in" type="number" value={costoMaquinas.cnc} onChange={(e) => editarMaquinas("cnc", e.target.value)} /></div>
+          <div><label className="cz-lbl">Impresora 3D (amortizada)</label><input className="cz-in" type="number" value={costoMaquinas.impresora3d} onChange={(e) => editarMaquinas("impresora3d", e.target.value)} /></div>
+        </div>
+        <div style={{ fontSize: 12, color: "#7B8290", marginTop: 10 }}>CNC/Láser por hora: <b>{fmt(costosPorHora.cncPorHora)}</b> · Impresora 3D por hora: <b>{fmt(costosPorHora.impresora3dPorHora)}</b></div>
+        <div className="insumo-mod" style={{ marginTop: 4 }}>Mod: {costoMaquinas.mod}</div>
+      </div>
+
+      <div className="cz-card">
+        <span className="cz-d" style={{ fontSize: 18, fontWeight: 700, textTransform: "uppercase" }}>Mano de obra</span>
+        <div style={{ maxWidth: 220, marginTop: 10 }}>
+          <label className="cz-lbl">Tarifa por hora ($)</label>
+          <input className="cz-in" type="number" value={manoObra.tarifaHr} onChange={(e) => editarManoObra("tarifaHr", e.target.value)} />
+        </div>
+        <div className="insumo-mod" style={{ marginTop: 8 }}>Mod: {manoObra.mod}</div>
+      </div>
+    </div>
+  );
+}
+
 /* ===================== CONFIG ===================== */
 function VistaConfig({ mults, setMults, modoMargen, setModoMargen }) {
   return (
@@ -669,11 +965,34 @@ function App() {
   const [modoMargen, setModoMargen] = useState(() => loadLS("cz_modoMargen", "markup"));
   const [clientes, setClientes] = useState(() => loadLS("cz_clientes", []));
   const [historial, setHistorial] = useState(() => loadLS("cz_historial", []));
+  const [materiales, setMateriales] = useState(() => loadLS("cz_materiales", DEFAULT_MATERIALES));
+  const [preciosFijos, setPreciosFijos] = useState(() => loadLS("cz_preciosFijos", DEFAULT_PRECIOS_FIJOS));
+  const [configProduccion, setConfigProduccion] = useState(() => loadLS("cz_configProduccion", DEFAULT_CONFIG_PRODUCCION));
+  const [costosOperativos, setCostosOperativos] = useState(() => loadLS("cz_costosOperativos", DEFAULT_COSTOS_OPERATIVOS));
+  const [costoMaquinas, setCostoMaquinas] = useState(() => loadLS("cz_costoMaquinas", DEFAULT_COSTO_MAQUINAS));
+  const [manoObra, setManoObra] = useState(() => loadLS("cz_manoObra", DEFAULT_MANO_OBRA));
 
   useEffect(() => saveLS("cz_mults", mults), [mults]);
   useEffect(() => saveLS("cz_modoMargen", modoMargen), [modoMargen]);
   useEffect(() => saveLS("cz_clientes", clientes), [clientes]);
   useEffect(() => saveLS("cz_historial", historial), [historial]);
+  useEffect(() => saveLS("cz_materiales", materiales), [materiales]);
+  useEffect(() => saveLS("cz_preciosFijos", preciosFijos), [preciosFijos]);
+  useEffect(() => saveLS("cz_configProduccion", configProduccion), [configProduccion]);
+  useEffect(() => saveLS("cz_costosOperativos", costosOperativos), [costosOperativos]);
+  useEffect(() => saveLS("cz_costoMaquinas", costoMaquinas), [costoMaquinas]);
+  useEffect(() => saveLS("cz_manoObra", manoObra), [manoObra]);
+
+  const costosPorHora = useMemo(() => {
+    const generalMensual = costosOperativos.renta + costosOperativos.luz + costosOperativos.agua + costosOperativos.internet + costosOperativos.gasolina;
+    return {
+      generalPorHora: generalMensual / HOURS_PER_MONTH,
+      cncPorHora: costoMaquinas.cnc / HOURS_PER_MONTH,
+      impresora3dPorHora: costoMaquinas.impresora3d / HOURS_PER_MONTH,
+    };
+  }, [costosOperativos, costoMaquinas]);
+
+  const insumos = { materiales, preciosFijos, configProduccion, costosPorHora, manoObra };
 
   const agregarHistorial = (entry) => setHistorial((prev) => [entry, ...prev]);
   const eliminarHistorial = (id) => setHistorial((prev) => prev.filter((h) => h.id !== id));
@@ -687,6 +1006,7 @@ function App() {
     ["inversa", "🔄 Inversa"],
     ["clientes", "👥 Clientes"],
     ["historial", "🕐 Historial"],
+    ["insumos", "📦 Insumos"],
     ["config", "⚙ Config"],
   ];
 
@@ -696,12 +1016,24 @@ function App() {
       <div className="cz-nav">
         <span className="cz-d" style={{ fontSize: 19, fontWeight: 700, color: "#fff", padding: "0 10px 0 4px", whiteSpace: "nowrap" }}>MRCH<span style={{ color: "#F4561D" }}>·</span>COTIZA</span>
         {tabs.map(([k, t]) => <button key={k} className={"cz-tab" + (tab === k ? " on" : "")} onClick={() => setTab(k)}>{t}</button>)}
+        <a className="cz-extra" href="herreria.html">🔧 Herrería</a>
       </div>
       <div style={{ maxWidth: 1060, margin: "0 auto", padding: 16 }}>
-        {tab === "cotizar" && <VistaCotizar mults={mults} modoMargen={modoMargen} clientes={clientes} onGuardarHistorial={agregarHistorial} />}
+        {tab === "cotizar" && <VistaCotizar mults={mults} modoMargen={modoMargen} clientes={clientes} onGuardarHistorial={agregarHistorial} insumos={insumos} />}
         {tab === "inversa" && <VistaInversa mults={mults} modoMargen={modoMargen} />}
         {tab === "clientes" && <VistaClientes clientes={clientes} onAgregar={agregarCliente} onEliminar={eliminarCliente} />}
         {tab === "historial" && <VistaHistorial historial={historial} onEliminar={eliminarHistorial} onLimpiar={limpiarHistorial} />}
+        {tab === "insumos" && (
+          <VistaInsumos
+            materiales={materiales} setMateriales={setMateriales}
+            preciosFijos={preciosFijos} setPreciosFijos={setPreciosFijos}
+            configProduccion={configProduccion} setConfigProduccion={setConfigProduccion}
+            costosOperativos={costosOperativos} setCostosOperativos={setCostosOperativos}
+            costoMaquinas={costoMaquinas} setCostoMaquinas={setCostoMaquinas}
+            manoObra={manoObra} setManoObra={setManoObra}
+            costosPorHora={costosPorHora}
+          />
+        )}
         {tab === "config" && <VistaConfig mults={mults} setMults={setMults} modoMargen={modoMargen} setModoMargen={setModoMargen} />}
       </div>
     </div>

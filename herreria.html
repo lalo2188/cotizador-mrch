@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cortes &amp; Cotiza — Herrería</title>
+<meta name="description" content="Optimizador de cortes de material y cotizador de herrería">
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/plain" id="app-source">
+const { useState, useMemo } = React;
+
+// ---------- Optimización: First Fit Decreasing con kerf ----------
+function optimizar(cortes, largoTramo, kerf) {
+  const piezas = [];
+  cortes.forEach((c, idx) => {
+    const len = Number(c.largo);
+    const qty = Number(c.cantidad);
+    if (!len || !qty || len <= 0 || qty <= 0) return;
+    for (let i = 0; i < qty; i++) piezas.push({ largo: len, etiqueta: c.etiqueta || `Corte ${idx + 1}`, colorIdx: idx });
+  });
+  piezas.sort((a, b) => b.largo - a.largo);
+
+  const tramos = [];
+  const noCaben = [];
+  piezas.forEach((p) => {
+    if (p.largo > largoTramo) { noCaben.push(p); return; }
+    let colocada = false;
+    for (const t of tramos) {
+      if (p.largo <= t.restante) {
+        t.piezas.push(p);
+        t.restante = Math.max(0, t.restante - p.largo - kerf);
+        colocada = true;
+        break;
+      }
+    }
+    if (!colocada) {
+      tramos.push({ restante: Math.max(0, largoTramo - p.largo - kerf), piezas: [p] });
+    }
+  });
+  return { tramos, noCaben };
+}
+
+const PALETA = ["#FF5A1F", "#2563EB", "#059669", "#9333EA", "#D97706", "#DB2777", "#0891B2", "#65A30D", "#7C3AED", "#DC2626"];
+
+const fmtMM = (v) => (v >= 1000 ? `${(v / 1000).toFixed(2)} m` : `${v} mm`);
+const fmtMoney = (v) => `$${v.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+let nextId = 100;
+
+function HerreriaApp() {
+  // ---------- Materiales ----------
+  const [materiales, setMateriales] = useState([
+    {
+      id: 1,
+      nombre: 'PTR 1" cal. 14',
+      largoTramo: 6100,
+      kerf: 3,
+      precioTramo: 320,
+      cortes: [
+        { id: 10, etiqueta: "Poste", largo: 1200, cantidad: 4 },
+        { id: 11, etiqueta: "Travesaño", largo: 800, cantidad: 6 },
+        { id: 12, etiqueta: "Diagonal", largo: 950, cantidad: 4 },
+      ],
+    },
+  ]);
+  const [matActivo, setMatActivo] = useState(1);
+  const [tab, setTab] = useState("cortes");
+
+  // ---------- Cotización ----------
+  const [horas, setHoras] = useState(8);
+  const [tarifaHora, setTarifaHora] = useState(250);
+  const [consumibles, setConsumibles] = useState(150);
+  const [otros, setOtros] = useState(0);
+  const [margen, setMargen] = useState(35);
+  const [conIVA, setConIVA] = useState(false);
+
+  const mat = materiales.find((m) => m.id === matActivo) || materiales[0];
+
+  const resultados = useMemo(() => {
+    const map = {};
+    materiales.forEach((m) => {
+      map[m.id] = optimizar(m.cortes, Number(m.largoTramo) || 0, Number(m.kerf) || 0);
+    });
+    return map;
+  }, [materiales]);
+
+  const res = mat ? resultados[mat.id] : { tramos: [], noCaben: [] };
+
+  const totalMaterial = materiales.reduce((acc, m) => {
+    const r = resultados[m.id];
+    return acc + (r ? r.tramos.length * (Number(m.precioTramo) || 0) : 0);
+  }, 0);
+  const manoObra = (Number(horas) || 0) * (Number(tarifaHora) || 0);
+  const costoDirecto = totalMaterial + manoObra + (Number(consumibles) || 0) + (Number(otros) || 0);
+  const subtotal = costoDirecto * (1 + (Number(margen) || 0) / 100);
+  const iva = conIVA ? subtotal * 0.16 : 0;
+  const total = subtotal + iva;
+
+  const updMat = (id, campo, valor) =>
+    setMateriales((ms) => ms.map((m) => (m.id === id ? { ...m, [campo]: valor } : m)));
+
+  const updCorte = (matId, corteId, campo, valor) =>
+    setMateriales((ms) =>
+      ms.map((m) =>
+        m.id === matId
+          ? { ...m, cortes: m.cortes.map((c) => (c.id === corteId ? { ...c, [campo]: valor } : c)) }
+          : m
+      )
+    );
+
+  const addCorte = (matId) =>
+    setMateriales((ms) =>
+      ms.map((m) =>
+        m.id === matId
+          ? { ...m, cortes: [...m.cortes, { id: nextId++, etiqueta: "", largo: "", cantidad: 1 }] }
+          : m
+      )
+    );
+
+  const delCorte = (matId, corteId) =>
+    setMateriales((ms) =>
+      ms.map((m) => (m.id === matId ? { ...m, cortes: m.cortes.filter((c) => c.id !== corteId) } : m))
+    );
+
+  const addMaterial = () => {
+    const id = nextId++;
+    setMateriales((ms) => [...ms, { id, nombre: "Nuevo material", largoTramo: 6100, kerf: 3, precioTramo: 0, cortes: [] }]);
+    setMatActivo(id);
+  };
+
+  const delMaterial = (id) => {
+    setMateriales((ms) => {
+      const nuevos = ms.filter((m) => m.id !== id);
+      if (matActivo === id && nuevos.length) setMatActivo(nuevos[0].id);
+      return nuevos;
+    });
+  };
+
+  const largoT = Number(mat && mat.largoTramo) || 1;
+  const usadoTotal = res.tramos.reduce((acc, t) => acc + t.piezas.reduce((a, p) => a + p.largo, 0), 0);
+  const materialTotal = res.tramos.length * largoT;
+  const aprovechamiento = materialTotal ? (usadoTotal / materialTotal) * 100 : 0;
+
+  return (
+    <div className="min-h-screen bg-gray-100 text-gray-900" style={{ fontFamily: "'Barlow', system-ui, sans-serif" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+        .display { font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; }
+        .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+        input:focus-visible, button:focus-visible { outline: 2px solid #FF5A1F; outline-offset: 1px; }
+      `}</style>
+
+      {/* Header */}
+      <header className="bg-gray-900 text-white px-4 py-3 sticky top-0 z-10">
+        <div className="max-w-5xl mx-auto flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <span style={{ fontSize: 20 }}>✂️</span>
+            <h1 className="display text-2xl tracking-wide uppercase">Cortes &amp; Cotiza</h1>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex gap-1 bg-gray-800 rounded p-1">
+              <button
+                onClick={() => setTab("cortes")}
+                className={`px-3 py-1 rounded text-sm font-medium ${tab === "cortes" ? "bg-orange-600 text-white" : "text-gray-300"}`}
+              >
+                Cortes
+              </button>
+              <button
+                onClick={() => setTab("cotizacion")}
+                className={`px-3 py-1 rounded text-sm font-medium ${tab === "cotizacion" ? "bg-orange-600 text-white" : "text-gray-300"}`}
+              >
+                Cotización
+              </button>
+            </div>
+            <a href="index.html" className="text-xs text-gray-400 hover:text-white border border-gray-700 rounded px-3 py-1.5">⚡ Cotizador principal</a>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-5xl mx-auto p-4 space-y-4">
+        {tab === "cortes" && mat && (
+          <>
+            {/* Selector de material */}
+            <div className="flex flex-wrap items-center gap-2">
+              {materiales.map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => setMatActivo(m.id)}
+                  className={`px-3 py-1.5 rounded border text-sm font-medium ${
+                    m.id === matActivo ? "bg-gray-900 text-white border-gray-900" : "bg-white border-gray-300 text-gray-700"
+                  }`}
+                >
+                  {m.nombre || "Sin nombre"}
+                </button>
+              ))}
+              <button onClick={addMaterial} className="px-3 py-1.5 rounded border border-dashed border-gray-400 text-sm text-gray-600 flex items-center gap-1">
+                ➕ Material
+              </button>
+            </div>
+
+            {/* Config del material */}
+            <section className="bg-white rounded-lg border border-gray-200 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="display text-lg uppercase tracking-wide text-gray-700 flex items-center gap-2">
+                  <span>📦</span> Material
+                </h2>
+                {materiales.length > 1 && (
+                  <button onClick={() => delMaterial(mat.id)} className="text-gray-400 hover:text-red-600" aria-label="Eliminar material">
+                    🗑️
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <label className="text-xs text-gray-500 col-span-2 sm:col-span-1">
+                  Nombre
+                  <input
+                    value={mat.nombre}
+                    onChange={(e) => updMat(mat.id, "nombre", e.target.value)}
+                    className="mt-1 w-full border border-gray-300 rounded px-2 py-1.5 text-sm text-gray-900"
+                  />
+                </label>
+                <label className="text-xs text-gray-500">
+                  Largo del tramo (mm)
+                  <input
+                    type="number" value={mat.largoTramo}
+                    onChange={(e) => updMat(mat.id, "largoTramo", e.target.value)}
+                    className="mt-1 w-full border border-gray-300 rounded px-2 py-1.5 text-sm mono"
+                  />
+                </label>
+                <label className="text-xs text-gray-500">
+                  Kerf / corte (mm)
+                  <input
+                    type="number" value={mat.kerf}
+                    onChange={(e) => updMat(mat.id, "kerf", e.target.value)}
+                    className="mt-1 w-full border border-gray-300 rounded px-2 py-1.5 text-sm mono"
+                  />
+                </label>
+                <label className="text-xs text-gray-500">
+                  Precio por tramo ($)
+                  <input
+                    type="number" value={mat.precioTramo}
+                    onChange={(e) => updMat(mat.id, "precioTramo", e.target.value)}
+                    className="mt-1 w-full border border-gray-300 rounded px-2 py-1.5 text-sm mono"
+                  />
+                </label>
+              </div>
+            </section>
+
+            {/* Lista de cortes */}
+            <section className="bg-white rounded-lg border border-gray-200 p-4">
+              <h2 className="display text-lg uppercase tracking-wide text-gray-700 mb-3">Lista de cortes</h2>
+              <div className="space-y-2">
+                {mat.cortes.map((c, i) => (
+                  <div key={c.id} className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-sm shrink-0" style={{ background: PALETA[i % PALETA.length] }} />
+                    <input
+                      placeholder="Etiqueta"
+                      value={c.etiqueta}
+                      onChange={(e) => updCorte(mat.id, c.id, "etiqueta", e.target.value)}
+                      className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1.5 text-sm"
+                    />
+                    <input
+                      type="number" placeholder="mm"
+                      value={c.largo}
+                      onChange={(e) => updCorte(mat.id, c.id, "largo", e.target.value)}
+                      className="w-24 border border-gray-300 rounded px-2 py-1.5 text-sm mono text-right"
+                    />
+                    <span className="text-xs text-gray-400">×</span>
+                    <input
+                      type="number" min="1"
+                      value={c.cantidad}
+                      onChange={(e) => updCorte(mat.id, c.id, "cantidad", e.target.value)}
+                      className="w-16 border border-gray-300 rounded px-2 py-1.5 text-sm mono text-right"
+                    />
+                    <button onClick={() => delCorte(mat.id, c.id)} className="text-gray-400 hover:text-red-600" aria-label="Eliminar corte">
+                      🗑️
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => addCorte(mat.id)}
+                className="mt-3 flex items-center gap-1 text-sm font-medium text-orange-700 hover:text-orange-800"
+              >
+                ➕ Agregar corte
+              </button>
+            </section>
+
+            {/* Resumen */}
+            <section className="grid grid-cols-3 gap-3">
+              <div className="bg-gray-900 text-white rounded-lg p-3 text-center">
+                <div className="mono text-2xl font-semibold">{res.tramos.length}</div>
+                <div className="text-xs text-gray-300 uppercase tracking-wide">Tramos a pedir</div>
+              </div>
+              <div className="bg-white border border-gray-200 rounded-lg p-3 text-center">
+                <div className="mono text-2xl font-semibold text-emerald-700">{aprovechamiento.toFixed(1)}%</div>
+                <div className="text-xs text-gray-500 uppercase tracking-wide">Aprovechamiento</div>
+              </div>
+              <div className="bg-white border border-gray-200 rounded-lg p-3 text-center">
+                <div className="mono text-2xl font-semibold text-orange-700">{fmtMoney(res.tramos.length * (Number(mat.precioTramo) || 0))}</div>
+                <div className="text-xs text-gray-500 uppercase tracking-wide">Costo material</div>
+              </div>
+            </section>
+
+            {res.noCaben.length > 0 && (
+              <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
+                {res.noCaben.length} pieza(s) miden más que el tramo ({fmtMM(largoT)}) y no se pueden cortar de este material.
+              </div>
+            )}
+
+            {/* Gráfica de barras: plan de corte */}
+            <section className="bg-white rounded-lg border border-gray-200 p-4">
+              <h2 className="display text-lg uppercase tracking-wide text-gray-700 mb-1">Plan de corte</h2>
+              <p className="text-xs text-gray-500 mb-4">
+                Cada barra es un tramo de {fmtMM(largoT)}. El área gris rayada es sobrante.
+              </p>
+              <div className="space-y-4">
+                {res.tramos.map((t, ti) => {
+                  const sobrante = t.restante;
+                  return (
+                    <div key={ti}>
+                      <div className="flex justify-between text-xs text-gray-500 mb-1">
+                        <span className="font-medium text-gray-700">Tramo {ti + 1}</span>
+                        <span className="mono">sobrante: {fmtMM(Math.round(sobrante))}</span>
+                      </div>
+                      <div className="flex h-9 w-full rounded overflow-hidden border border-gray-300 bg-gray-100">
+                        {t.piezas.map((p, pi) => (
+                          <div
+                            key={pi}
+                            className="flex items-center justify-center text-white text-[10px] mono font-medium border-r border-gray-900/40 shrink-0"
+                            style={{ width: `${(p.largo / largoT) * 100}%`, background: PALETA[p.colorIdx % PALETA.length] }}
+                            title={`${p.etiqueta}: ${p.largo} mm`}
+                          >
+                            {(p.largo / largoT) > 0.07 ? p.largo : ""}
+                          </div>
+                        ))}
+                        <div
+                          className="shrink-0 h-full"
+                          style={{
+                            width: `${(sobrante / largoT) * 100}%`,
+                            background: "repeating-linear-gradient(45deg,#e5e7eb,#e5e7eb 4px,#d1d5db 4px,#d1d5db 8px)",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+                {res.tramos.length === 0 && (
+                  <p className="text-sm text-gray-400">Agrega cortes con largo y cantidad para generar el plan.</p>
+                )}
+              </div>
+              {/* Leyenda */}
+              {mat.cortes.length > 0 && (
+                <div className="flex flex-wrap gap-3 mt-4 pt-3 border-t border-gray-100">
+                  {mat.cortes.map((c, i) => (
+                    <span key={c.id} className="flex items-center gap-1.5 text-xs text-gray-600">
+                      <span className="w-3 h-3 rounded-sm" style={{ background: PALETA[i % PALETA.length] }} />
+                      {c.etiqueta || `Corte ${i + 1}`} · <span className="mono">{c.largo || 0} mm × {c.cantidad || 0}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </section>
+          </>
+        )}
+
+        {tab === "cotizacion" && (
+          <>
+            <section className="bg-white rounded-lg border border-gray-200 p-4">
+              <h2 className="display text-lg uppercase tracking-wide text-gray-700 mb-3 flex items-center gap-2">
+                <span>🧮</span> Parámetros
+              </h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <label className="text-xs text-gray-500">
+                  Horas de trabajo
+                  <input type="number" value={horas} onChange={(e) => setHoras(e.target.value)}
+                    className="mt-1 w-full border border-gray-300 rounded px-2 py-1.5 text-sm mono" />
+                </label>
+                <label className="text-xs text-gray-500">
+                  Tarifa por hora ($)
+                  <input type="number" value={tarifaHora} onChange={(e) => setTarifaHora(e.target.value)}
+                    className="mt-1 w-full border border-gray-300 rounded px-2 py-1.5 text-sm mono" />
+                </label>
+                <label className="text-xs text-gray-500">
+                  Consumibles ($)
+                  <input type="number" value={consumibles} onChange={(e) => setConsumibles(e.target.value)}
+                    className="mt-1 w-full border border-gray-300 rounded px-2 py-1.5 text-sm mono" />
+                </label>
+                <label className="text-xs text-gray-500">
+                  Otros costos ($)
+                  <input type="number" value={otros} onChange={(e) => setOtros(e.target.value)}
+                    className="mt-1 w-full border border-gray-300 rounded px-2 py-1.5 text-sm mono" />
+                </label>
+                <label className="text-xs text-gray-500">
+                  Margen (%)
+                  <input type="number" value={margen} onChange={(e) => setMargen(e.target.value)}
+                    className="mt-1 w-full border border-gray-300 rounded px-2 py-1.5 text-sm mono" />
+                </label>
+                <label className="text-xs text-gray-500 flex items-end gap-2 pb-1.5">
+                  <input type="checkbox" checked={conIVA} onChange={(e) => setConIVA(e.target.checked)} className="w-4 h-4 accent-orange-600" />
+                  <span className="text-sm text-gray-700">Agregar IVA 16%</span>
+                </label>
+              </div>
+            </section>
+
+            {/* Desglose */}
+            <section className="bg-white rounded-lg border border-gray-200 p-4">
+              <h2 className="display text-lg uppercase tracking-wide text-gray-700 mb-3">Desglose</h2>
+              <div className="space-y-2 text-sm">
+                {materiales.map((m) => {
+                  const r = resultados[m.id];
+                  const n = r ? r.tramos.length : 0;
+                  return (
+                    <div key={m.id} className="flex justify-between text-gray-600">
+                      <span>{m.nombre} — {n} tramo(s) × {fmtMoney(Number(m.precioTramo) || 0)}</span>
+                      <span className="mono">{fmtMoney(n * (Number(m.precioTramo) || 0))}</span>
+                    </div>
+                  );
+                })}
+                <div className="flex justify-between text-gray-600">
+                  <span>Mano de obra — {horas || 0} h × {fmtMoney(Number(tarifaHora) || 0)}</span>
+                  <span className="mono">{fmtMoney(manoObra)}</span>
+                </div>
+                <div className="flex justify-between text-gray-600">
+                  <span>Consumibles</span><span className="mono">{fmtMoney(Number(consumibles) || 0)}</span>
+                </div>
+                {Number(otros) > 0 && (
+                  <div className="flex justify-between text-gray-600">
+                    <span>Otros</span><span className="mono">{fmtMoney(Number(otros) || 0)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-medium text-gray-800 pt-2 border-t border-gray-200">
+                  <span>Costo directo</span><span className="mono">{fmtMoney(costoDirecto)}</span>
+                </div>
+                <div className="flex justify-between text-gray-600">
+                  <span>Margen ({margen || 0}%)</span><span className="mono">{fmtMoney(subtotal - costoDirecto)}</span>
+                </div>
+                {conIVA && (
+                  <div className="flex justify-between text-gray-600">
+                    <span>IVA 16%</span><span className="mono">{fmtMoney(iva)}</span>
+                  </div>
+                )}
+              </div>
+              <div className="mt-4 bg-gray-900 text-white rounded-lg p-4 flex items-center justify-between">
+                <span className="display uppercase tracking-wide text-lg">Precio al cliente</span>
+                <span className="mono text-2xl font-semibold text-orange-400">{fmtMoney(total)}</span>
+              </div>
+            </section>
+          </>
+        )}
+      </main>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<HerreriaApp />);
+</script>
+<script>
+(function () {
+  var code = document.getElementById("app-source").textContent;
+  var output = Babel.transform(code, { presets: [["react", { runtime: "classic" }]] }).code;
+  var script = document.createElement("script");
+  script.textContent = output;
+  document.body.appendChild(script);
+})();
+</script>
+</body>
+</html>
