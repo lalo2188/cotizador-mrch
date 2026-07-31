@@ -1316,9 +1316,13 @@ function App() {
   const [modoMargen, setModoMargen] = useState(() => loadLS("cz_modoMargen", "markup"));
   const [clientes, setClientes] = useState(() => loadLS("cz_clientes", []));
   const [historial, setHistorial] = useState(() => loadLS("cz_historial", []));
-  const [materiales, setMateriales] = useState(() => loadLS("cz_materiales", DEFAULT_MATERIALES));
+  const [materiales, setMateriales] = useState(() => {
+    const cargado = loadLS("cz_materiales", DEFAULT_MATERIALES);
+    if (!cargado.dtf || !cargado.dtf.some((m) => m.tipo === "escalonado")) cargado.dtf = DEFAULT_MATERIALES.dtf;
+    return cargado;
+  });
   const [preciosFijos, setPreciosFijos] = useState(() => loadLS("cz_preciosFijos", DEFAULT_PRECIOS_FIJOS));
-  const [configProduccion, setConfigProduccion] = useState(() => loadLS("cz_configProduccion", DEFAULT_CONFIG_PRODUCCION));
+  const [configProduccion, setConfigProduccion] = useState(() => ({ ...DEFAULT_CONFIG_PRODUCCION, ...loadLS("cz_configProduccion", DEFAULT_CONFIG_PRODUCCION) }));
   const [costosOperativos, setCostosOperativos] = useState(() => loadLS("cz_costosOperativos", DEFAULT_COSTOS_OPERATIVOS));
   const [costoMaquinas, setCostoMaquinas] = useState(() => loadLS("cz_costoMaquinas", DEFAULT_COSTO_MAQUINAS));
   const [manoObra, setManoObra] = useState(() => loadLS("cz_manoObra", DEFAULT_MANO_OBRA));
