@@ -1256,6 +1256,25 @@ function FavImg({ favorito, imagen, onToggleFav, onSubirImagen, onQuitarImagen, 
   );
 }
 
+function CalcLote({ unidad, onAplicar }) {
+  const [open, setOpen] = useState(false);
+  const [piezas, setPiezas] = useState("");
+  const [total, setTotal] = useState("");
+  const resultado = Number(piezas) > 0 && Number(total) >= 0 ? Number(total) / Number(piezas) : null;
+  const cerrar = () => { setOpen(false); setPiezas(""); setTotal(""); };
+  if (!open) return <button onClick={() => setOpen(true)} title="Calcular costo unitario a partir de un lote comprado" style={{ border: "none", background: "none", color: "#F4561D", cursor: "pointer", fontSize: 11, whiteSpace: "nowrap", padding: 0 }}>🧮 Por lote</button>;
+  return (
+    <span style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap", background: "#FFF4EE", border: "1px dashed #F4A26155", borderRadius: 6, padding: "4px 6px" }}>
+      <input className="cz-in" style={{ width: 62, padding: "4px 6px", fontSize: 11 }} type="number" placeholder={"pz"} autoFocus value={piezas} onChange={(e) => setPiezas(e.target.value)} />
+      <span style={{ fontSize: 11, color: "#7B8290" }}>por $</span>
+      <input className="cz-in" style={{ width: 72, padding: "4px 6px", fontSize: 11 }} type="number" placeholder="total" value={total} onChange={(e) => setTotal(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && resultado != null) { onAplicar(resultado); cerrar(); } if (e.key === "Escape") cerrar(); }} />
+      {resultado != null && <span style={{ fontSize: 11, color: "#2EA84F", fontWeight: 600 }}>= {fmt(resultado)}/{unidad || "u"}</span>}
+      <button className="cz-btn org" style={{ padding: "4px 8px", fontSize: 11 }} disabled={resultado == null} onClick={() => { onAplicar(resultado); cerrar(); }}>Aplicar</button>
+      <button onClick={cerrar} style={{ border: "none", background: "none", color: "#7B8290", cursor: "pointer", fontSize: 11 }}>Cancelar</button>
+    </span>
+  );
+}
+
 /* ===================== VISTA INSUMOS ===================== */
 function VistaInsumos({ materiales, setMateriales, preciosFijos, setPreciosFijos, configProduccion, setConfigProduccion, costosOperativos, setCostosOperativos, costoMaquinas, setCostoMaquinas, manoObra, setManoObra, costosPorHora, catalogoOtros, setCatalogoOtros }) {
   const [categoriaActiva, setCategoriaActiva] = useState("laser");
@@ -1386,6 +1405,7 @@ function VistaInsumos({ materiales, setMateriales, preciosFijos, setPreciosFijos
                     <FavImg favorito={m.favorito} imagen={m.imagen} onToggleFav={() => toggleFavorito("dtf", m.id)} onSubirImagen={(f) => subirImagen("dtf", m.id, f)} onQuitarImagen={() => quitarImagen("dtf", m.id)} />
                     <input className="cz-in" style={{ flex: 2, minWidth: 140 }} value={m.nombre} onChange={(e) => actualizarMaterial("dtf", m.id, "nombre", e.target.value)} />
                     <input className="cz-in" style={{ flex: 1, minWidth: 80 }} type="number" value={m.precio} onChange={(e) => actualizarMaterial("dtf", m.id, "precio", e.target.value)} />
+                    <CalcLote unidad={m.unidad} onAplicar={(v) => actualizarMaterial("dtf", m.id, "precio", v)} />
                     <span className="insumo-mod">Mod: {m.mod}</span>
                     <button onClick={() => eliminarMaterial("dtf", m.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 16 }}>×</button>
                   </div>
@@ -1400,6 +1420,7 @@ function VistaInsumos({ materiales, setMateriales, preciosFijos, setPreciosFijos
                 <input className="cz-in" style={{ flex: 1, minWidth: 80 }} type="number" value={m.precio} onChange={(e) => actualizarMaterial(categoriaActiva, m.id, "precio", e.target.value)} />
                 {m.w !== undefined && <input className="cz-in" style={{ width: 60 }} type="number" title="Ancho cm" value={m.w} onChange={(e) => actualizarMaterial(categoriaActiva, m.id, "w", e.target.value)} />}
                 {m.h !== undefined && <input className="cz-in" style={{ width: 60 }} type="number" title="Alto cm" value={m.h} onChange={(e) => actualizarMaterial(categoriaActiva, m.id, "h", e.target.value)} />}
+                <CalcLote unidad={m.unidad} onAplicar={(v) => actualizarMaterial(categoriaActiva, m.id, "precio", v)} />
                 <span className="insumo-mod">Mod: {m.mod}</span>
                 <button onClick={() => eliminarMaterial(categoriaActiva, m.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 16 }}>×</button>
               </div>
@@ -1444,6 +1465,7 @@ function VistaInsumos({ materiales, setMateriales, preciosFijos, setPreciosFijos
               <input className="cz-in" style={{ flex: 1, minWidth: 90 }} value={p.rango} onChange={(e) => actualizarPin(p.id, "rango", e.target.value)} />
               <div style={{ flex: 1, minWidth: 90 }}><label className="cz-lbl" style={{ margin: 0 }}>Desde (pz)</label><input className="cz-in" type="number" value={p.min} onChange={(e) => actualizarPin(p.id, "min", e.target.value)} /></div>
               <div style={{ flex: 1, minWidth: 90 }}><label className="cz-lbl" style={{ margin: 0 }}>Precio c/u</label><input className="cz-in" type="number" value={p.precioPz} onChange={(e) => actualizarPin(p.id, "precioPz", e.target.value)} /></div>
+              <CalcLote unidad="pieza" onAplicar={(v) => actualizarPin(p.id, "precioPz", v)} />
               <span className="insumo-mod">Mod: {p.mod}</span>
             </div>
           ))}
@@ -1478,10 +1500,11 @@ function VistaInsumos({ materiales, setMateriales, preciosFijos, setPreciosFijos
             <div style={{ fontSize: 11, fontWeight: 700, color: "#7B8290", textTransform: "uppercase", letterSpacing: ".05em" }}>{sub}</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginTop: 6 }}>
               {catalogoOtros[sub].map((o) => (
-                <div key={o.id} style={{ display: "flex", gap: 4, alignItems: "center", fontSize: 12 }}>
+                <div key={o.id} style={{ display: "flex", gap: 4, alignItems: "center", fontSize: 12, flexWrap: "wrap" }}>
                   <FavImg favorito={o.favorito} imagen={o.imagen} size={22} onToggleFav={() => toggleFavoritoOtro(sub, o.id)} onSubirImagen={(f) => subirImagenOtro(sub, o.id, f)} />
                   <span style={{ flex: 1 }}>{o.nombre}</span>
                   <input className="cz-in" style={{ width: 66, padding: "4px 6px", fontSize: 12 }} type="number" value={o.precio} onChange={(e) => actualizarOtro(sub, o.id, e.target.value)} />
+                  <CalcLote unidad="pieza" onAplicar={(v) => actualizarOtro(sub, o.id, v)} />
                 </div>
               ))}
             </div>
