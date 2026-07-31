@@ -34,6 +34,7 @@ const HOURS_PER_MONTH = 240; // 30 días × 8 horas
 
 const fmt = (n) => "$" + (n || 0).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const precio = (costo, pct, modo) => (modo === "venta" ? costo / (1 - pct) : costo * (1 + pct));
+const valorPartida = (p, tier, mults, modoMargen) => (p.precioManual != null ? p.precioManual : (p.esFijo ? p.precioFijo : precio(p.costo, mults[tier], modoMargen)));
 let _id = 0; const nid = () => ++_id;
 const hoy = () => new Date().toLocaleDateString("es-MX");
 const FECHA_INICIAL = hoy();
@@ -135,7 +136,7 @@ function saveLS(key, val) {
 
 /* ===================== TEXTO TICKET (para WhatsApp / guardar / imprimir) ===================== */
 function generarTextoTicket(partidas, tier, mults, modoMargen, refPedido) {
-  const pv = (p) => (p.esFijo ? p.precioFijo : precio(p.costo, mults[tier], modoMargen));
+  const pv = (p) => valorPartida(p, tier, mults, modoMargen);
   const total = partidas.reduce((s, p) => s + pv(p), 0);
   let t = `*EL MERCHENARIO*\n`;
   if (refPedido) t += `📌 ${refPedido}\n`;
@@ -496,6 +497,7 @@ function VistaCotizar({ mults, modoMargen, clientes, onGuardarHistorial, insumos
   const [guardadoOk, setGuardadoOk] = useState(false);
 
   const add = (p) => { setPartidas((prev) => [...prev, { ...p, id: nid(), servicio: svc, nombre: nombrePartida.trim() }]); setNombrePartida(""); };
+  const editarPrecio = (id, valor) => setPartidas((prev) => prev.map((p) => (p.id === id ? { ...p, precioManual: valor } : p)));
   const forms = {
     DTF: <FormDTF onAdd={add} materialesDTF={insumos.materiales.dtf} configProduccion={insumos.configProduccion} tarifaHr={insumos.manoObra.tarifaHr} />,
     UV: <FormUV onAdd={add} materialesUV={insumos.materiales.uv} configProduccion={insumos.configProduccion} />,
@@ -506,7 +508,7 @@ function VistaCotizar({ mults, modoMargen, clientes, onGuardarHistorial, insumos
     IMP3D: <FormImpresion3D onAdd={add} filamentos={insumos.materiales.filamento3d} costosPorHora={insumos.costosPorHora} tarifaHr={insumos.manoObra.tarifaHr} />,
   };
 
-  const total = partidas.reduce((s, p) => s + (p.esFijo ? p.precioFijo : precio(p.costo, mults[tier], modoMargen)), 0);
+  const total = partidas.reduce((s, p) => s + valorPartida(p, tier, mults, modoMargen), 0);
 
   const seleccionarCliente = (id) => {
     setClienteSel(id);
@@ -579,7 +581,7 @@ function VistaCotizar({ mults, modoMargen, clientes, onGuardarHistorial, insumos
         </div>
       </div>
       <div style={{ position: "sticky", top: 12 }}>
-        <TicketCarrito partidas={partidas} tier={tier} mults={mults} modoMargen={modoMargen} refPedido={refPedido} onRemove={(id) => setPartidas(partidas.filter((p) => p.id !== id))} />
+        <TicketCarrito partidas={partidas} tier={tier} mults={mults} modoMargen={modoMargen} refPedido={refPedido} onRemove={(id) => setPartidas(partidas.filter((p) => p.id !== id))} onEditPrice={editarPrecio} />
         {partidas.length > 0 && (<>
           <button className="cz-btn" style={{ width: "100%", marginTop: 10, background: "#25D366" }} onClick={handleWhatsApp}>📲 Enviar por WhatsApp</button>
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
@@ -592,10 +594,36 @@ function VistaCotizar({ mults, modoMargen, clientes, onGuardarHistorial, insumos
   );
 }
 
-function TicketCarrito({ partidas, tier, mults, modoMargen, refPedido, onRemove }) {
-  const pv = (p) => (p.esFijo ? p.precioFijo : precio(p.costo, mults[tier], modoMargen));
+function PrecioPartida({ p, valor, onEdit, onReset }) {
+  const [editando, setEditando] = useState(false);
+  const [val, setVal] = useState(valor);
+  useEffect(() => { if (!editando) setVal(valor); }, [valor, editando]);
+  const guardar = () => {
+    const n = Number(val);
+    if (!isNaN(n) && n >= 0) onEdit(n);
+    setEditando(false);
+  };
+  if (editando) {
+    return (
+      <input className="cz-in" style={{ width: 76, padding: "3px 6px", fontSize: 12 }} type="number" value={val} autoFocus
+        onChange={(e) => setVal(e.target.value)}
+        onFocus={(e) => e.target.select()}
+        onBlur={guardar}
+        onKeyDown={(e) => { if (e.key === "Enter") guardar(); if (e.key === "Escape") setEditando(false); }} />
+    );
+  }
+  return (
+    <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
+      <span onClick={() => setEditando(true)} title="Click para editar precio" style={{ cursor: "pointer", borderBottom: "1px dashed #C7CBD2" }}>{fmt(valor)}</span>
+      {p.precioManual != null && <button onClick={onReset} title="Restaurar precio calculado" style={{ border: "none", background: "none", color: "#7B8290", cursor: "pointer", fontSize: 12, padding: 0 }}>↺</button>}
+    </span>
+  );
+}
+
+function TicketCarrito({ partidas, tier, mults, modoMargen, refPedido, onRemove, onEditPrice }) {
+  const pv = (p) => valorPartida(p, tier, mults, modoMargen);
   const total = partidas.reduce((s, p) => s + pv(p), 0);
-  const totalCon = (t) => partidas.reduce((s, p) => s + (p.esFijo ? p.precioFijo : precio(p.costo, mults[t], modoMargen)), 0);
+  const totalCon = (t) => partidas.reduce((s, p) => s + valorPartida(p, t, mults, modoMargen), 0);
   if (partidas.length === 0) return <div className="ticket"><div style={{ textAlign: "center", color: "#9AA0AE", padding: "30px 10px", fontSize: 13 }}>Agrega partidas y se irán sumando aquí.<br /><br />Ej: vaso + DTF UV full, un listón de 10m, y unas playeras — todo en una cotización.</div></div>;
   return (
     <div className="ticket">
@@ -607,9 +635,13 @@ function TicketCarrito({ partidas, tier, mults, modoMargen, refPedido, onRemove 
         <div key={p.id} style={{ marginBottom: 5 }}>
           <div className="trow">
             <span style={{ display: "flex", gap: 5, alignItems: "center" }}><span>{SERVICIOS[p.servicio].icono}</span><span style={{ maxWidth: 165, fontWeight: p.nombre ? 600 : 400 }}>{p.nombre || p.desc}</span></span>
-            <span style={{ whiteSpace: "nowrap" }}>{fmt(pv(p))} <button onClick={() => onRemove(p.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer" }}>×</button></span>
+            <span style={{ whiteSpace: "nowrap", display: "flex", gap: 6, alignItems: "center" }}>
+              <PrecioPartida p={p} valor={pv(p)} onEdit={(n) => onEditPrice(p.id, n)} onReset={() => onEditPrice(p.id, null)} />
+              <button onClick={() => onRemove(p.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer" }}>×</button>
+            </span>
           </div>
           {p.nombre && <div style={{ fontSize: 10.5, color: "#9AA0AE", paddingLeft: 20 }}>{p.desc}</div>}
+          {p.precioManual != null && <div style={{ fontSize: 9.5, color: "#F4561D", paddingLeft: 20 }}>precio ajustado manualmente</div>}
         </div>
       ))}
       <hr className="sep" />
