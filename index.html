@@ -34,7 +34,8 @@ const HOURS_PER_MONTH = 240; // 30 días × 8 horas
 
 const fmt = (n) => "$" + (n || 0).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const precio = (costo, pct, modo) => (modo === "venta" ? costo / (1 - pct) : costo * (1 + pct));
-const valorPartida = (p, tier, mults, modoMargen) => (p.precioManual != null ? p.precioManual : (p.esFijo ? p.precioFijo : precio(p.costo, mults[tier], modoMargen)));
+const costoEfectivo = (p) => (p.costoManual != null ? p.costoManual : p.costo);
+const valorPartida = (p, tier, mults, modoMargen) => (p.precioManual != null ? p.precioManual : (p.esFijo ? p.precioFijo : precio(costoEfectivo(p), mults[tier], modoMargen)));
 let _id = 0; const nid = () => ++_id;
 const hoy = () => new Date().toLocaleDateString("es-MX");
 const FECHA_INICIAL = hoy();
@@ -252,6 +253,7 @@ const DEFAULT_CONFIG_PRODUCCION = {
   subliMetro: 150, subliArea: 11000,
   tiempoPlanchadoMin: 6,
   manipProporc: 20,
+  manipPzaDTF: 10,
   disenoSencilloMin: 15,
   disenoComplejoMin: 40,
   ivaTextil: 0.16,
@@ -354,6 +356,37 @@ function generarTextoTicket(partidas, tier, mults, modoMargen, refPedido) {
   return t;
 }
 
+function generarTextoTicketInterno(partidas, tier, mults, modoMargen, refPedido) {
+  const pv = (p) => valorPartida(p, tier, mults, modoMargen);
+  const ce = (p) => costoEfectivo(p);
+  const totalCosto = partidas.reduce((s, p) => s + ce(p), 0);
+  const totalPrecio = partidas.reduce((s, p) => s + pv(p), 0);
+  let t = `TICKET INTERNO — USO INTERNO, NO MOSTRAR AL CLIENTE\n`;
+  if (refPedido) t += `Ref: ${refPedido}\n`;
+  t += `${new Date().toLocaleDateString("es-MX")}\n`;
+  t += `================================\n`;
+  partidas.forEach((p) => {
+    const costo = ce(p);
+    const precio = pv(p);
+    const margen = precio - costo;
+    const margenPct = costo > 0 ? (margen / costo) * 100 : 0;
+    t += `${SERVICIOS[p.servicio].icono} ${p.nombre || p.desc}\n`;
+    t += `   ${p.desc} · ${p.cant} pz\n`;
+    if (p.detalle) {
+      p.detalle.porPieza.forEach((d) => { t += `   - ${d.label}: ${fmt(d.valor)}/pz\n`; });
+      p.detalle.unicos.forEach((d) => { t += `   - ${d.label} (único): ${fmt(d.valor)}\n`; });
+    }
+    t += `   Costo total: ${fmt(costo)}${p.costoManual != null ? " (ajustado)" : ""}\n`;
+    t += `   Precio venta (${tier}): ${fmt(precio)}\n`;
+    t += `   Margen: ${fmt(margen)} (${margenPct.toFixed(0)}%)\n\n`;
+  });
+  t += `================================\n`;
+  t += `TOTAL COSTO: ${fmt(totalCosto)}\n`;
+  t += `TOTAL PRECIO (${tier}): ${fmt(totalPrecio)}\n`;
+  t += `MARGEN TOTAL: ${fmt(totalPrecio - totalCosto)} (${totalCosto > 0 ? (((totalPrecio - totalCosto) / totalCosto) * 100).toFixed(0) : 0}%)\n`;
+  return t;
+}
+
 /* ===================== ESTILOS ===================== */
 const css = `
 @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
@@ -444,7 +477,8 @@ function FormDTF({ onAdd, materialesDTF, configProduccion, tarifaHr }) {
     imps.forEach((imp) => { const [w, h] = medidaDe(imp); costoImp += Math.ceil(w * h) * DTF_CM2; });
     const pack = PACK_TALLA[talla] || 2.5;
     const costoPlanchado = (Number(configProduccion.tiempoPlanchadoMin) / 60) * tarifaHr;
-    const porPieza = costoSus + costoImp + costoPlanchado * imps.length + pack;
+    const manipPza = Number(configProduccion.manipPzaDTF) || 0;
+    const porPieza = costoSus + costoImp + costoPlanchado * imps.length + pack + manipPza;
     let manip = Number(configProduccion.manipProporc);
     if (tipoDiseno === "sencillo") manip = (Number(configProduccion.disenoSencilloMin) / 60) * tarifaHr;
     if (tipoDiseno === "complejo") manip = (Number(configProduccion.disenoComplejoMin) / 60) * tarifaHr;
@@ -456,7 +490,17 @@ function FormDTF({ onAdd, materialesDTF, configProduccion, tarifaHr }) {
       else if (tierKey === "t2" && cantNum < 504) promo = `🎁 Agrega ${504 - cantNum} piezas más y el costo de tela baja a ${fmt(color.t3 * (1 + ivaTextil))}/pz (llevando 504)`;
       else if (tierKey === "t3") promo = `✅ Ya tienes el mejor precio de tela por volumen`;
     }
-    return { costo: porPieza * cant + manip, cant, desc: `${nombreSus} (${talla}) · ${ubic}`, promo };
+    const detalle = {
+      porPieza: [
+        { label: "Tela/prenda", valor: costoSus },
+        { label: "Impresión DTF", valor: costoImp },
+        { label: "Planchado", valor: costoPlanchado * imps.length },
+        { label: "Manipulación", valor: manipPza },
+        { label: "Empaque", valor: pack },
+      ],
+      unicos: [{ label: tipoDiseno === "proporcionado" ? "Diseño/revisión" : "Diseño (creación)", valor: manip }],
+    };
+    return { costo: porPieza * cant + manip, cant, desc: `${nombreSus} (${talla}) · ${ubic}`, promo, detalle };
   }, [modeloId, colorIdx, genero, talla, cant, tipoDiseno, imps, materialesDTF, configProduccion, tarifaHr]);
 
   return (
@@ -757,9 +801,11 @@ function VistaCotizar({ mults, modoMargen, clientes, onGuardarHistorial, insumos
   const [nombrePartida, setNombrePartida] = useState("");
   const [partidas, setPartidas] = useState([]);
   const [guardadoOk, setGuardadoOk] = useState(false);
+  const [vistaTicket, setVistaTicket] = useState("cliente");
 
   const add = (p) => { setPartidas((prev) => [...prev, { ...p, id: nid(), servicio: svc, nombre: nombrePartida.trim() }]); setNombrePartida(""); };
   const editarPrecio = (id, valor) => setPartidas((prev) => prev.map((p) => (p.id === id ? { ...p, precioManual: valor } : p)));
+  const editarCosto = (id, valor) => setPartidas((prev) => prev.map((p) => (p.id === id ? { ...p, costoManual: valor } : p)));
   const forms = {
     DTF: <FormDTF onAdd={add} materialesDTF={insumos.materiales.dtf} configProduccion={insumos.configProduccion} tarifaHr={insumos.manoObra.tarifaHr} />,
     UV: <FormUV onAdd={add} materialesUV={insumos.materiales.uv} configProduccion={insumos.configProduccion} />,
@@ -798,6 +844,17 @@ function VistaCotizar({ mults, modoMargen, clientes, onGuardarHistorial, insumos
     const w = window.open("", "_blank", "width=380,height=640");
     if (w) {
       w.document.write(`<pre style="font-family:'IBM Plex Mono',monospace;font-size:12px;white-space:pre-wrap;width:58mm;padding:8px;margin:0;">${texto}</pre>`);
+      w.document.close();
+      w.focus();
+      w.print();
+    }
+  };
+
+  const handleImprimirInterno = () => {
+    const texto = generarTextoTicketInterno(partidas, tier, mults, modoMargen, refPedido);
+    const w = window.open("", "_blank", "width=520,height=720");
+    if (w) {
+      w.document.write(`<pre style="font-family:'IBM Plex Mono',monospace;font-size:12px;white-space:pre-wrap;max-width:480px;padding:16px;margin:0;">${texto}</pre>`);
       w.document.close();
       w.focus();
       w.print();
@@ -843,11 +900,23 @@ function VistaCotizar({ mults, modoMargen, clientes, onGuardarHistorial, insumos
         </div>
       </div>
       <div style={{ position: "sticky", top: 12 }}>
-        <TicketCarrito partidas={partidas} tier={tier} mults={mults} modoMargen={modoMargen} refPedido={refPedido} onRemove={(id) => setPartidas(partidas.filter((p) => p.id !== id))} onEditPrice={editarPrecio} />
-        {partidas.length > 0 && (<>
+        <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+          <button className="cz-btn" style={{ flex: 1, ...(vistaTicket === "cliente" ? { background: "#14161D" } : { background: "#fff", color: "#14161D", border: "1.5px solid #D8DBE0" }) }} onClick={() => setVistaTicket("cliente")}>🎫 Cliente</button>
+          <button className="cz-btn" style={{ flex: 1, ...(vistaTicket === "interno" ? { background: "#14161D" } : { background: "#fff", color: "#14161D", border: "1.5px solid #D8DBE0" }) }} onClick={() => setVistaTicket("interno")}>🔧 Interno</button>
+        </div>
+        {vistaTicket === "cliente"
+          ? <TicketCarrito partidas={partidas} tier={tier} mults={mults} modoMargen={modoMargen} refPedido={refPedido} onRemove={(id) => setPartidas(partidas.filter((p) => p.id !== id))} onEditPrice={editarPrecio} />
+          : <TicketInterno partidas={partidas} tier={tier} mults={mults} modoMargen={modoMargen} refPedido={refPedido} onRemove={(id) => setPartidas(partidas.filter((p) => p.id !== id))} onEditCost={editarCosto} />}
+        {partidas.length > 0 && vistaTicket === "cliente" && (<>
           <button className="cz-btn" style={{ width: "100%", marginTop: 10, background: "#25D366" }} onClick={handleWhatsApp}>📲 Enviar por WhatsApp</button>
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
             <button className="cz-btn" style={{ flex: 1 }} onClick={handleImprimir}>🖨 Ticket 58mm</button>
+            <button className="cz-btn org" style={{ flex: 1 }} onClick={handleGuardar}>{guardadoOk ? "✅ Guardado" : "💾 Guardar"}</button>
+          </div>
+        </>)}
+        {partidas.length > 0 && vistaTicket === "interno" && (<>
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <button className="cz-btn" style={{ flex: 1 }} onClick={handleImprimirInterno}>🖨 Imprimir interno</button>
             <button className="cz-btn org" style={{ flex: 1 }} onClick={handleGuardar}>{guardadoOk ? "✅ Guardado" : "💾 Guardar"}</button>
           </div>
         </>)}
@@ -856,7 +925,7 @@ function VistaCotizar({ mults, modoMargen, clientes, onGuardarHistorial, insumos
   );
 }
 
-function PrecioPartida({ p, valor, onEdit, onReset }) {
+function ValorEditable({ valor, onEdit, onReset, manual, titulo }) {
   const [editando, setEditando] = useState(false);
   const [val, setVal] = useState(valor);
   useEffect(() => { if (!editando) setVal(valor); }, [valor, editando]);
@@ -876,8 +945,8 @@ function PrecioPartida({ p, valor, onEdit, onReset }) {
   }
   return (
     <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
-      <span onClick={() => setEditando(true)} title="Click para editar precio" style={{ cursor: "pointer", borderBottom: "1px dashed #C7CBD2" }}>{fmt(valor)}</span>
-      {p.precioManual != null && <button onClick={onReset} title="Restaurar precio calculado" style={{ border: "none", background: "none", color: "#7B8290", cursor: "pointer", fontSize: 12, padding: 0 }}>↺</button>}
+      <span onClick={() => setEditando(true)} title={titulo || "Click para editar"} style={{ cursor: "pointer", borderBottom: "1px dashed #C7CBD2" }}>{fmt(valor)}</span>
+      {manual && <button onClick={onReset} title="Restaurar valor calculado" style={{ border: "none", background: "none", color: "#7B8290", cursor: "pointer", fontSize: 12, padding: 0 }}>↺</button>}
     </span>
   );
 }
@@ -898,7 +967,7 @@ function TicketCarrito({ partidas, tier, mults, modoMargen, refPedido, onRemove,
           <div className="trow">
             <span style={{ display: "flex", gap: 5, alignItems: "center" }}><span>{SERVICIOS[p.servicio].icono}</span><span style={{ maxWidth: 165, fontWeight: p.nombre ? 600 : 400 }}>{p.nombre || p.desc}</span></span>
             <span style={{ whiteSpace: "nowrap", display: "flex", gap: 6, alignItems: "center" }}>
-              <PrecioPartida p={p} valor={pv(p)} onEdit={(n) => onEditPrice(p.id, n)} onReset={() => onEditPrice(p.id, null)} />
+              <ValorEditable valor={pv(p)} manual={p.precioManual != null} titulo="Click para editar precio" onEdit={(n) => onEditPrice(p.id, n)} onReset={() => onEditPrice(p.id, null)} />
               <button onClick={() => onRemove(p.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer" }}>×</button>
             </span>
           </div>
@@ -913,6 +982,60 @@ function TicketCarrito({ partidas, tier, mults, modoMargen, refPedido, onRemove,
       <div className="trow" style={{ fontWeight: 600, color: "#F4561D" }}><span>ANTICIPO 50%</span><span>{fmt(total * 0.5)}</span></div>
       <div style={{ textAlign: "center", fontSize: 9.5, color: "#7B8290", marginTop: 8 }}>Para iniciar producción se requiere el 50% de anticipo.</div>
       <div style={{ textAlign: "center", fontSize: 9, color: "#C7CBD2", marginTop: 10 }}>[ aquí irían tus redes + QR a Linktree ]</div>
+    </div>
+  );
+}
+
+function TicketInterno({ partidas, tier, mults, modoMargen, refPedido, onRemove, onEditCost }) {
+  const pv = (p) => valorPartida(p, tier, mults, modoMargen);
+  const ce = (p) => costoEfectivo(p);
+  const totalCosto = partidas.reduce((s, p) => s + ce(p), 0);
+  const totalPrecio = partidas.reduce((s, p) => s + pv(p), 0);
+  const totalMargen = totalPrecio - totalCosto;
+  if (partidas.length === 0) return <div className="ticket"><div style={{ textAlign: "center", color: "#9AA0AE", padding: "30px 10px", fontSize: 13 }}>Agrega partidas y verás aquí el desglose de costo, precio y margen de cada una.</div></div>;
+  return (
+    <div className="ticket">
+      <div style={{ textAlign: "center", fontWeight: 600, fontSize: 14 }}>TICKET INTERNO</div>
+      {refPedido && <div className="refbox">{refPedido}</div>}
+      <div style={{ textAlign: "center", fontSize: 10.5, color: "#7B8290" }}>USO INTERNO · NO MOSTRAR AL CLIENTE · {new Date().toLocaleDateString("es-MX")}</div>
+      <hr className="sep" />
+      {partidas.map((p) => {
+        const costo = ce(p);
+        const precio = pv(p);
+        const margen = precio - costo;
+        const margenPct = costo > 0 ? (margen / costo) * 100 : 0;
+        return (
+          <div key={p.id} style={{ marginBottom: 8 }}>
+            <div className="trow">
+              <span style={{ display: "flex", gap: 5, alignItems: "center" }}><span>{SERVICIOS[p.servicio].icono}</span><span style={{ maxWidth: 165, fontWeight: p.nombre ? 600 : 400 }}>{p.nombre || p.desc}</span></span>
+              <button onClick={() => onRemove(p.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer" }}>×</button>
+            </div>
+            <div style={{ fontSize: 10.5, color: "#9AA0AE", paddingLeft: 20 }}>{p.desc} · {p.cant} pz</div>
+            {p.detalle && (
+              <div style={{ paddingLeft: 20, marginTop: 3, fontSize: 11, color: "#555B68" }}>
+                {p.detalle.porPieza.map((d, i) => (
+                  <div key={i} className="trow" style={{ padding: 0 }}><span>{d.label} (x{p.cant})</span><span>{fmt(d.valor)}/pz</span></div>
+                ))}
+                {p.detalle.unicos.map((d, i) => (
+                  <div key={i} className="trow" style={{ padding: 0 }}><span>{d.label} (único)</span><span>{fmt(d.valor)}</span></div>
+                ))}
+              </div>
+            )}
+            <div className="trow" style={{ paddingLeft: 20, marginTop: 3 }}>
+              <span>Costo total</span>
+              <ValorEditable valor={costo} manual={p.costoManual != null} titulo="Click para editar el costo total" onEdit={(n) => onEditCost(p.id, n)} onReset={() => onEditCost(p.id, null)} />
+            </div>
+            {p.costoManual != null && <div style={{ fontSize: 9.5, color: "#F4561D", paddingLeft: 20 }}>costo ajustado manualmente</div>}
+            <div className="trow" style={{ paddingLeft: 20 }}><span>Precio venta ({tier})</span><span>{fmt(precio)}</span></div>
+            <div className="trow" style={{ paddingLeft: 20, color: "#2EA84F", fontWeight: 600 }}><span>Margen</span><span>{fmt(margen)} ({margenPct.toFixed(0)}%)</span></div>
+          </div>
+        );
+      })}
+      <hr className="sep" />
+      <div className="trow" style={{ fontWeight: 600 }}><span>TOTAL COSTO</span><span>{fmt(totalCosto)}</span></div>
+      <div className="trow" style={{ fontWeight: 600 }}><span>TOTAL PRECIO ({tier})</span><span>{fmt(totalPrecio)}</span></div>
+      <div className="trow" style={{ fontWeight: 600, fontSize: 15, background: "#EAFBEF", margin: "0 -6px", padding: "5px 6px", borderRadius: 4, color: "#1D7A3C" }}><span>MARGEN TOTAL</span><span>{fmt(totalMargen)} ({totalCosto > 0 ? ((totalMargen / totalCosto) * 100).toFixed(0) : 0}%)</span></div>
+      <div style={{ textAlign: "center", fontSize: 9.5, color: "#7B8290", marginTop: 8 }}>Este ticket es solo para uso interno/producción. Usa el ticket "Cliente" para enviar o imprimir hacia el cliente.</div>
     </div>
   );
 }
@@ -1307,7 +1430,8 @@ function VistaInsumos({ materiales, setMateriales, preciosFijos, setPreciosFijos
           <div><label className="cz-lbl">Tiempo planchado (min)</label><input className="cz-in" type="number" value={configProduccion.tiempoPlanchadoMin} onChange={(e) => editarProduccion("tiempoPlanchadoMin", e.target.value)} /></div>
           <div><label className="cz-lbl">DTF UV film $/metro</label><input className="cz-in" type="number" value={configProduccion.uvPrecioMetro} onChange={(e) => editarProduccion("uvPrecioMetro", e.target.value)} /></div>
           <div><label className="cz-lbl">DTF UV ancho rollo (cm)</label><input className="cz-in" type="number" value={configProduccion.uvAnchoCm} onChange={(e) => editarProduccion("uvAnchoCm", e.target.value)} /></div>
-          <div><label className="cz-lbl">Manipulación DTF ($)</label><input className="cz-in" type="number" value={configProduccion.manipProporc} onChange={(e) => editarProduccion("manipProporc", e.target.value)} /></div>
+          <div><label className="cz-lbl">Diseño/revisión DTF ($, único x pedido)</label><input className="cz-in" type="number" value={configProduccion.manipProporc} onChange={(e) => editarProduccion("manipProporc", e.target.value)} /></div>
+          <div><label className="cz-lbl">Manipulación DTF ($/pieza)</label><input className="cz-in" type="number" value={configProduccion.manipPzaDTF} onChange={(e) => editarProduccion("manipPzaDTF", e.target.value)} /></div>
           <div><label className="cz-lbl">Hoja sublimación $/metro</label><input className="cz-in" type="number" value={configProduccion.subliMetro} onChange={(e) => editarProduccion("subliMetro", e.target.value)} /></div>
           <div><label className="cz-lbl">Área hoja sublimación (cm²)</label><input className="cz-in" type="number" value={configProduccion.subliArea} onChange={(e) => editarProduccion("subliArea", e.target.value)} /></div>
           <div></div>
