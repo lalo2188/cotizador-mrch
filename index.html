@@ -62,10 +62,151 @@ const DEFAULT_MATERIALES = {
     { id: 8, nombre: "Placa perro aluminio", precio: 7.45, unidad: "pieza", mod: FECHA_INICIAL },
   ],
   dtf: [
-    { id: 1, nombre: "Playera básica 32702", precio: 65, unidad: "pieza", mod: FECHA_INICIAL },
-    { id: 2, nombre: "Playera premium 3440", precio: 95, unidad: "pieza", mod: FECHA_INICIAL },
-    { id: 3, nombre: "Tote bag negra", precio: 29.5, unidad: "pieza", mod: FECHA_INICIAL },
-    { id: 4, nombre: "Tote bag café", precio: 26.2, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: "tote-negra", tipo: "fijo", categoria: "Otros", nombre: "Tote bag negra", precio: 29.5, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: "tote-cafe", tipo: "fijo", categoria: "Otros", nombre: "Tote bag café", precio: 26.2, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: "32603", tipo: "escalonado", categoria: "Playeras Caballero", nombre: "32603 Max 190g/m² Algodón", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 36.00, t2: 35.28, t3: 34.56 },
+      { nombre: "Obscuro", t1: 42.50, t2: 41.65, t3: 40.80 },
+    ] },
+    { id: "38387", tipo: "escalonado", categoria: "Playeras Caballero", nombre: "38387 Cuello V 140g/m² Algodón", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 48.00, t2: 47.04, t3: 45.60 },
+      { nombre: "Colores", t1: 48.00, t2: 47.04, t3: 45.60 },
+    ] },
+    { id: "32702", tipo: "escalonado", categoria: "Playeras Caballero", nombre: "32702 Prime 155g/m² Algodón", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 33.00, t2: 32.34, t3: 31.35 },
+      { nombre: "Claro", t1: 36.50, t2: 35.77, t3: 34.68 },
+      { nombre: "Obscuro", t1: 38.00, t2: 37.24, t3: 36.10 },
+    ] },
+    { id: "370PW", tipo: "escalonado", categoria: "Playeras Caballero", nombre: "370PW Logan 200g/m² Algodón", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 43.50, t2: 42.63, t3: 41.33 },
+      { nombre: "Claro", t1: 46.00, t2: 45.08, t3: 43.70 },
+      { nombre: "Obscuro", t1: 52.00, t2: 50.96, t3: 49.40 },
+    ] },
+    { id: "34988", tipo: "escalonado", categoria: "Playeras Caballero", nombre: "34988 Snow 140g/m² Algodón/Poliéster", mod: FECHA_INICIAL, colores: [
+      { nombre: "Colores", t1: 43.30, t2: 42.43, t3: 41.14 },
+    ] },
+    { id: "34400", tipo: "escalonado", categoria: "Playeras Caballero", nombre: "34400 London 140g/m² Algodón/Poliéster", mod: FECHA_INICIAL, colores: [
+      { nombre: "Colores", t1: 43.30, t2: 42.43, t3: 41.14 },
+    ] },
+    { id: "34420", tipo: "escalonado", categoria: "Playeras Caballero", nombre: "34420 Subli 160g/m² Poliéster", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 46.00, t2: 45.08, t3: 43.70 },
+    ] },
+    { id: "37326", tipo: "escalonado", categoria: "Playeras Caballero", nombre: "37326 Tank Top 150g/m² Algodón", mod: FECHA_INICIAL, colores: [
+      { nombre: "Colores", t1: 33.60, t2: 32.93, t3: 31.92 },
+    ] },
+    { id: "34401", tipo: "escalonado", categoria: "Playeras Caballero", nombre: "34401 Premium 150g/m² Algodón peinado", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 40.00, t2: 39.20, t3: 38.00 },
+      { nombre: "Jaspe", t1: 45.50, t2: 44.59, t3: 43.23 },
+      { nombre: "Colores", t1: 46.50, t2: 45.57, t3: 44.18 },
+    ] },
+    { id: "30039", tipo: "escalonado", categoria: "Playeras Caballero", nombre: "30039 Stampa 155g/m² Algodón/Poliéster", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 31.50, t2: 30.87, t3: 30.87 },
+      { nombre: "Colores", t1: 36.30, t2: 35.57, t3: 35.57 },
+    ] },
+    { id: "32692", tipo: "escalonado", categoria: "Playeras Caballero", nombre: "32692 Heavy Manga Larga 190g/m² Algodón", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 55.00, t2: 53.90, t3: 52.25 },
+      { nombre: "Claro", t1: 67.00, t2: 65.66, t3: 63.65 },
+      { nombre: "Obscuro", t1: 67.00, t2: 65.66, t3: 63.65 },
+    ] },
+    { id: "32582", tipo: "escalonado", categoria: "Playeras Dama", nombre: "32582 Prime Cuello Redondo 155g/m² Algodón", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 36.50, t2: 35.77, t3: 34.68 },
+      { nombre: "Claros", t1: 39.00, t2: 38.22, t3: 37.05 },
+      { nombre: "Obscuros", t1: 41.00, t2: 40.18, t3: 38.95 },
+    ] },
+    { id: "31818", tipo: "escalonado", categoria: "Playeras Dama", nombre: "31818 Prime Cuello V 155g/m² Algodón", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 38.00, t2: 37.24, t3: 36.48 },
+      { nombre: "Claros", t1: 43.50, t2: 42.63, t3: 41.76 },
+      { nombre: "Obscuros", t1: 44.00, t2: 43.12, t3: 42.24 },
+    ] },
+    { id: "32873", tipo: "escalonado", categoria: "Playeras Dama", nombre: "32873 Tank Top 140g/m² Algodón/Poliéster", mod: FECHA_INICIAL, colores: [
+      { nombre: "Colores", t1: 34.50, t2: 33.47, t3: 32.78 },
+    ] },
+    { id: "370LJ", tipo: "escalonado", categoria: "Playeras Dama", nombre: "370LJ/371DR Crop 140g/m² Algodón/Poliéster", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 41.00, t2: 40.18, t3: 38.95 },
+      { nombre: "Obscuro", t1: 45.50, t2: 44.59, t3: 43.23 },
+    ] },
+    { id: "34990", tipo: "escalonado", categoria: "Playeras Dama", nombre: "34990 Snow Cuello V 140g/m² Algodón/Poliéster", mod: FECHA_INICIAL, colores: [
+      { nombre: "Colores", t1: 45.50, t2: 44.59, t3: 43.23 },
+    ] },
+    { id: "39028", tipo: "escalonado", categoria: "Playeras Niños", nombre: "39028 Cuello Redondo Niños 185g/m² Algodón", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 25.00, t2: 24.50, t3: 24.00 },
+      { nombre: "Claros", t1: 29.00, t2: 28.42, t3: 27.84 },
+      { nombre: "Obscuro", t1: 29.00, t2: 28.42, t3: 27.84 },
+    ] },
+    { id: "32633", tipo: "escalonado", categoria: "Polos Caballero", nombre: "32633 Polo Piqué 230g/m² Algodón", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 70.50, t2: 68.39, t3: 66.98 },
+      { nombre: "Obscuro", t1: 82.00, t2: 79.54, t3: 77.90 },
+    ] },
+    { id: "33981", tipo: "escalonado", categoria: "Polos Caballero", nombre: "33981 Polo Piqué Manga Larga 230g/m² Algodón", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 88.50, t2: 86.73, t3: 84.96 },
+      { nombre: "Claro", t1: 98.50, t2: 96.53, t3: 94.56 },
+      { nombre: "Obscuro", t1: 98.50, t2: 96.53, t3: 94.56 },
+    ] },
+    { id: "36980", tipo: "escalonado", categoria: "Polos Caballero", nombre: "36980 Polo Supreme 210g/m² Algodón/Poliéster", mod: FECHA_INICIAL, colores: [
+      { nombre: "Colores", t1: 96.00, t2: 94.08, t3: 93.12 },
+    ] },
+    { id: "32626", tipo: "escalonado", categoria: "Polos Dama", nombre: "32626 Polo Piqué 230g/m² Algodón", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 70.50, t2: 68.39, t3: 66.98 },
+      { nombre: "Claros", t1: 76.00, t2: 73.72, t3: 72.20 },
+      { nombre: "Obscuros", t1: 82.00, t2: 79.54, t3: 77.90 },
+    ] },
+    { id: "36981", tipo: "escalonado", categoria: "Polos Dama", nombre: "36981 Polo Supreme 210g/m² Algodón/Poliéster", mod: FECHA_INICIAL, colores: [
+      { nombre: "Colores", t1: 96.00, t2: 94.08, t3: 93.12 },
+    ] },
+    { id: "32412", tipo: "escalonado", categoria: "Polos Infantil", nombre: "32412 Polo Piqué Infantil 200g/m² Algodón", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 46.50, t2: 45.57, t3: 45.11 },
+      { nombre: "Claros", t1: 52.30, t2: 51.25, t3: 50.73 },
+      { nombre: "Obscuro", t1: 52.30, t2: 51.25, t3: 50.73 },
+    ] },
+    { id: "32417", tipo: "escalonado", categoria: "Polos Infantil", nombre: "32417 Polo Piqué Juvenil 200g/m² Algodón", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 53.00, t2: 51.94, t3: 51.41 },
+      { nombre: "Obscuro", t1: 59.62, t2: 58.43, t3: 57.83 },
+    ] },
+    { id: "38102", tipo: "escalonado", categoria: "Felpas", nombre: "38102 Sudadera Supreme Cuello Redondo 267g/m²", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco/Colores", t1: 98.00, t2: 95.06, t3: 93.10 },
+    ] },
+    { id: "38103", tipo: "escalonado", categoria: "Felpas", nombre: "38103 Sudadera Supreme Capucha y Cangurera 267g/m²", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco/Colores", t1: 134.00, t2: 129.98, t3: 127.30 },
+    ] },
+    { id: "38105", tipo: "escalonado", categoria: "Felpas", nombre: "38105 Sudadera Supreme Capucha con Cierre 267g/m²", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco/Colores", t1: 155.00, t2: 150.35, t3: 147.25 },
+    ] },
+    { id: "38106", tipo: "escalonado", categoria: "Felpas", nombre: "38106 Jogger Supreme 267g/m²", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco/Colores", t1: 128.00, t2: 124.16, t3: 121.60 },
+    ] },
+    { id: "38108", tipo: "escalonado", categoria: "Felpas", nombre: "38108 Sudadera Supreme Capucha y Cangurera Dama 267g/m²", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco/Colores", t1: 134.00, t2: 129.98, t3: 127.30 },
+    ] },
+    { id: "38129", tipo: "escalonado", categoria: "Felpas", nombre: "38129 Sudadera Capucha y Cangurera Juvenil 250g/m²", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco/Colores", t1: 99.00, t2: 96.03, t3: 94.05 },
+    ] },
+    { id: "38132", tipo: "escalonado", categoria: "Felpas", nombre: "38132 Pants con Bolsas Laterales 300g/m²", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco/Colores", t1: 93.00, t2: 90.21, t3: 88.35 },
+    ] },
+    { id: "370VS", tipo: "escalonado", categoria: "Felpas", nombre: "370VS Sudadera Sport Cuello Redondo 300g/m²", mod: FECHA_INICIAL, colores: [
+      { nombre: "Colores", t1: 110.00, t2: 106.70, t3: 104.50 },
+    ] },
+    { id: "370VT", tipo: "escalonado", categoria: "Felpas", nombre: "370VT Sudadera Sport Capucha y Cangurera 300g/m²", mod: FECHA_INICIAL, colores: [
+      { nombre: "Colores", t1: 143.50, t2: 139.20, t3: 136.33 },
+    ] },
+    { id: "370VV", tipo: "escalonado", categoria: "Felpas", nombre: "370VV Sudadera Sport Capucha con Cierre 300g/m²", mod: FECHA_INICIAL, colores: [
+      { nombre: "Colores", t1: 166.00, t2: 161.02, t3: 157.70 },
+    ] },
+    { id: "370VW", tipo: "escalonado", categoria: "Felpas", nombre: "370VW Jogger Sport 300g/m²", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco/Colores", t1: 137.00, t2: 132.89, t3: 130.15 },
+    ] },
+    { id: "35002", tipo: "escalonado", categoria: "Camisas", nombre: "35002 Camisa Manga Corta Caballero", mod: FECHA_INICIAL, colores: [
+      { nombre: "Colores", t1: 177.50, t2: 172.18, t3: 168.63 },
+    ] },
+    { id: "35003", tipo: "escalonado", categoria: "Camisas", nombre: "35003 Camisa Manga Larga Caballero", mod: FECHA_INICIAL, colores: [
+      { nombre: "Colores", t1: 201.50, t2: 195.46, t3: 191.43 },
+    ] },
+    { id: "35000", tipo: "escalonado", categoria: "Camisas", nombre: "35000 Camisa Manga Corta Dama", mod: FECHA_INICIAL, colores: [
+      { nombre: "Colores", t1: 162.00, t2: 157.14, t3: 153.90 },
+    ] },
+    { id: "35001", tipo: "escalonado", categoria: "Camisas", nombre: "35001 Camisa Manga Larga Dama", mod: FECHA_INICIAL, colores: [
+      { nombre: "Colores", t1: 185.50, t2: 179.94, t3: 176.23 },
+    ] },
   ],
   uv: [
     { id: 1, nombre: "Vaso de vidrio", precio: 18, w: 24, h: 9, unidad: "pieza", mod: FECHA_INICIAL },
@@ -113,7 +254,47 @@ const DEFAULT_CONFIG_PRODUCCION = {
   manipProporc: 20,
   disenoSencilloMin: 15,
   disenoComplejoMin: 40,
+  ivaTextil: 0.16,
   mod: FECHA_INICIAL,
+};
+
+/* Catálogo de referencia (precio fijo "Mayoreo"), aún no conectado a ningún formulario de cotización */
+const DEFAULT_CATALOGO_OTROS = {
+  gorras: [
+    { id: "g15", nombre: "15 Alfalife", precio: 160.00, mod: FECHA_INICIAL },
+    { id: "g30", nombre: "30 Beta", precio: 135.00, mod: FECHA_INICIAL },
+    { id: "g45", nombre: "45 Epsilon Light", precio: 140.00, mod: FECHA_INICIAL },
+    { id: "g60", nombre: "60 Omega", precio: 49.99, mod: FECHA_INICIAL },
+    { id: "g65", nombre: "65 Omega Adventure", precio: 130.00, mod: FECHA_INICIAL },
+    { id: "g75", nombre: "75 UN", precio: 125.00, mod: FECHA_INICIAL },
+    { id: "g85", nombre: "85 Sigma Fresh", precio: 130.00, mod: FECHA_INICIAL },
+    { id: "g90", nombre: "90 Tau", precio: 125.00, mod: FECHA_INICIAL },
+    { id: "g100", nombre: "100 Zeta", precio: 135.00, mod: FECHA_INICIAL },
+    { id: "g120", nombre: "120 Pro", precio: 45.00, mod: FECHA_INICIAL },
+    { id: "g125", nombre: "125 Full", precio: 54.50, mod: FECHA_INICIAL },
+    { id: "g220", nombre: "220 Gorra Jaspe", precio: 60.00, mod: FECHA_INICIAL },
+    { id: "g245", nombre: "245 City", precio: 68.50, mod: FECHA_INICIAL },
+    { id: "g270", nombre: "270 Plana", precio: 60.00, mod: FECHA_INICIAL },
+    { id: "g300", nombre: "300 Deslavada", precio: 60.00, mod: FECHA_INICIAL },
+    { id: "g301", nombre: "301 Deslavada Comb", precio: 60.00, mod: FECHA_INICIAL },
+    { id: "g350", nombre: "350 3Fifty", precio: 57.50, mod: FECHA_INICIAL },
+    { id: "g405", nombre: "405 Acrílico", precio: 21.00, mod: FECHA_INICIAL },
+    { id: "g500", nombre: "500 Visera Básica", precio: 48.00, mod: FECHA_INICIAL },
+    { id: "g545", nombre: "545 Mesh", precio: 54.50, mod: FECHA_INICIAL },
+    { id: "g600", nombre: "600 Red / 601 Red Combinada", precio: 23.50, mod: FECHA_INICIAL },
+    { id: "g620", nombre: "620 Red Básica", precio: 40.00, mod: FECHA_INICIAL },
+    { id: "g701", nombre: "701 Sport", precio: 60.00, mod: FECHA_INICIAL },
+    { id: "g710", nombre: "710 7Diez", precio: 70.00, mod: FECHA_INICIAL },
+    { id: "g750", nombre: "750 Legionaria", precio: 70.00, mod: FECHA_INICIAL },
+  ],
+  termos: [
+    { id: "tm100", nombre: "100 California", precio: 135.00, mod: FECHA_INICIAL },
+    { id: "tm110", nombre: "110 Texas", precio: 135.00, mod: FECHA_INICIAL },
+    { id: "tm120", nombre: "120 Florida", precio: 135.00, mod: FECHA_INICIAL },
+    { id: "tm130", nombre: "130 Kansas", precio: 125.00, mod: FECHA_INICIAL },
+    { id: "tm140", nombre: "140 Nevada", precio: 125.00, mod: FECHA_INICIAL },
+    { id: "tm150", nombre: "150 Arizona", precio: 110.00, mod: FECHA_INICIAL },
+  ],
 };
 
 const DEFAULT_COSTOS_OPERATIVOS = { renta: 12250, luz: 1123, agua: 100, internet: 899, gasolina: 1800, mod: FECHA_INICIAL };
@@ -202,7 +383,8 @@ function PieForm({ costo, desc, onAdd, color, fijo }) {
 /* ===================== FORM: DTF (multi-impresión) ===================== */
 function FormDTF({ onAdd, materialesDTF, configProduccion, tarifaHr }) {
   const disenos = Object.keys(DISENOS_DTF);
-  const [sustrato, setSustrato] = useState((materialesDTF[0] && materialesDTF[0].nombre) || "");
+  const [modeloId, setModeloId] = useState((materialesDTF[0] && materialesDTF[0].id) || "");
+  const [colorIdx, setColorIdx] = useState(0);
   const [genero, setGenero] = useState("Hombre");
   const [talla, setTalla] = useState("M");
   const [cant, setCant] = useState(10);
@@ -211,9 +393,24 @@ function FormDTF({ onAdd, materialesDTF, configProduccion, tarifaHr }) {
   const [nd, setNd] = useState("Frontal Logo"), [nCustom, setNCustom] = useState(false), [nw, setNw] = useState(10), [nh, setNh] = useState(10);
   const medidaDe = (imp) => (imp.custom ? [Number(imp.w), Number(imp.h)] : DISENOS_DTF[imp.diseno][genero][talla]);
 
+  const grupos = useMemo(() => {
+    const g = {};
+    materialesDTF.forEach((m) => { const cat = m.categoria || "Otros"; (g[cat] = g[cat] || []).push(m); });
+    return g;
+  }, [materialesDTF]);
+
+  const item = materialesDTF.find((m) => m.id === modeloId) || materialesDTF[0] || { precio: 0 };
+  const esEscalonado = item.tipo === "escalonado";
+  const color = esEscalonado ? (item.colores[colorIdx] || item.colores[0]) : null;
+  const cantNum = Number(cant) || 0;
+  const tierKey = cantNum >= 504 ? "t3" : cantNum >= 72 ? "t2" : "t1";
+  const tierLabel = cantNum >= 504 ? "504+ pz" : cantNum >= 72 ? "72–503 pz" : "12–71 pz";
+  const ivaTextil = Number(configProduccion.ivaTextil || 0);
+
+  const cambiarModelo = (id) => { setModeloId(id); setColorIdx(0); };
+
   const r = useMemo(() => {
-    const matObj = materialesDTF.find((m) => m.nombre === sustrato) || materialesDTF[0] || { precio: 0 };
-    const costoSus = matObj.precio;
+    const costoSus = esEscalonado && color ? color[tierKey] * (1 + ivaTextil) : Number(item.precio) || 0;
     const DTF_CM2 = configProduccion.dtfPrecioMetro / (configProduccion.dtfAnchoCm * 100);
     let costoImp = 0;
     imps.forEach((imp) => { const [w, h] = medidaDe(imp); costoImp += Math.ceil(w * h) * DTF_CM2; });
@@ -224,15 +421,43 @@ function FormDTF({ onAdd, materialesDTF, configProduccion, tarifaHr }) {
     if (tipoDiseno === "sencillo") manip = (Number(configProduccion.disenoSencilloMin) / 60) * tarifaHr;
     if (tipoDiseno === "complejo") manip = (Number(configProduccion.disenoComplejoMin) / 60) * tarifaHr;
     const ubic = imps.map((i) => (i.custom ? "pers." : i.diseno.replace("Frontal ", "").replace("Espalda ", "Esp."))).join(" + ");
-    return { costo: porPieza * cant + manip, cant, desc: `${sustrato} (${talla}) · ${ubic}` };
-  }, [sustrato, genero, talla, cant, tipoDiseno, imps, materialesDTF, configProduccion, tarifaHr]);
+    const nombreSus = item.nombre + (color ? ` · ${color.nombre}` : "");
+    let promo = null;
+    if (esEscalonado && color) {
+      if (tierKey === "t1" && cantNum < 72) promo = `🎁 Agrega ${72 - cantNum} pieza${72 - cantNum > 1 ? "s" : ""} más y el costo de tela baja a ${fmt(color.t2 * (1 + ivaTextil))}/pz (llevando 72)`;
+      else if (tierKey === "t2" && cantNum < 504) promo = `🎁 Agrega ${504 - cantNum} piezas más y el costo de tela baja a ${fmt(color.t3 * (1 + ivaTextil))}/pz (llevando 504)`;
+      else if (tierKey === "t3") promo = `✅ Ya tienes el mejor precio de tela por volumen`;
+    }
+    return { costo: porPieza * cant + manip, cant, desc: `${nombreSus} (${talla}) · ${ubic}`, promo };
+  }, [modeloId, colorIdx, genero, talla, cant, tipoDiseno, imps, materialesDTF, configProduccion, tarifaHr]);
 
   return (
     <>
-      <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 8 }}>
-        <div><label className="cz-lbl">Sustrato</label><select className="cz-in" value={sustrato} onChange={(e) => setSustrato(e.target.value)}>{materialesDTF.map((s) => <option key={s.id}>{s.nombre}</option>)}</select></div>
+      <div style={{ display: "grid", gridTemplateColumns: esEscalonado ? "1.3fr 1fr 1fr" : "1.6fr 1fr", gap: 8 }}>
+        <div>
+          <label className="cz-lbl">Modelo</label>
+          <select className="cz-in" value={modeloId} onChange={(e) => cambiarModelo(e.target.value)}>
+            {Object.entries(grupos).map(([cat, items]) => (
+              <optgroup key={cat} label={cat}>{items.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}</optgroup>
+            ))}
+          </select>
+        </div>
+        {esEscalonado && (
+          <div>
+            <label className="cz-lbl">Color</label>
+            <select className="cz-in" value={colorIdx} onChange={(e) => setColorIdx(Number(e.target.value))}>
+              {item.colores.map((c, i) => <option key={c.nombre} value={i}>{c.nombre}</option>)}
+            </select>
+          </div>
+        )}
         <div><label className="cz-lbl">Cantidad</label><input className="cz-in" type="number" value={cant} onChange={(e) => setCant(Number(e.target.value))} /></div>
       </div>
+      {esEscalonado && (
+        <div style={{ fontSize: 11, color: "#7B8290", marginTop: 6 }}>
+          Tier de volumen: <b>{tierLabel}</b> · costo tela (con IVA {Math.round(ivaTextil * 100)}%): {fmt(color ? color[tierKey] * (1 + ivaTextil) : 0)}/pz
+          {cantNum > 0 && cantNum < 12 && <div style={{ color: "#F4561D", marginTop: 4 }}>⚠️ El proveedor vende por color a partir de 12 pz; para menos piezas confirma disponibilidad y precio.</div>}
+        </div>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
         <div><label className="cz-lbl">Género</label><select className="cz-in" value={genero} onChange={(e) => setGenero(e.target.value)}><option>Hombre</option><option>Mujer</option></select></div>
         <div><label className="cz-lbl">Talla</label><select className="cz-in" value={talla} onChange={(e) => setTalla(e.target.value)}>{["S","M","L","XL"].map((t) => <option key={t}>{t}</option>)}</select></div>
@@ -260,6 +485,7 @@ function FormDTF({ onAdd, materialesDTF, configProduccion, tarifaHr }) {
           <div key={k} className={"tierbox" + (tipoDiseno === k ? " on" : "")} onClick={() => setTipoDiseno(k)} style={{ fontSize: 12 }}>{t}</div>
         ))}
       </div>
+      {r.promo && <div style={{ fontSize: 12, color: "#2EA84F", marginTop: 8 }}>{r.promo}</div>}
       <PieForm costo={r.costo} desc={`${imps.length} impresión(es) · ${cant} pz`} onAdd={() => onAdd(r)} color={SERVICIOS.DTF.color} />
     </>
   );
@@ -827,8 +1053,10 @@ function VistaHistorial({ historial, onEliminar, onLimpiar }) {
 }
 
 /* ===================== VISTA INSUMOS ===================== */
-function VistaInsumos({ materiales, setMateriales, preciosFijos, setPreciosFijos, configProduccion, setConfigProduccion, costosOperativos, setCostosOperativos, costoMaquinas, setCostoMaquinas, manoObra, setManoObra, costosPorHora }) {
+function VistaInsumos({ materiales, setMateriales, preciosFijos, setPreciosFijos, configProduccion, setConfigProduccion, costosOperativos, setCostosOperativos, costoMaquinas, setCostoMaquinas, manoObra, setManoObra, costosPorHora, catalogoOtros, setCatalogoOtros }) {
   const [categoriaActiva, setCategoriaActiva] = useState("laser");
+  const [importText, setImportText] = useState("");
+  const [importMsg, setImportMsg] = useState("");
   const CATEGORIAS = [
     ["laser", "🔥 Láser"], ["dtf", "👕 DTF"], ["sublimado", "☕ Sublimado"], ["uv", "✨ DTF UV"], ["filamento3d", "🧵 Filamento 3D"],
   ];
@@ -844,6 +1072,31 @@ function VistaInsumos({ materiales, setMateriales, preciosFijos, setPreciosFijos
     if (!nombre) return;
     const extra = cat === "uv" || cat === "sublimado" ? { w: 10, h: 10 } : {};
     setMateriales((prev) => ({ ...prev, [cat]: [...prev[cat], { id: nid(), nombre, precio: 0, unidad: "pieza", ...extra, mod: hoy() }] }));
+  };
+  const actualizarTierColor = (id, colorIdx, campo, valor) => {
+    setMateriales((prev) => ({ ...prev, dtf: prev.dtf.map((m) => (m.id === id ? { ...m, colores: m.colores.map((c, i) => (i === colorIdx ? { ...c, [campo]: campo === "nombre" ? valor : Number(valor) } : c)), mod: hoy() } : m)) }));
+  };
+  const importarCatalogo = () => {
+    try {
+      const arr = JSON.parse(importText);
+      if (!Array.isArray(arr)) throw new Error("debe ser un arreglo JSON");
+      setMateriales((prev) => {
+        const existentes = prev.dtf.filter((m) => !arr.some((n) => n.id === m.id));
+        const nuevos = arr.map((n) => ({ ...n, mod: hoy() }));
+        return { ...prev, dtf: [...existentes, ...nuevos] };
+      });
+      setImportMsg(`✅ Importados/actualizados ${arr.length} artículo(s).`);
+      setImportText("");
+    } catch (e) {
+      setImportMsg("❌ JSON inválido: " + e.message);
+    }
+  };
+  const exportarCatalogo = () => {
+    navigator.clipboard.writeText(JSON.stringify(materiales.dtf, null, 2));
+    setImportMsg("📋 Catálogo copiado al portapapeles.");
+  };
+  const actualizarOtro = (sub, id, valor) => {
+    setCatalogoOtros((prev) => ({ ...prev, [sub]: prev[sub].map((o) => (o.id === id ? { ...o, precio: Number(valor), mod: hoy() } : o)) }));
   };
 
   const actualizarCortador = (id, campo, valor) => {
@@ -870,18 +1123,65 @@ function VistaInsumos({ materiales, setMateriales, preciosFijos, setPreciosFijos
           ))}
         </div>
         <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
-          {materiales[categoriaActiva].map((m) => (
-            <div key={m.id} className="insumo-row">
-              <input className="cz-in" style={{ flex: 2, minWidth: 140 }} value={m.nombre} onChange={(e) => actualizarMaterial(categoriaActiva, m.id, "nombre", e.target.value)} />
-              <input className="cz-in" style={{ flex: 1, minWidth: 80 }} type="number" value={m.precio} onChange={(e) => actualizarMaterial(categoriaActiva, m.id, "precio", e.target.value)} />
-              {m.w !== undefined && <input className="cz-in" style={{ width: 60 }} type="number" title="Ancho cm" value={m.w} onChange={(e) => actualizarMaterial(categoriaActiva, m.id, "w", e.target.value)} />}
-              {m.h !== undefined && <input className="cz-in" style={{ width: 60 }} type="number" title="Alto cm" value={m.h} onChange={(e) => actualizarMaterial(categoriaActiva, m.id, "h", e.target.value)} />}
-              <span className="insumo-mod">Mod: {m.mod}</span>
-              <button onClick={() => eliminarMaterial(categoriaActiva, m.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 16 }}>×</button>
-            </div>
-          ))}
+          {categoriaActiva === "dtf" ? (
+            Object.entries(materiales.dtf.reduce((g, m) => { const cat = m.categoria || "Otros"; (g[cat] = g[cat] || []).push(m); return g; }, {})).map(([cat, items]) => (
+              <div key={cat}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#7B8290", textTransform: "uppercase", letterSpacing: ".05em", margin: "6px 0" }}>{cat}</div>
+                {items.map((m) => m.tipo === "escalonado" ? (
+                  <div key={m.id} style={{ border: "1.5px solid #EEF0F2", borderRadius: 8, padding: 8, marginBottom: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <input className="cz-in" style={{ flex: 1, fontWeight: 600 }} value={m.nombre} onChange={(e) => actualizarMaterial("dtf", m.id, "nombre", e.target.value)} />
+                      <span className="insumo-mod">Mod: {m.mod}</span>
+                      <button onClick={() => eliminarMaterial("dtf", m.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 16 }}>×</button>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr 1fr", gap: 6, marginTop: 6 }}>
+                      <div></div><div style={{ fontSize: 10, color: "#7B8290" }}>12–71pz</div><div style={{ fontSize: 10, color: "#7B8290" }}>72–503pz</div><div style={{ fontSize: 10, color: "#7B8290" }}>504+pz</div>
+                      {m.colores.map((c, ci) => (
+                        <React.Fragment key={ci}>
+                          <input className="cz-in" style={{ fontSize: 12, padding: "5px 6px" }} value={c.nombre} onChange={(e) => actualizarTierColor(m.id, ci, "nombre", e.target.value)} />
+                          <input className="cz-in" style={{ fontSize: 12, padding: "5px 6px" }} type="number" value={c.t1} onChange={(e) => actualizarTierColor(m.id, ci, "t1", e.target.value)} />
+                          <input className="cz-in" style={{ fontSize: 12, padding: "5px 6px" }} type="number" value={c.t2} onChange={(e) => actualizarTierColor(m.id, ci, "t2", e.target.value)} />
+                          <input className="cz-in" style={{ fontSize: 12, padding: "5px 6px" }} type="number" value={c.t3} onChange={(e) => actualizarTierColor(m.id, ci, "t3", e.target.value)} />
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div key={m.id} className="insumo-row">
+                    <input className="cz-in" style={{ flex: 2, minWidth: 140 }} value={m.nombre} onChange={(e) => actualizarMaterial("dtf", m.id, "nombre", e.target.value)} />
+                    <input className="cz-in" style={{ flex: 1, minWidth: 80 }} type="number" value={m.precio} onChange={(e) => actualizarMaterial("dtf", m.id, "precio", e.target.value)} />
+                    <span className="insumo-mod">Mod: {m.mod}</span>
+                    <button onClick={() => eliminarMaterial("dtf", m.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 16 }}>×</button>
+                  </div>
+                ))}
+              </div>
+            ))
+          ) : (
+            materiales[categoriaActiva].map((m) => (
+              <div key={m.id} className="insumo-row">
+                <input className="cz-in" style={{ flex: 2, minWidth: 140 }} value={m.nombre} onChange={(e) => actualizarMaterial(categoriaActiva, m.id, "nombre", e.target.value)} />
+                <input className="cz-in" style={{ flex: 1, minWidth: 80 }} type="number" value={m.precio} onChange={(e) => actualizarMaterial(categoriaActiva, m.id, "precio", e.target.value)} />
+                {m.w !== undefined && <input className="cz-in" style={{ width: 60 }} type="number" title="Ancho cm" value={m.w} onChange={(e) => actualizarMaterial(categoriaActiva, m.id, "w", e.target.value)} />}
+                {m.h !== undefined && <input className="cz-in" style={{ width: 60 }} type="number" title="Alto cm" value={m.h} onChange={(e) => actualizarMaterial(categoriaActiva, m.id, "h", e.target.value)} />}
+                <span className="insumo-mod">Mod: {m.mod}</span>
+                <button onClick={() => eliminarMaterial(categoriaActiva, m.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 16 }}>×</button>
+              </div>
+            ))
+          )}
         </div>
         <button className="cz-btn" style={{ marginTop: 10 }} onClick={() => agregarMaterial(categoriaActiva)}>+ Agregar insumo</button>
+        {categoriaActiva === "dtf" && (
+          <div style={{ marginTop: 14, borderTop: "1px dashed #D8DBE0", paddingTop: 12 }}>
+            <label className="cz-lbl">Importar catálogo (JSON) — pega aquí lo que te dé Claude al leer un PDF de precios nuevo</label>
+            <textarea className="cz-in" style={{ minHeight: 70, fontFamily: "'IBM Plex Mono',monospace", fontSize: 11 }} value={importText} onChange={(e) => setImportText(e.target.value)} placeholder='[{"id":"32702","tipo":"escalonado","categoria":"Playeras Caballero","nombre":"32702 Prime...","colores":[{"nombre":"Blanco","t1":33,"t2":32.34,"t3":31.35}]}]' />
+            <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+              <button className="cz-btn org" onClick={importarCatalogo}>Importar / actualizar</button>
+              <button className="cz-btn" onClick={exportarCatalogo}>Exportar catálogo actual</button>
+            </div>
+            {importMsg && <div style={{ fontSize: 12, marginTop: 6 }}>{importMsg}</div>}
+            <div style={{ fontSize: 11, color: "#7B8290", marginTop: 6 }}>Los precios se guardan "sin IVA" tal como los da el proveedor — el IVA se aplica automático al cotizar (ver "IVA textil" en Config de producción).</div>
+          </div>
+        )}
       </div>
 
       <div className="cz-card">
@@ -927,8 +1227,27 @@ function VistaInsumos({ materiales, setMateriales, preciosFijos, setPreciosFijos
           <div></div>
           <div><label className="cz-lbl">Diseño sencillo (min)</label><input className="cz-in" type="number" value={configProduccion.disenoSencilloMin} onChange={(e) => editarProduccion("disenoSencilloMin", e.target.value)} /></div>
           <div><label className="cz-lbl">Diseño complejo (min)</label><input className="cz-in" type="number" value={configProduccion.disenoComplejoMin} onChange={(e) => editarProduccion("disenoComplejoMin", e.target.value)} /></div>
+          <div><label className="cz-lbl">IVA textil (catálogo Óptima)</label><input className="cz-in" type="number" step="0.01" value={configProduccion.ivaTextil} onChange={(e) => editarProduccion("ivaTextil", e.target.value)} /></div>
         </div>
         <div className="insumo-mod" style={{ marginTop: 8 }}>Mod: {configProduccion.mod}</div>
+      </div>
+
+      <div className="cz-card">
+        <span className="cz-d" style={{ fontSize: 18, fontWeight: 700, textTransform: "uppercase" }}>Otros productos Óptima (referencia)</span>
+        <div style={{ fontSize: 11, color: "#7B8290", marginTop: 4 }}>Precios de mayoreo, sin IVA. Aún no están conectados a ningún formulario de cotización — pídeme que los active si los necesitas.</div>
+        {["gorras", "termos"].map((sub) => (
+          <div key={sub} style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#7B8290", textTransform: "uppercase", letterSpacing: ".05em" }}>{sub}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginTop: 6 }}>
+              {catalogoOtros[sub].map((o) => (
+                <div key={o.id} style={{ display: "flex", gap: 4, alignItems: "center", fontSize: 12 }}>
+                  <span style={{ flex: 1 }}>{o.nombre}</span>
+                  <input className="cz-in" style={{ width: 66, padding: "4px 6px", fontSize: 12 }} type="number" value={o.precio} onChange={(e) => actualizarOtro(sub, o.id, e.target.value)} />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
 
       <div className="cz-card">
@@ -1003,7 +1322,9 @@ function App() {
   const [costosOperativos, setCostosOperativos] = useState(() => loadLS("cz_costosOperativos", DEFAULT_COSTOS_OPERATIVOS));
   const [costoMaquinas, setCostoMaquinas] = useState(() => loadLS("cz_costoMaquinas", DEFAULT_COSTO_MAQUINAS));
   const [manoObra, setManoObra] = useState(() => loadLS("cz_manoObra", DEFAULT_MANO_OBRA));
+  const [catalogoOtros, setCatalogoOtros] = useState(() => loadLS("cz_catalogoOtros", DEFAULT_CATALOGO_OTROS));
 
+  useEffect(() => saveLS("cz_catalogoOtros", catalogoOtros), [catalogoOtros]);
   useEffect(() => saveLS("cz_mults", mults), [mults]);
   useEffect(() => saveLS("cz_modoMargen", modoMargen), [modoMargen]);
   useEffect(() => saveLS("cz_clientes", clientes), [clientes]);
@@ -1064,6 +1385,7 @@ function App() {
             costoMaquinas={costoMaquinas} setCostoMaquinas={setCostoMaquinas}
             manoObra={manoObra} setManoObra={setManoObra}
             costosPorHora={costosPorHora}
+            catalogoOtros={catalogoOtros} setCatalogoOtros={setCatalogoOtros}
           />
         )}
         {tab === "config" && <VistaConfig mults={mults} setMults={setMults} modoMargen={modoMargen} setModoMargen={setModoMargen} />}
