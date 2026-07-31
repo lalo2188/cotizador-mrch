@@ -230,6 +230,13 @@ const DEFAULT_MATERIALES = {
     { id: 5, nombre: "PLA Blanco Mate", precio: 271, unidad: "kg", mod: FECHA_INICIAL },
     { id: 6, nombre: "PLA Negro Xolo", precio: 298, unidad: "kg", mod: FECHA_INICIAL },
   ],
+  empaque: [
+    { id: "emp-sticker", nombre: "Sticker", precio: 0, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: "emp-bolsa-esmerilada", nombre: "Bolsa plástico esmerilado", precio: 0, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: "emp-etiqueta", nombre: "Etiqueta", precio: 0, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: "emp-bolsa-kraft", nombre: "Bolsa kraft", precio: 0, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: "emp-caja", nombre: "Caja", precio: 0, unidad: "pieza", mod: FECHA_INICIAL },
+  ],
 };
 
 const DEFAULT_PRECIOS_FIJOS = {
@@ -378,12 +385,14 @@ function generarTextoTicketInterno(partidas, tier, mults, modoMargen, refPedido)
     }
     t += `   Costo total: ${fmt(costo)}${p.costoManual != null ? " (ajustado)" : ""}\n`;
     t += `   Precio venta (${tier}): ${fmt(precio)}\n`;
-    t += `   Margen: ${fmt(margen)} (${margenPct.toFixed(0)}%)\n\n`;
+    t += `   Margen: ${fmt(margen)} (${margenPct.toFixed(0)}%) · Ganancia promedio: ${fmt(p.cant > 0 ? margen / p.cant : 0)}/pz\n\n`;
   });
+  const totalPiezas = partidas.reduce((s, p) => s + (Number(p.cant) || 0), 0);
   t += `================================\n`;
   t += `TOTAL COSTO: ${fmt(totalCosto)}\n`;
   t += `TOTAL PRECIO (${tier}): ${fmt(totalPrecio)}\n`;
   t += `MARGEN TOTAL: ${fmt(totalPrecio - totalCosto)} (${totalCosto > 0 ? (((totalPrecio - totalCosto) / totalCosto) * 100).toFixed(0) : 0}%)\n`;
+  t += `GANANCIA PROMEDIO POR PIEZA: ${fmt(totalPiezas > 0 ? (totalPrecio - totalCosto) / totalPiezas : 0)}\n`;
   return t;
 }
 
@@ -433,7 +442,7 @@ function PieForm({ costo, desc, onAdd, color, fijo }) {
 }
 
 /* ===================== FORM: DTF (multi-impresión) ===================== */
-function FormDTF({ onAdd, materialesDTF, configProduccion, tarifaHr }) {
+function FormDTF({ onAdd, materialesDTF, materialesEmpaque = [], configProduccion, tarifaHr }) {
   const disenos = Object.keys(DISENOS_DTF);
   const [modeloId, setModeloId] = useState((materialesDTF[0] && materialesDTF[0].id) || "");
   const [colorIdx, setColorIdx] = useState(0);
@@ -444,6 +453,8 @@ function FormDTF({ onAdd, materialesDTF, configProduccion, tarifaHr }) {
   const [imps, setImps] = useState([{ id: nid(), diseno: "Espalda Full Size", custom: false, w: 0, h: 0 }]);
   const [nd, setNd] = useState("Frontal Logo"), [nCustom, setNCustom] = useState(false), [nw, setNw] = useState(10), [nh, setNh] = useState(10);
   const [soloFav, setSoloFav] = useState(false);
+  const [empSel, setEmpSel] = useState([]);
+  const toggleEmp = (id) => setEmpSel((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   const medidaDe = (imp) => (imp.custom ? [Number(imp.w), Number(imp.h)] : DISENOS_DTF[imp.diseno][genero][talla]);
 
   const hayFavoritos = useMemo(() => materialesDTF.some((m) => m.favorito), [materialesDTF]);
@@ -475,7 +486,8 @@ function FormDTF({ onAdd, materialesDTF, configProduccion, tarifaHr }) {
     const DTF_CM2 = configProduccion.dtfPrecioMetro / (configProduccion.dtfAnchoCm * 100);
     let costoImp = 0;
     imps.forEach((imp) => { const [w, h] = medidaDe(imp); costoImp += Math.ceil(w * h) * DTF_CM2; });
-    const pack = PACK_TALLA[talla] || 2.5;
+    const empItems = materialesEmpaque.filter((e) => empSel.includes(e.id));
+    const pack = empItems.reduce((s, e) => s + (Number(e.precio) || 0), 0);
     const costoPlanchado = (Number(configProduccion.tiempoPlanchadoMin) / 60) * tarifaHr;
     const manipPza = Number(configProduccion.manipPzaDTF) || 0;
     const porPieza = costoSus + costoImp + costoPlanchado * imps.length + pack + manipPza;
@@ -485,8 +497,10 @@ function FormDTF({ onAdd, materialesDTF, configProduccion, tarifaHr }) {
     const ubic = imps.map((i) => (i.custom ? "pers." : i.diseno.replace("Frontal ", "").replace("Espalda ", "Esp."))).join(" + ");
     const nombreSus = item.nombre + (color ? ` · ${color.nombre}` : "");
     let promo = null;
+    let promoUrge = false;
     if (esEscalonado && color) {
-      if (tierKey === "t1" && cantNum < 72) promo = `🎁 Agrega ${72 - cantNum} pieza${72 - cantNum > 1 ? "s" : ""} más y el costo de tela baja a ${fmt(color.t2 * (1 + ivaTextil))}/pz (llevando 72)`;
+      if (cantNum > 0 && cantNum < 12) { promo = `🧵 Óptima vende por color a partir de 12 pz. Junta ${12 - cantNum} pieza${12 - cantNum > 1 ? "s" : ""} más de "${color.nombre}" (de este pedido o de otro) para poder comprarlo.`; promoUrge = true; }
+      else if (tierKey === "t1" && cantNum < 72) promo = `🎁 Agrega ${72 - cantNum} pieza${72 - cantNum > 1 ? "s" : ""} más y el costo de tela baja a ${fmt(color.t2 * (1 + ivaTextil))}/pz (llevando 72)`;
       else if (tierKey === "t2" && cantNum < 504) promo = `🎁 Agrega ${504 - cantNum} piezas más y el costo de tela baja a ${fmt(color.t3 * (1 + ivaTextil))}/pz (llevando 504)`;
       else if (tierKey === "t3") promo = `✅ Ya tienes el mejor precio de tela por volumen`;
     }
@@ -496,12 +510,12 @@ function FormDTF({ onAdd, materialesDTF, configProduccion, tarifaHr }) {
         { label: "Impresión DTF", valor: costoImp },
         { label: "Planchado", valor: costoPlanchado * imps.length },
         { label: "Manipulación", valor: manipPza },
-        { label: "Empaque", valor: pack },
+        { label: empItems.length ? `Empaque (${empItems.map((e) => e.nombre).join(" + ")})` : "Empaque (sin seleccionar)", valor: pack },
       ],
       unicos: [{ label: tipoDiseno === "proporcionado" ? "Diseño/revisión" : "Diseño (creación)", valor: manip }],
     };
-    return { costo: porPieza * cant + manip, cant, desc: `${nombreSus} (${talla}) · ${ubic}`, promo, detalle };
-  }, [modeloId, colorIdx, genero, talla, cant, tipoDiseno, imps, materialesDTF, configProduccion, tarifaHr]);
+    return { costo: porPieza * cant + manip, cant, desc: `${nombreSus} (${talla}) · ${ubic}`, promo, promoUrge, detalle };
+  }, [modeloId, colorIdx, genero, talla, cant, tipoDiseno, imps, materialesDTF, materialesEmpaque, empSel, configProduccion, tarifaHr]);
 
   return (
     <>
@@ -535,7 +549,6 @@ function FormDTF({ onAdd, materialesDTF, configProduccion, tarifaHr }) {
       {esEscalonado && (
         <div style={{ fontSize: 11, color: "#7B8290", marginTop: 6 }}>
           Tier de volumen: <b>{tierLabel}</b> · costo tela (con IVA {Math.round(ivaTextil * 100)}%): {fmt(color ? color[tierKey] * (1 + ivaTextil) : 0)}/pz
-          {cantNum > 0 && cantNum < 12 && <div style={{ color: "#F4561D", marginTop: 4 }}>⚠️ El proveedor vende por color a partir de 12 pz; para menos piezas confirma disponibilidad y precio.</div>}
         </div>
       )}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
@@ -559,13 +572,25 @@ function FormDTF({ onAdd, materialesDTF, configProduccion, tarifaHr }) {
           : <div style={{ display: "flex", gap: 8 }}><input className="cz-in" type="number" placeholder="ancho" value={nw} onChange={(e) => setNw(e.target.value)} /><input className="cz-in" type="number" placeholder="alto" value={nh} onChange={(e) => setNh(e.target.value)} /></div>}
         <button className="cz-btn" style={{ width: "100%", marginTop: 8, padding: 8 }} onClick={() => setImps([...imps, { id: nid(), diseno: nd, custom: nCustom, w: nw, h: nh }])}>Añadir impresión a la prenda</button>
       </div>
+      <label className="cz-lbl" style={{ marginTop: 12 }}>Empaque (marca lo que lleva esta partida)</label>
+      {materialesEmpaque.length === 0 ? (
+        <div style={{ fontSize: 11, color: "#7B8290" }}>No hay insumos de empaque dados de alta. Agrégalos en Insumos → 📦 Empaque.</div>
+      ) : (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {materialesEmpaque.map((e) => (
+            <label key={e.id} style={{ fontSize: 12, display: "flex", gap: 5, alignItems: "center", cursor: "pointer", border: "1.5px solid " + (empSel.includes(e.id) ? "#F4561D" : "#D8DBE0"), borderRadius: 8, padding: "6px 10px", background: empSel.includes(e.id) ? "#FFF4EE" : "#fff" }}>
+              <input type="checkbox" checked={empSel.includes(e.id)} onChange={() => toggleEmp(e.id)} /> {e.nombre} <span style={{ color: "#7B8290" }}>({fmt(e.precio)})</span>
+            </label>
+          ))}
+        </div>
+      )}
       <label className="cz-lbl" style={{ marginTop: 12 }}>Diseño (manipulación)</label>
       <div style={{ display: "flex", gap: 8 }}>
         {[["proporcionado", "Lo trae el cliente"], ["sencillo", "Propio sencillo"], ["complejo", "Propio complejo"]].map(([k, t]) => (
           <div key={k} className={"tierbox" + (tipoDiseno === k ? " on" : "")} onClick={() => setTipoDiseno(k)} style={{ fontSize: 12 }}>{t}</div>
         ))}
       </div>
-      {r.promo && <div style={{ fontSize: 12, color: "#2EA84F", marginTop: 8 }}>{r.promo}</div>}
+      {r.promo && <div style={{ fontSize: 12, color: r.promoUrge ? "#F4561D" : "#2EA84F", marginTop: 8 }}>{r.promo}</div>}
       <PieForm costo={r.costo} desc={`${imps.length} impresión(es) · ${cant} pz`} onAdd={() => onAdd(r)} color={SERVICIOS.DTF.color} />
     </>
   );
@@ -807,7 +832,7 @@ function VistaCotizar({ mults, modoMargen, clientes, onGuardarHistorial, insumos
   const editarPrecio = (id, valor) => setPartidas((prev) => prev.map((p) => (p.id === id ? { ...p, precioManual: valor } : p)));
   const editarCosto = (id, valor) => setPartidas((prev) => prev.map((p) => (p.id === id ? { ...p, costoManual: valor } : p)));
   const forms = {
-    DTF: <FormDTF onAdd={add} materialesDTF={insumos.materiales.dtf} configProduccion={insumos.configProduccion} tarifaHr={insumos.manoObra.tarifaHr} />,
+    DTF: <FormDTF onAdd={add} materialesDTF={insumos.materiales.dtf} materialesEmpaque={insumos.materiales.empaque} configProduccion={insumos.configProduccion} tarifaHr={insumos.manoObra.tarifaHr} />,
     UV: <FormUV onAdd={add} materialesUV={insumos.materiales.uv} configProduccion={insumos.configProduccion} />,
     SUBLI: <FormSubli onAdd={add} materialesSublimado={insumos.materiales.sublimado} configProduccion={insumos.configProduccion} />,
     LASER: <FormLaser onAdd={add} materialesLaser={insumos.materiales.laser} costosPorHora={insumos.costosPorHora} tarifaHr={insumos.manoObra.tarifaHr} />,
@@ -992,6 +1017,7 @@ function TicketInterno({ partidas, tier, mults, modoMargen, refPedido, onRemove,
   const totalCosto = partidas.reduce((s, p) => s + ce(p), 0);
   const totalPrecio = partidas.reduce((s, p) => s + pv(p), 0);
   const totalMargen = totalPrecio - totalCosto;
+  const totalPiezas = partidas.reduce((s, p) => s + (Number(p.cant) || 0), 0);
   if (partidas.length === 0) return <div className="ticket"><div style={{ textAlign: "center", color: "#9AA0AE", padding: "30px 10px", fontSize: 13 }}>Agrega partidas y verás aquí el desglose de costo, precio y margen de cada una.</div></div>;
   return (
     <div className="ticket">
@@ -1028,6 +1054,7 @@ function TicketInterno({ partidas, tier, mults, modoMargen, refPedido, onRemove,
             {p.costoManual != null && <div style={{ fontSize: 9.5, color: "#F4561D", paddingLeft: 20 }}>costo ajustado manualmente</div>}
             <div className="trow" style={{ paddingLeft: 20 }}><span>Precio venta ({tier})</span><span>{fmt(precio)}</span></div>
             <div className="trow" style={{ paddingLeft: 20, color: "#2EA84F", fontWeight: 600 }}><span>Margen</span><span>{fmt(margen)} ({margenPct.toFixed(0)}%)</span></div>
+            <div className="trow" style={{ paddingLeft: 20, color: "#2EA84F" }}><span>Ganancia promedio</span><span>{fmt(p.cant > 0 ? margen / p.cant : 0)}/pz</span></div>
           </div>
         );
       })}
@@ -1035,6 +1062,7 @@ function TicketInterno({ partidas, tier, mults, modoMargen, refPedido, onRemove,
       <div className="trow" style={{ fontWeight: 600 }}><span>TOTAL COSTO</span><span>{fmt(totalCosto)}</span></div>
       <div className="trow" style={{ fontWeight: 600 }}><span>TOTAL PRECIO ({tier})</span><span>{fmt(totalPrecio)}</span></div>
       <div className="trow" style={{ fontWeight: 600, fontSize: 15, background: "#EAFBEF", margin: "0 -6px", padding: "5px 6px", borderRadius: 4, color: "#1D7A3C" }}><span>MARGEN TOTAL</span><span>{fmt(totalMargen)} ({totalCosto > 0 ? ((totalMargen / totalCosto) * 100).toFixed(0) : 0}%)</span></div>
+      <div className="trow" style={{ fontWeight: 600, color: "#1D7A3C" }}><span>GANANCIA PROMEDIO / PIEZA</span><span>{fmt(totalPiezas > 0 ? totalMargen / totalPiezas : 0)}</span></div>
       <div style={{ textAlign: "center", fontSize: 9.5, color: "#7B8290", marginTop: 8 }}>Este ticket es solo para uso interno/producción. Usa el ticket "Cliente" para enviar o imprimir hacia el cliente.</div>
     </div>
   );
@@ -1235,7 +1263,7 @@ function VistaInsumos({ materiales, setMateriales, preciosFijos, setPreciosFijos
   const [importMsg, setImportMsg] = useState("");
   const [busqueda, setBusqueda] = useState("");
   const CATEGORIAS = [
-    ["laser", "🔥 Láser"], ["dtf", "👕 DTF"], ["sublimado", "☕ Sublimado"], ["uv", "✨ DTF UV"], ["filamento3d", "🧵 Filamento 3D"],
+    ["laser", "🔥 Láser"], ["dtf", "👕 DTF"], ["sublimado", "☕ Sublimado"], ["uv", "✨ DTF UV"], ["filamento3d", "🧵 Filamento 3D"], ["empaque", "📦 Empaque"],
   ];
 
   const actualizarMaterial = (cat, id, campo, valor) => {
@@ -1530,6 +1558,7 @@ function App() {
   const [materiales, setMateriales] = useState(() => {
     const cargado = loadLS("cz_materiales", DEFAULT_MATERIALES);
     if (!cargado.dtf || !cargado.dtf.some((m) => m.tipo === "escalonado")) cargado.dtf = DEFAULT_MATERIALES.dtf;
+    if (!cargado.empaque) cargado.empaque = DEFAULT_MATERIALES.empaque;
     return cargado;
   });
   const [preciosFijos, setPreciosFijos] = useState(() => loadLS("cz_preciosFijos", DEFAULT_PRECIOS_FIJOS));
