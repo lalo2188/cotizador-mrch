@@ -315,6 +315,25 @@ function saveLS(key, val) {
   try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {}
 }
 
+/* ===================== IMÁGENES (redimensiona antes de guardar en localStorage) ===================== */
+function redimensionarImagen(file, maxDim, callback) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      let w = img.width, h = img.height;
+      if (w > h && w > maxDim) { h = Math.round(h * (maxDim / w)); w = maxDim; }
+      else if (h > maxDim) { w = Math.round(w * (maxDim / h)); h = maxDim; }
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      callback(canvas.toDataURL("image/jpeg", 0.72));
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
 /* ===================== TEXTO TICKET (para WhatsApp / guardar / imprimir) ===================== */
 function generarTextoTicket(partidas, tier, mults, modoMargen, refPedido) {
   const pv = (p) => valorPartida(p, tier, mults, modoMargen);
@@ -391,13 +410,22 @@ function FormDTF({ onAdd, materialesDTF, configProduccion, tarifaHr }) {
   const [tipoDiseno, setTipoDiseno] = useState("proporcionado");
   const [imps, setImps] = useState([{ id: nid(), diseno: "Espalda Full Size", custom: false, w: 0, h: 0 }]);
   const [nd, setNd] = useState("Frontal Logo"), [nCustom, setNCustom] = useState(false), [nw, setNw] = useState(10), [nh, setNh] = useState(10);
+  const [soloFav, setSoloFav] = useState(false);
   const medidaDe = (imp) => (imp.custom ? [Number(imp.w), Number(imp.h)] : DISENOS_DTF[imp.diseno][genero][talla]);
+
+  const hayFavoritos = useMemo(() => materialesDTF.some((m) => m.favorito), [materialesDTF]);
 
   const grupos = useMemo(() => {
     const g = {};
-    materialesDTF.forEach((m) => { const cat = m.categoria || "Otros"; (g[cat] = g[cat] || []).push(m); });
+    const lista = soloFav ? materialesDTF.filter((m) => m.favorito) : materialesDTF;
+    lista.forEach((m) => { const cat = m.categoria || "Otros"; (g[cat] = g[cat] || []).push(m); });
     return g;
-  }, [materialesDTF]);
+  }, [materialesDTF, soloFav]);
+
+  useEffect(() => {
+    const visibles = Object.values(grupos).flat();
+    if (visibles.length && !visibles.some((m) => m.id === modeloId)) cambiarModelo(visibles[0].id);
+  }, [grupos]);
 
   const item = materialesDTF.find((m) => m.id === modeloId) || materialesDTF[0] || { precio: 0 };
   const esEscalonado = item.tipo === "escalonado";
@@ -433,12 +461,20 @@ function FormDTF({ onAdd, materialesDTF, configProduccion, tarifaHr }) {
 
   return (
     <>
-      <div style={{ display: "grid", gridTemplateColumns: esEscalonado ? "1.3fr 1fr 1fr" : "1.6fr 1fr", gap: 8 }}>
+      {hayFavoritos && (
+        <label style={{ fontSize: 12, display: "flex", gap: 6, alignItems: "center", cursor: "pointer", marginBottom: 8 }}>
+          <input type="checkbox" checked={soloFav} onChange={(e) => setSoloFav(e.target.checked)} /> ⭐ Solo favoritos
+        </label>
+      )}
+      <div style={{ display: "grid", gridTemplateColumns: esEscalonado ? "auto 1.3fr 1fr 1fr" : "auto 1.6fr 1fr", gap: 8, alignItems: "end" }}>
+        {item.imagen
+          ? <img src={item.imagen} style={{ width: 42, height: 42, objectFit: "cover", borderRadius: 6, border: "1px solid #D8DBE0" }} title={item.nombre} />
+          : <div style={{ width: 42, height: 42, borderRadius: 6, border: "1px dashed #D8DBE0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: "#C7CBD2" }}>📷</div>}
         <div>
           <label className="cz-lbl">Modelo</label>
           <select className="cz-in" value={modeloId} onChange={(e) => cambiarModelo(e.target.value)}>
             {Object.entries(grupos).map(([cat, items]) => (
-              <optgroup key={cat} label={cat}>{items.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}</optgroup>
+              <optgroup key={cat} label={cat}>{items.map((m) => <option key={m.id} value={m.id}>{(m.favorito ? "⭐ " : "") + m.nombre}</option>)}</optgroup>
             ))}
           </select>
         </div>
@@ -1052,11 +1088,29 @@ function VistaHistorial({ historial, onEliminar, onLimpiar }) {
   );
 }
 
+/* ===================== FAVORITO + IMAGEN (reutilizable en Insumos) ===================== */
+function FavImg({ favorito, imagen, onToggleFav, onSubirImagen, onQuitarImagen, size }) {
+  const s = size || 28;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+      <button onClick={onToggleFav} title="Marcar/quitar favorito" style={{ border: "none", background: "none", cursor: "pointer", fontSize: 16, color: favorito ? "#F4B400" : "#D8DBE0", lineHeight: 1 }}>{favorito ? "★" : "☆"}</button>
+      <label style={{ cursor: "pointer" }} title="Subir imagen">
+        {imagen
+          ? <img src={imagen} style={{ width: s, height: s, objectFit: "cover", borderRadius: 5, border: "1px solid #D8DBE0", display: "block" }} />
+          : <span style={{ width: s, height: s, display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed #D8DBE0", borderRadius: 5, fontSize: 12, color: "#9AA0AE" }}>📷</span>}
+        <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => onSubirImagen(e.target.files[0])} />
+      </label>
+      {imagen && onQuitarImagen && <button onClick={onQuitarImagen} title="Quitar imagen" style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 12 }}>×</button>}
+    </div>
+  );
+}
+
 /* ===================== VISTA INSUMOS ===================== */
 function VistaInsumos({ materiales, setMateriales, preciosFijos, setPreciosFijos, configProduccion, setConfigProduccion, costosOperativos, setCostosOperativos, costoMaquinas, setCostoMaquinas, manoObra, setManoObra, costosPorHora, catalogoOtros, setCatalogoOtros }) {
   const [categoriaActiva, setCategoriaActiva] = useState("laser");
   const [importText, setImportText] = useState("");
   const [importMsg, setImportMsg] = useState("");
+  const [busqueda, setBusqueda] = useState("");
   const CATEGORIAS = [
     ["laser", "🔥 Láser"], ["dtf", "👕 DTF"], ["sublimado", "☕ Sublimado"], ["uv", "✨ DTF UV"], ["filamento3d", "🧵 Filamento 3D"],
   ];
@@ -1098,6 +1152,27 @@ function VistaInsumos({ materiales, setMateriales, preciosFijos, setPreciosFijos
   const actualizarOtro = (sub, id, valor) => {
     setCatalogoOtros((prev) => ({ ...prev, [sub]: prev[sub].map((o) => (o.id === id ? { ...o, precio: Number(valor), mod: hoy() } : o)) }));
   };
+  const toggleFavorito = (cat, id) => {
+    setMateriales((prev) => ({ ...prev, [cat]: prev[cat].map((m) => (m.id === id ? { ...m, favorito: !m.favorito, mod: hoy() } : m)) }));
+  };
+  const subirImagen = (cat, id, file) => {
+    if (!file) return;
+    redimensionarImagen(file, 240, (dataUrl) => {
+      setMateriales((prev) => ({ ...prev, [cat]: prev[cat].map((m) => (m.id === id ? { ...m, imagen: dataUrl, mod: hoy() } : m)) }));
+    });
+  };
+  const quitarImagen = (cat, id) => {
+    setMateriales((prev) => ({ ...prev, [cat]: prev[cat].map((m) => (m.id === id ? { ...m, imagen: "" } : m)) }));
+  };
+  const toggleFavoritoOtro = (sub, id) => {
+    setCatalogoOtros((prev) => ({ ...prev, [sub]: prev[sub].map((o) => (o.id === id ? { ...o, favorito: !o.favorito, mod: hoy() } : o)) }));
+  };
+  const subirImagenOtro = (sub, id, file) => {
+    if (!file) return;
+    redimensionarImagen(file, 160, (dataUrl) => {
+      setCatalogoOtros((prev) => ({ ...prev, [sub]: prev[sub].map((o) => (o.id === id ? { ...o, imagen: dataUrl, mod: hoy() } : o)) }));
+    });
+  };
 
   const actualizarCortador = (id, campo, valor) => {
     setPreciosFijos((prev) => ({ ...prev, cortadores: prev.cortadores.map((c) => (c.id === id ? { ...c, [campo]: campo === "rango" ? valor : (valor === "" ? null : Number(valor)), mod: hoy() } : c)) }));
@@ -1122,14 +1197,23 @@ function VistaInsumos({ materiales, setMateriales, preciosFijos, setPreciosFijos
             <button key={k} className={"svc" + (categoriaActiva === k ? " on" : "")} style={categoriaActiva === k ? { background: "#14161D" } : {}} onClick={() => setCategoriaActiva(k)}>{t}</button>
           ))}
         </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10 }}>
+          <input className="cz-in" style={{ flex: 1 }} placeholder="🔎 Buscar por nombre…" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
+          {busqueda && <button className="cz-btn" onClick={() => setBusqueda("")}>Limpiar</button>}
+        </div>
         <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
           {categoriaActiva === "dtf" ? (
-            Object.entries(materiales.dtf.reduce((g, m) => { const cat = m.categoria || "Otros"; (g[cat] = g[cat] || []).push(m); return g; }, {})).map(([cat, items]) => (
+            Object.entries(
+              materiales.dtf
+                .filter((m) => m.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+                .reduce((g, m) => { const cat = m.categoria || "Otros"; (g[cat] = g[cat] || []).push(m); return g; }, {})
+            ).map(([cat, items]) => (
               <div key={cat}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: "#7B8290", textTransform: "uppercase", letterSpacing: ".05em", margin: "6px 0" }}>{cat}</div>
                 {items.map((m) => m.tipo === "escalonado" ? (
                   <div key={m.id} style={{ border: "1.5px solid #EEF0F2", borderRadius: 8, padding: 8, marginBottom: 8 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <FavImg favorito={m.favorito} imagen={m.imagen} onToggleFav={() => toggleFavorito("dtf", m.id)} onSubirImagen={(f) => subirImagen("dtf", m.id, f)} onQuitarImagen={() => quitarImagen("dtf", m.id)} />
                       <input className="cz-in" style={{ flex: 1, fontWeight: 600 }} value={m.nombre} onChange={(e) => actualizarMaterial("dtf", m.id, "nombre", e.target.value)} />
                       <span className="insumo-mod">Mod: {m.mod}</span>
                       <button onClick={() => eliminarMaterial("dtf", m.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 16 }}>×</button>
@@ -1148,6 +1232,7 @@ function VistaInsumos({ materiales, setMateriales, preciosFijos, setPreciosFijos
                   </div>
                 ) : (
                   <div key={m.id} className="insumo-row">
+                    <FavImg favorito={m.favorito} imagen={m.imagen} onToggleFav={() => toggleFavorito("dtf", m.id)} onSubirImagen={(f) => subirImagen("dtf", m.id, f)} onQuitarImagen={() => quitarImagen("dtf", m.id)} />
                     <input className="cz-in" style={{ flex: 2, minWidth: 140 }} value={m.nombre} onChange={(e) => actualizarMaterial("dtf", m.id, "nombre", e.target.value)} />
                     <input className="cz-in" style={{ flex: 1, minWidth: 80 }} type="number" value={m.precio} onChange={(e) => actualizarMaterial("dtf", m.id, "precio", e.target.value)} />
                     <span className="insumo-mod">Mod: {m.mod}</span>
@@ -1157,8 +1242,9 @@ function VistaInsumos({ materiales, setMateriales, preciosFijos, setPreciosFijos
               </div>
             ))
           ) : (
-            materiales[categoriaActiva].map((m) => (
+            materiales[categoriaActiva].filter((m) => m.nombre.toLowerCase().includes(busqueda.toLowerCase())).map((m) => (
               <div key={m.id} className="insumo-row">
+                <FavImg favorito={m.favorito} imagen={m.imagen} onToggleFav={() => toggleFavorito(categoriaActiva, m.id)} onSubirImagen={(f) => subirImagen(categoriaActiva, m.id, f)} onQuitarImagen={() => quitarImagen(categoriaActiva, m.id)} />
                 <input className="cz-in" style={{ flex: 2, minWidth: 140 }} value={m.nombre} onChange={(e) => actualizarMaterial(categoriaActiva, m.id, "nombre", e.target.value)} />
                 <input className="cz-in" style={{ flex: 1, minWidth: 80 }} type="number" value={m.precio} onChange={(e) => actualizarMaterial(categoriaActiva, m.id, "precio", e.target.value)} />
                 {m.w !== undefined && <input className="cz-in" style={{ width: 60 }} type="number" title="Ancho cm" value={m.w} onChange={(e) => actualizarMaterial(categoriaActiva, m.id, "w", e.target.value)} />}
@@ -1241,6 +1327,7 @@ function VistaInsumos({ materiales, setMateriales, preciosFijos, setPreciosFijos
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginTop: 6 }}>
               {catalogoOtros[sub].map((o) => (
                 <div key={o.id} style={{ display: "flex", gap: 4, alignItems: "center", fontSize: 12 }}>
+                  <FavImg favorito={o.favorito} imagen={o.imagen} size={22} onToggleFav={() => toggleFavoritoOtro(sub, o.id)} onSubirImagen={(f) => subirImagenOtro(sub, o.id, f)} />
                   <span style={{ flex: 1 }}>{o.nombre}</span>
                   <input className="cz-in" style={{ width: 66, padding: "4px 6px", fontSize: 12 }} type="number" value={o.precio} onChange={(e) => actualizarOtro(sub, o.id, e.target.value)} />
                 </div>
