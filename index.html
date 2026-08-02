@@ -42,6 +42,7 @@ const FECHA_INICIAL = hoy();
 
 const SERVICIOS = {
   DTF: { nombre: "DTF", color: "#E91E8C", icono: "👕" },
+  DTFSUELTO: { nombre: "DTF Suelto", color: "#64748B", icono: "📏" },
   SUBLI: { nombre: "Sublimación", color: "#0FA3B1", icono: "☕" },
   LASER: { nombre: "Láser", color: "#F4561D", icono: "🔥" },
   UV: { nombre: "DTF UV", color: "#7B5CFF", icono: "✨" },
@@ -256,6 +257,7 @@ const DEFAULT_PRECIOS_FIJOS = {
 
 const DEFAULT_CONFIG_PRODUCCION = {
   dtfPrecioMetro: 240, dtfAnchoCm: 60,
+  dtfSueltoPrecioMetro: 150, dtfSueltoAnchoCm: 58,
   uvPrecioMetro: 350, uvAnchoCm: 30,
   subliMetro: 150, subliArea: 11000,
   tiempoPlanchadoMin: 6,
@@ -344,9 +346,9 @@ function redimensionarImagen(file, maxDim, callback) {
 }
 
 /* ===================== TEXTO TICKET (para WhatsApp / guardar / imprimir) ===================== */
-function generarTextoTicket(partidas, tier, mults, modoMargen, refPedido) {
+function generarTextoTicket(partidas, tier, mults, modoMargen, refPedido, envio = 0) {
   const pv = (p) => valorPartida(p, tier, mults, modoMargen);
-  const total = partidas.reduce((s, p) => s + pv(p), 0);
+  const total = partidas.reduce((s, p) => s + pv(p), 0) + Number(envio || 0);
   let t = `*EL MERCHENARIO*\n`;
   if (refPedido) t += `📌 ${refPedido}\n`;
   t += `🗓️ ${new Date().toLocaleDateString("es-MX")}\n`;
@@ -356,6 +358,7 @@ function generarTextoTicket(partidas, tier, mults, modoMargen, refPedido) {
     if (p.nombre) t += `   ${p.desc}\n`;
     t += `   ${fmt(pv(p))}\n`;
   });
+  if (Number(envio) > 0) t += `🚚 Envío\n   ${fmt(Number(envio))}\n`;
   t += `— — — — — — — — —\n`;
   t += `*TOTAL (${tier}): ${fmt(total)}*\n`;
   t += `Anticipo 50%: ${fmt(total * 0.5)}\n`;
@@ -363,11 +366,11 @@ function generarTextoTicket(partidas, tier, mults, modoMargen, refPedido) {
   return t;
 }
 
-function generarTextoTicketInterno(partidas, tier, mults, modoMargen, refPedido) {
+function generarTextoTicketInterno(partidas, tier, mults, modoMargen, refPedido, envio = 0) {
   const pv = (p) => valorPartida(p, tier, mults, modoMargen);
   const ce = (p) => costoEfectivo(p);
-  const totalCosto = partidas.reduce((s, p) => s + ce(p), 0);
-  const totalPrecio = partidas.reduce((s, p) => s + pv(p), 0);
+  const totalCosto = partidas.reduce((s, p) => s + ce(p), 0) + Number(envio || 0);
+  const totalPrecio = partidas.reduce((s, p) => s + pv(p), 0) + Number(envio || 0);
   let t = `TICKET INTERNO — USO INTERNO, NO MOSTRAR AL CLIENTE\n`;
   if (refPedido) t += `Ref: ${refPedido}\n`;
   t += `${new Date().toLocaleDateString("es-MX")}\n`;
@@ -389,6 +392,7 @@ function generarTextoTicketInterno(partidas, tier, mults, modoMargen, refPedido)
   });
   const totalPiezas = partidas.reduce((s, p) => s + (Number(p.cant) || 0), 0);
   t += `================================\n`;
+  if (Number(envio) > 0) t += `Envío (costo real, sin margen): ${fmt(Number(envio))}\n`;
   t += `TOTAL COSTO: ${fmt(totalCosto)}\n`;
   t += `TOTAL PRECIO (${tier}): ${fmt(totalPrecio)}\n`;
   t += `MARGEN TOTAL: ${fmt(totalPrecio - totalCosto)} (${totalCosto > 0 ? (((totalPrecio - totalCosto) / totalCosto) * 100).toFixed(0) : 0}%)\n`;
@@ -592,6 +596,63 @@ function FormDTF({ onAdd, materialesDTF, materialesEmpaque = [], configProduccio
       </div>
       {r.promo && <div style={{ fontSize: 12, color: r.promoUrge ? "#F4561D" : "#2EA84F", marginTop: 8 }}>{r.promo}</div>}
       <PieForm costo={r.costo} desc={`${imps.length} impresión(es) · ${cant} pz`} onAdd={() => onAdd(r)} color={SERVICIOS.DTF.color} />
+    </>
+  );
+}
+
+/* ===================== FORM: DTF SUELTO (lotes compartidos, ej. con Josué) ===================== */
+function FormDTFSuelto({ onAdd, configProduccion }) {
+  const [nombreLote, setNombreLote] = useState("");
+  const [piezas, setPiezas] = useState([{ id: nid(), nombre: "", w: 30, h: 30, cant: 1 }]);
+  const precioMetro = Number(configProduccion.dtfSueltoPrecioMetro) || 0;
+  const anchoCm = Number(configProduccion.dtfSueltoAnchoCm) || 1;
+
+  const actualizarPieza = (id, campo, valor) => setPiezas((prev) => prev.map((p) => (p.id === id ? { ...p, [campo]: campo === "nombre" ? valor : Number(valor) } : p)));
+  const agregarPieza = () => setPiezas((prev) => [...prev, { id: nid(), nombre: "", w: 30, h: 30, cant: 1 }]);
+  const quitarPieza = (id) => setPiezas((prev) => prev.filter((p) => p.id !== id));
+
+  const r = useMemo(() => {
+    const areaTotal = piezas.reduce((s, p) => s + Math.ceil((Number(p.w) || 0) * (Number(p.h) || 0)) * (Number(p.cant) || 0), 0);
+    const metros = areaTotal / (anchoCm * 100);
+    const costo = metros * precioMetro;
+    const totalPiezas = piezas.reduce((s, p) => s + (Number(p.cant) || 0), 0);
+    const detalle = {
+      porPieza: [],
+      unicos: [{ label: `Impresión DTF suelta (${areaTotal.toLocaleString("es-MX")}cm² · ${metros.toFixed(2)}m · ${fmt(precioMetro)}/m)`, valor: costo }],
+    };
+    return {
+      costo,
+      cant: totalPiezas || 1,
+      desc: `DTF suelto${nombreLote ? " · " + nombreLote : ""} · ${totalPiezas} pieza${totalPiezas === 1 ? "" : "s"} · ${metros.toFixed(2)}m`,
+      detalle,
+      areaTotal,
+      metros,
+      totalPiezas,
+    };
+  }, [piezas, nombreLote, precioMetro, anchoCm]);
+
+  return (
+    <>
+      <div style={{ fontSize: 11, color: "#7B8290", marginBottom: 8 }}>Para cuando juntas diseños con alguien más (ej. Josué) en una sola impresión de DTF, sin prenda ni planchado — solo el costo de la impresión.</div>
+      <label className="cz-lbl">Nombre del lote (opcional)</label>
+      <input className="cz-in" placeholder='Ej. "Lote con Josué 30/jul"' value={nombreLote} onChange={(e) => setNombreLote(e.target.value)} />
+      <div style={{ fontSize: 11, color: "#7B8290", marginTop: 8 }}>Tarifa: <b>{fmt(precioMetro)}/metro</b> · rollo de <b>{anchoCm}cm</b> de ancho (edítalo en Insumos → Config de producción)</div>
+      <label className="cz-lbl" style={{ marginTop: 12 }}>Diseños en este lote ({piezas.length})</label>
+      {piezas.map((p) => (
+        <div key={p.id} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6, flexWrap: "wrap" }}>
+          <input className="cz-in" style={{ flex: 2, minWidth: 100 }} placeholder="Nombre (opcional)" value={p.nombre} onChange={(e) => actualizarPieza(p.id, "nombre", e.target.value)} />
+          <input className="cz-in" style={{ width: 60 }} type="number" title="Ancho cm" value={p.w} onChange={(e) => actualizarPieza(p.id, "w", e.target.value)} />
+          <span style={{ fontSize: 11, color: "#7B8290" }}>×</span>
+          <input className="cz-in" style={{ width: 60 }} type="number" title="Alto cm" value={p.h} onChange={(e) => actualizarPieza(p.id, "h", e.target.value)} />
+          <input className="cz-in" style={{ width: 55 }} type="number" title="Cantidad" value={p.cant} onChange={(e) => actualizarPieza(p.id, "cant", e.target.value)} />
+          {piezas.length > 1 && <button onClick={() => quitarPieza(p.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 16 }}>×</button>}
+        </div>
+      ))}
+      <button className="cz-btn" style={{ marginTop: 4 }} onClick={agregarPieza}>+ Agregar diseño</button>
+      <div style={{ fontSize: 12, color: "#7B8290", marginTop: 10 }}>
+        Área total: <b>{r.areaTotal.toLocaleString("es-MX")}cm²</b> · Metros lineales necesarios: <b>{r.metros.toFixed(2)}m</b> · {r.totalPiezas} pieza{r.totalPiezas === 1 ? "" : "s"}
+      </div>
+      <PieForm costo={r.costo} desc={r.desc} onAdd={() => onAdd(r)} color={SERVICIOS.DTFSUELTO.color} />
     </>
   );
 }
@@ -827,12 +888,14 @@ function VistaCotizar({ mults, modoMargen, clientes, onGuardarHistorial, insumos
   const [partidas, setPartidas] = useState([]);
   const [guardadoOk, setGuardadoOk] = useState(false);
   const [vistaTicket, setVistaTicket] = useState("cliente");
+  const [envio, setEnvio] = useState(0);
 
   const add = (p) => { setPartidas((prev) => [...prev, { ...p, id: nid(), servicio: svc, nombre: nombrePartida.trim() }]); setNombrePartida(""); };
   const editarPrecio = (id, valor) => setPartidas((prev) => prev.map((p) => (p.id === id ? { ...p, precioManual: valor } : p)));
   const editarCosto = (id, valor) => setPartidas((prev) => prev.map((p) => (p.id === id ? { ...p, costoManual: valor } : p)));
   const forms = {
     DTF: <FormDTF onAdd={add} materialesDTF={insumos.materiales.dtf} materialesEmpaque={insumos.materiales.empaque} configProduccion={insumos.configProduccion} tarifaHr={insumos.manoObra.tarifaHr} />,
+    DTFSUELTO: <FormDTFSuelto onAdd={add} configProduccion={insumos.configProduccion} />,
     UV: <FormUV onAdd={add} materialesUV={insumos.materiales.uv} configProduccion={insumos.configProduccion} />,
     SUBLI: <FormSubli onAdd={add} materialesSublimado={insumos.materiales.sublimado} configProduccion={insumos.configProduccion} />,
     LASER: <FormLaser onAdd={add} materialesLaser={insumos.materiales.laser} costosPorHora={insumos.costosPorHora} tarifaHr={insumos.manoObra.tarifaHr} />,
@@ -841,7 +904,7 @@ function VistaCotizar({ mults, modoMargen, clientes, onGuardarHistorial, insumos
     IMP3D: <FormImpresion3D onAdd={add} filamentos={insumos.materiales.filamento3d} costosPorHora={insumos.costosPorHora} tarifaHr={insumos.manoObra.tarifaHr} />,
   };
 
-  const total = partidas.reduce((s, p) => s + valorPartida(p, tier, mults, modoMargen), 0);
+  const total = partidas.reduce((s, p) => s + valorPartida(p, tier, mults, modoMargen), 0) + Number(envio || 0);
 
   const seleccionarCliente = (id) => {
     setClienteSel(id);
@@ -853,19 +916,19 @@ function VistaCotizar({ mults, modoMargen, clientes, onGuardarHistorial, insumos
   };
 
   const handleWhatsApp = () => {
-    const texto = generarTextoTicket(partidas, tier, mults, modoMargen, refPedido);
+    const texto = generarTextoTicket(partidas, tier, mults, modoMargen, refPedido, envio);
     window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, "_blank");
   };
 
   const handleGuardar = () => {
-    const texto = generarTextoTicket(partidas, tier, mults, modoMargen, refPedido);
-    onGuardarHistorial({ id: nid(), fecha: new Date().toLocaleString("es-MX"), refPedido, tier, total, texto, partidas });
+    const texto = generarTextoTicket(partidas, tier, mults, modoMargen, refPedido, envio);
+    onGuardarHistorial({ id: nid(), fecha: new Date().toLocaleString("es-MX"), refPedido, tier, total, envio, texto, partidas });
     setGuardadoOk(true);
     setTimeout(() => setGuardadoOk(false), 2000);
   };
 
   const handleImprimir = () => {
-    const texto = generarTextoTicket(partidas, tier, mults, modoMargen, refPedido).replace(/\*/g, "");
+    const texto = generarTextoTicket(partidas, tier, mults, modoMargen, refPedido, envio).replace(/\*/g, "");
     const w = window.open("", "_blank", "width=380,height=640");
     if (w) {
       w.document.write(`<pre style="font-family:'IBM Plex Mono',monospace;font-size:12px;white-space:pre-wrap;width:58mm;padding:8px;margin:0;">${texto}</pre>`);
@@ -876,7 +939,7 @@ function VistaCotizar({ mults, modoMargen, clientes, onGuardarHistorial, insumos
   };
 
   const handleImprimirInterno = () => {
-    const texto = generarTextoTicketInterno(partidas, tier, mults, modoMargen, refPedido);
+    const texto = generarTextoTicketInterno(partidas, tier, mults, modoMargen, refPedido, envio);
     const w = window.open("", "_blank", "width=520,height=720");
     if (w) {
       w.document.write(`<pre style="font-family:'IBM Plex Mono',monospace;font-size:12px;white-space:pre-wrap;max-width:480px;padding:16px;margin:0;">${texto}</pre>`);
@@ -923,6 +986,11 @@ function VistaCotizar({ mults, modoMargen, clientes, onGuardarHistorial, insumos
             ))}
           </div>
         </div>
+        <div className="cz-card">
+          <label className="cz-lbl">🚚 Envío (opcional — costo real, sin margen)</label>
+          <input className="cz-in" type="number" value={envio} onChange={(e) => setEnvio(Number(e.target.value) || 0)} placeholder="0" />
+          <div style={{ fontSize: 11, color: "#7B8290", marginTop: 4 }}>Se suma tal cual al total (no se le aplica % de ganancia) y sí se incluye en el anticipo del 50%.</div>
+        </div>
       </div>
       <div style={{ position: "sticky", top: 12 }}>
         <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
@@ -930,8 +998,8 @@ function VistaCotizar({ mults, modoMargen, clientes, onGuardarHistorial, insumos
           <button className="cz-btn" style={{ flex: 1, ...(vistaTicket === "interno" ? { background: "#14161D" } : { background: "#fff", color: "#14161D", border: "1.5px solid #D8DBE0" }) }} onClick={() => setVistaTicket("interno")}>🔧 Interno</button>
         </div>
         {vistaTicket === "cliente"
-          ? <TicketCarrito partidas={partidas} tier={tier} mults={mults} modoMargen={modoMargen} refPedido={refPedido} onRemove={(id) => setPartidas(partidas.filter((p) => p.id !== id))} onEditPrice={editarPrecio} />
-          : <TicketInterno partidas={partidas} tier={tier} mults={mults} modoMargen={modoMargen} refPedido={refPedido} onRemove={(id) => setPartidas(partidas.filter((p) => p.id !== id))} onEditCost={editarCosto} />}
+          ? <TicketCarrito partidas={partidas} tier={tier} mults={mults} modoMargen={modoMargen} refPedido={refPedido} envio={envio} onRemove={(id) => setPartidas(partidas.filter((p) => p.id !== id))} onEditPrice={editarPrecio} />
+          : <TicketInterno partidas={partidas} tier={tier} mults={mults} modoMargen={modoMargen} refPedido={refPedido} envio={envio} onRemove={(id) => setPartidas(partidas.filter((p) => p.id !== id))} onEditCost={editarCosto} />}
         {partidas.length > 0 && vistaTicket === "cliente" && (<>
           <button className="cz-btn" style={{ width: "100%", marginTop: 10, background: "#25D366" }} onClick={handleWhatsApp}>📲 Enviar por WhatsApp</button>
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
@@ -976,10 +1044,10 @@ function ValorEditable({ valor, onEdit, onReset, manual, titulo }) {
   );
 }
 
-function TicketCarrito({ partidas, tier, mults, modoMargen, refPedido, onRemove, onEditPrice }) {
+function TicketCarrito({ partidas, tier, mults, modoMargen, refPedido, envio = 0, onRemove, onEditPrice }) {
   const pv = (p) => valorPartida(p, tier, mults, modoMargen);
-  const total = partidas.reduce((s, p) => s + pv(p), 0);
-  const totalCon = (t) => partidas.reduce((s, p) => s + valorPartida(p, t, mults, modoMargen), 0);
+  const total = partidas.reduce((s, p) => s + pv(p), 0) + Number(envio || 0);
+  const totalCon = (t) => partidas.reduce((s, p) => s + valorPartida(p, t, mults, modoMargen), 0) + Number(envio || 0);
   if (partidas.length === 0) return <div className="ticket"><div style={{ textAlign: "center", color: "#9AA0AE", padding: "30px 10px", fontSize: 13 }}>Agrega partidas y se irán sumando aquí.<br /><br />Ej: vaso + DTF UV full, un listón de 10m, y unas playeras — todo en una cotización.</div></div>;
   return (
     <div className="ticket">
@@ -1000,6 +1068,9 @@ function TicketCarrito({ partidas, tier, mults, modoMargen, refPedido, onRemove,
           {p.precioManual != null && <div style={{ fontSize: 9.5, color: "#F4561D", paddingLeft: 20 }}>precio ajustado manualmente</div>}
         </div>
       ))}
+      {Number(envio) > 0 && (
+        <div className="trow"><span>🚚 Envío</span><span>{fmt(Number(envio))}</span></div>
+      )}
       <hr className="sep" />
       <div className="trow" style={{ fontWeight: 600, fontSize: 15, background: "#FFF4EE", margin: "0 -6px", padding: "5px 6px", borderRadius: 4 }}><span>TOTAL ({tier})</span><span>{fmt(total)}</span></div>
       <div style={{ marginTop: 6 }}>{Object.keys(mults).filter((t) => t !== tier).map((t) => (<div className="trow" key={t} style={{ color: "#9AA0AE", fontSize: 11 }}><span>{t}</span><span>{fmt(totalCon(t))}</span></div>))}</div>
@@ -1011,11 +1082,11 @@ function TicketCarrito({ partidas, tier, mults, modoMargen, refPedido, onRemove,
   );
 }
 
-function TicketInterno({ partidas, tier, mults, modoMargen, refPedido, onRemove, onEditCost }) {
+function TicketInterno({ partidas, tier, mults, modoMargen, refPedido, envio = 0, onRemove, onEditCost }) {
   const pv = (p) => valorPartida(p, tier, mults, modoMargen);
   const ce = (p) => costoEfectivo(p);
-  const totalCosto = partidas.reduce((s, p) => s + ce(p), 0);
-  const totalPrecio = partidas.reduce((s, p) => s + pv(p), 0);
+  const totalCosto = partidas.reduce((s, p) => s + ce(p), 0) + Number(envio || 0);
+  const totalPrecio = partidas.reduce((s, p) => s + pv(p), 0) + Number(envio || 0);
   const totalMargen = totalPrecio - totalCosto;
   const totalPiezas = partidas.reduce((s, p) => s + (Number(p.cant) || 0), 0);
   if (partidas.length === 0) return <div className="ticket"><div style={{ textAlign: "center", color: "#9AA0AE", padding: "30px 10px", fontSize: 13 }}>Agrega partidas y verás aquí el desglose de costo, precio y margen de cada una.</div></div>;
@@ -1058,6 +1129,9 @@ function TicketInterno({ partidas, tier, mults, modoMargen, refPedido, onRemove,
           </div>
         );
       })}
+      {Number(envio) > 0 && (
+        <div className="trow"><span>🚚 Envío (costo real, sin margen)</span><span>{fmt(Number(envio))}</span></div>
+      )}
       <hr className="sep" />
       <div className="trow" style={{ fontWeight: 600 }}><span>TOTAL COSTO</span><span>{fmt(totalCosto)}</span></div>
       <div className="trow" style={{ fontWeight: 600 }}><span>TOTAL PRECIO ({tier})</span><span>{fmt(totalPrecio)}</span></div>
@@ -1478,6 +1552,8 @@ function VistaInsumos({ materiales, setMateriales, preciosFijos, setPreciosFijos
           <div><label className="cz-lbl">DTF $/metro</label><input className="cz-in" type="number" value={configProduccion.dtfPrecioMetro} onChange={(e) => editarProduccion("dtfPrecioMetro", e.target.value)} /></div>
           <div><label className="cz-lbl">DTF ancho rollo (cm)</label><input className="cz-in" type="number" value={configProduccion.dtfAnchoCm} onChange={(e) => editarProduccion("dtfAnchoCm", e.target.value)} /></div>
           <div><label className="cz-lbl">Tiempo planchado (min)</label><input className="cz-in" type="number" value={configProduccion.tiempoPlanchadoMin} onChange={(e) => editarProduccion("tiempoPlanchadoMin", e.target.value)} /></div>
+          <div><label className="cz-lbl">DTF Suelto $/metro (lotes compartidos)</label><input className="cz-in" type="number" value={configProduccion.dtfSueltoPrecioMetro} onChange={(e) => editarProduccion("dtfSueltoPrecioMetro", e.target.value)} /></div>
+          <div><label className="cz-lbl">DTF Suelto ancho rollo (cm)</label><input className="cz-in" type="number" value={configProduccion.dtfSueltoAnchoCm} onChange={(e) => editarProduccion("dtfSueltoAnchoCm", e.target.value)} /></div>
           <div><label className="cz-lbl">DTF UV film $/metro</label><input className="cz-in" type="number" value={configProduccion.uvPrecioMetro} onChange={(e) => editarProduccion("uvPrecioMetro", e.target.value)} /></div>
           <div><label className="cz-lbl">DTF UV ancho rollo (cm)</label><input className="cz-in" type="number" value={configProduccion.uvAnchoCm} onChange={(e) => editarProduccion("uvAnchoCm", e.target.value)} /></div>
           <div><label className="cz-lbl">Diseño/revisión DTF ($, único x pedido)</label><input className="cz-in" type="number" value={configProduccion.manipProporc} onChange={(e) => editarProduccion("manipProporc", e.target.value)} /></div>
