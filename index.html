@@ -1721,6 +1721,7 @@ function App() {
     const cargado = loadLS("cz_materiales", DEFAULT_MATERIALES);
     if (!cargado.dtf || !cargado.dtf.some((m) => m.tipo === "escalonado")) cargado.dtf = DEFAULT_MATERIALES.dtf;
     if (!cargado.empaque) cargado.empaque = DEFAULT_MATERIALES.empaque;
+    if (cargado.dtf.some((m) => m.id === "tote-negra" || m.id === "tote-cafe")) cargado.dtf = cargado.dtf.filter((m) => m.id !== "tote-negra" && m.id !== "tote-cafe");
     return cargado;
   });
   const [preciosFijos, setPreciosFijos] = useState(() => ({ ...DEFAULT_PRECIOS_FIJOS, ...loadLS("cz_preciosFijos", DEFAULT_PRECIOS_FIJOS) }));
