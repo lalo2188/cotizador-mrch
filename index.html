@@ -48,6 +48,7 @@ const SERVICIOS = {
   UV: { nombre: "DTF UV", color: "#7B5CFF", icono: "✨" },
   TRESD: { nombre: "Cortadores", color: "#2EA84F", icono: "🍪" },
   PINES: { nombre: "Pines", color: "#C2410C", icono: "📌" },
+  TOTE: { nombre: "Totebags", color: "#0EA5A0", icono: "👜" },
   IMP3D: { nombre: "Impresión 3D", color: "#0EA5E9", icono: "🖨️" },
 };
 
@@ -64,8 +65,6 @@ const DEFAULT_MATERIALES = {
     { id: 8, nombre: "Placa perro aluminio", precio: 7.45, unidad: "pieza", mod: FECHA_INICIAL },
   ],
   dtf: [
-    { id: "tote-negra", tipo: "fijo", categoria: "Otros", nombre: "Tote bag negra", precio: 29.5, unidad: "pieza", mod: FECHA_INICIAL },
-    { id: "tote-cafe", tipo: "fijo", categoria: "Otros", nombre: "Tote bag café", precio: 26.2, unidad: "pieza", mod: FECHA_INICIAL },
     { id: "32603", tipo: "escalonado", categoria: "Playeras Caballero", nombre: "32603 Max 190g/m² Algodón", mod: FECHA_INICIAL, colores: [
       { nombre: "Blanco", t1: 36.00, t2: 35.28, t3: 34.56 },
       { nombre: "Obscuro", t1: 42.50, t2: 41.65, t3: 40.80 },
@@ -252,6 +251,11 @@ const DEFAULT_PRECIOS_FIJOS = {
     { id: 2, rango: "10–49 pz", min: 10, precioPz: 10, mod: FECHA_INICIAL },
     { id: 3, rango: "50–79 pz", min: 50, precioPz: 9, mod: FECHA_INICIAL },
     { id: 4, rango: "80–100 pz", min: 80, precioPz: 8, mod: FECHA_INICIAL },
+  ],
+  totebags: [
+    { id: 1, rango: "1–10 pz", min: 1, precioPz: 145, mod: FECHA_INICIAL },
+    { id: 2, rango: "11–30 pz", min: 11, precioPz: 135, mod: FECHA_INICIAL },
+    { id: 3, rango: "31–60 pz", min: 31, precioPz: 125, mod: FECHA_INICIAL },
   ],
 };
 
@@ -839,6 +843,46 @@ function FormPines({ onAdd, pines }) {
   );
 }
 
+/* ===================== FORM: TOTEBAGS (precio fijo por cantidad) ===================== */
+function FormTotebags({ onAdd, totebags }) {
+  const [cant, setCant] = useState(10);
+  const [color, setColor] = useState("Negra");
+  const ordenados = useMemo(() => [...totebags].sort((a, b) => a.min - b.min), [totebags]);
+  const r = useMemo(() => {
+    const cantNum = Number(cant) || 0;
+    let tier = ordenados[0] || { precioPz: 0, min: 1 };
+    ordenados.forEach((t) => { if (cantNum >= t.min) tier = t; });
+    const unit = tier.precioPz;
+    const idxActual = ordenados.indexOf(tier);
+    const siguiente = ordenados[idxActual + 1];
+    let promo = null;
+    if (siguiente && cantNum < siguiente.min) {
+      const faltan = siguiente.min - cantNum;
+      promo = `🎁 Agrega ${faltan} totebag${faltan > 1 ? "s" : ""} más y cada una te sale en ${fmt(siguiente.precioPz)} (llevando ${siguiente.min})`;
+    } else if (!siguiente && ordenados.length) {
+      promo = `✅ Ya tienes el mejor precio por volumen: ${fmt(unit)} c/u`;
+    }
+    return { esFijo: true, precioFijo: unit * cantNum, cant: cantNum, desc: `Totebag ${color} (DTF incl.) ×${cantNum}`, promo };
+  }, [cant, color, ordenados]);
+  return (
+    <>
+      <label className="cz-lbl">Color</label>
+      <div style={{ display: "flex", gap: 8 }}>
+        <div className={"tierbox" + (color === "Negra" ? " on" : "")} onClick={() => setColor("Negra")} style={{ fontSize: 12 }}>Negra</div>
+        <div className={"tierbox" + (color === "Café" ? " on" : "")} onClick={() => setColor("Café")} style={{ fontSize: 12 }}>Café</div>
+      </div>
+      <label className="cz-lbl" style={{ marginTop: 10 }}>Cantidad</label>
+      <input className="cz-in" type="number" value={cant} onChange={(e) => setCant(e.target.value)} />
+      <div style={{ fontSize: 11, color: "#7B8290", marginTop: 10, display: "flex", flexDirection: "column", gap: 2 }}>
+        {ordenados.map((t) => <div key={t.id}>{t.rango}: {fmt(t.precioPz)} c/u</div>)}
+      </div>
+      <div style={{ fontSize: 11, color: "#7B8290", marginTop: 8 }}>👜 Precio de venta ya incluye la bolsa + 1 diseño DTF (área máx. 35×36cm). Precio final, no se le agrega margen.</div>
+      {r.promo && <div style={{ fontSize: 12, color: "#2EA84F", marginTop: 8 }}>{r.promo}</div>}
+      <PieForm costo={r.precioFijo} desc={r.desc} onAdd={() => onAdd(r)} color={SERVICIOS.TOTE.color} fijo />
+    </>
+  );
+}
+
 /* ===================== FORM: IMPRESIÓN 3D ===================== */
 function FormImpresion3D({ onAdd, filamentos, costosPorHora, tarifaHr }) {
   const primero = filamentos[0] || { id: 0, nombre: "", precio: 0 };
@@ -901,6 +945,7 @@ function VistaCotizar({ mults, modoMargen, clientes, onGuardarHistorial, insumos
     LASER: <FormLaser onAdd={add} materialesLaser={insumos.materiales.laser} costosPorHora={insumos.costosPorHora} tarifaHr={insumos.manoObra.tarifaHr} />,
     TRESD: <FormCortadores onAdd={add} cortadores={insumos.preciosFijos.cortadores} />,
     PINES: <FormPines onAdd={add} pines={insumos.preciosFijos.pines} />,
+    TOTE: <FormTotebags onAdd={add} totebags={insumos.preciosFijos.totebags} />,
     IMP3D: <FormImpresion3D onAdd={add} filamentos={insumos.materiales.filamento3d} costosPorHora={insumos.costosPorHora} tarifaHr={insumos.manoObra.tarifaHr} />,
   };
 
@@ -1424,6 +1469,9 @@ function VistaInsumos({ materiales, setMateriales, preciosFijos, setPreciosFijos
   const actualizarPin = (id, campo, valor) => {
     setPreciosFijos((prev) => ({ ...prev, pines: prev.pines.map((p) => (p.id === id ? { ...p, [campo]: campo === "rango" ? valor : Number(valor), mod: hoy() } : p)) }));
   };
+  const actualizarTote = (id, campo, valor) => {
+    setPreciosFijos((prev) => ({ ...prev, totebags: prev.totebags.map((t) => (t.id === id ? { ...t, [campo]: campo === "rango" ? valor : Number(valor), mod: hoy() } : t)) }));
+  };
 
   const editarProduccion = (campo, valor) => setConfigProduccion((prev) => ({ ...prev, [campo]: Number(valor), mod: hoy() }));
   const editarOperativos = (campo, valor) => setCostosOperativos((prev) => ({ ...prev, [campo]: Number(valor), mod: hoy() }));
@@ -1547,6 +1595,21 @@ function VistaInsumos({ materiales, setMateriales, preciosFijos, setPreciosFijos
       </div>
 
       <div className="cz-card">
+        <span className="cz-d" style={{ fontSize: 18, fontWeight: 700, textTransform: "uppercase" }}>Precios fijos — Totebags</span>
+        <div style={{ fontSize: 11, color: "#7B8290", marginTop: 4 }}>Precio final de venta por volumen (bolsa + 1 diseño DTF máx. 35×36cm) — no lleva margen adicional.</div>
+        <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+          {preciosFijos.totebags.map((t) => (
+            <div key={t.id} className="insumo-row">
+              <input className="cz-in" style={{ flex: 1, minWidth: 90 }} value={t.rango} onChange={(e) => actualizarTote(t.id, "rango", e.target.value)} />
+              <div style={{ flex: 1, minWidth: 90 }}><label className="cz-lbl" style={{ margin: 0 }}>Desde (pz)</label><input className="cz-in" type="number" value={t.min} onChange={(e) => actualizarTote(t.id, "min", e.target.value)} /></div>
+              <div style={{ flex: 1, minWidth: 90 }}><label className="cz-lbl" style={{ margin: 0 }}>Precio c/u</label><input className="cz-in" type="number" value={t.precioPz} onChange={(e) => actualizarTote(t.id, "precioPz", e.target.value)} /></div>
+              <span className="insumo-mod">Mod: {t.mod}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="cz-card">
         <span className="cz-d" style={{ fontSize: 18, fontWeight: 700, textTransform: "uppercase" }}>Config de producción</span>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 10 }}>
           <div><label className="cz-lbl">DTF $/metro</label><input className="cz-in" type="number" value={configProduccion.dtfPrecioMetro} onChange={(e) => editarProduccion("dtfPrecioMetro", e.target.value)} /></div>
@@ -1660,7 +1723,7 @@ function App() {
     if (!cargado.empaque) cargado.empaque = DEFAULT_MATERIALES.empaque;
     return cargado;
   });
-  const [preciosFijos, setPreciosFijos] = useState(() => loadLS("cz_preciosFijos", DEFAULT_PRECIOS_FIJOS));
+  const [preciosFijos, setPreciosFijos] = useState(() => ({ ...DEFAULT_PRECIOS_FIJOS, ...loadLS("cz_preciosFijos", DEFAULT_PRECIOS_FIJOS) }));
   const [configProduccion, setConfigProduccion] = useState(() => ({ ...DEFAULT_CONFIG_PRODUCCION, ...loadLS("cz_configProduccion", DEFAULT_CONFIG_PRODUCCION) }));
   const [costosOperativos, setCostosOperativos] = useState(() => loadLS("cz_costosOperativos", DEFAULT_COSTOS_OPERATIVOS));
   const [costoMaquinas, setCostoMaquinas] = useState(() => loadLS("cz_costoMaquinas", DEFAULT_COSTO_MAQUINAS));
