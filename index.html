@@ -28,8 +28,8 @@ const DISENOS_DTF = {
   "Frontal Logo":           { Hombre: { S:[5,7],   M:[5,8],   L:[6,9],   XL:[7,9]   }, Mujer: { S:[5,7],   M:[5,8],   L:[6,9],   XL:[7,9]   } },
 };
 const PACK_TALLA = { S: 2.5, M: 2.5, L: 3.5, XL: 3.5 };
-const TIERS = { "Cliente final": 0.65, "Amigo": 0.35, "Familia": 0.18, "Revendedor": 0.25 };
-const EMOJI_TIER = { "Cliente final": "👤", "Amigo": "🤝", "Familia": "👨‍👩‍👧", "Revendedor": "🏪" };
+const TIERS = { "Cliente final": 0.65, "Amigo": 0.35, "Familia": 0.18, "Revendedor": 0.25, "Sin margen": 0 };
+const EMOJI_TIER = { "Cliente final": "👤", "Amigo": "🤝", "Familia": "👨‍👩‍👧", "Revendedor": "🏪", "Sin margen": "⚖️" };
 const HOURS_PER_MONTH = 240; // 30 días × 8 horas
 
 const fmt = (n) => "$" + (n || 0).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -1702,7 +1702,7 @@ function VistaConfig({ mults, setMults, modoMargen, setModoMargen }) {
         {Object.keys(mults).map((t) => (
           <div key={t} style={{ marginTop: 14 }}>
             <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 14, fontWeight: 600 }}>{t}</span><span className="cz-m" style={{ fontWeight: 600 }}>{Math.round(mults[t] * 100)}%</span></div>
-            <input type="range" min="0.1" max="1" step="0.01" value={mults[t]} style={{ width: "100%", accentColor: "#F4561D" }} onChange={(e) => setMults({ ...mults, [t]: Number(e.target.value) })} />
+            <input type="range" min="0" max="1" step="0.01" value={mults[t]} style={{ width: "100%", accentColor: "#F4561D" }} onChange={(e) => setMults({ ...mults, [t]: Number(e.target.value) })} />
           </div>
         ))}
       </div>
@@ -1713,7 +1713,11 @@ function VistaConfig({ mults, setMults, modoMargen, setModoMargen }) {
 /* ===================== APP ===================== */
 function App() {
   const [tab, setTab] = useState("cotizar");
-  const [mults, setMults] = useState(() => loadLS("cz_mults", { ...TIERS }));
+  const [mults, setMults] = useState(() => {
+    const cargado = loadLS("cz_mults", { ...TIERS });
+    if (cargado["Sin margen"] === undefined) cargado["Sin margen"] = 0;
+    return cargado;
+  });
   const [modoMargen, setModoMargen] = useState(() => loadLS("cz_modoMargen", "markup"));
   const [clientes, setClientes] = useState(() => loadLS("cz_clientes", []));
   const [historial, setHistorial] = useState(() => loadLS("cz_historial", []));
