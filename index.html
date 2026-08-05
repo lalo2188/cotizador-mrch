@@ -253,9 +253,9 @@ const DEFAULT_PRECIOS_FIJOS = {
     { id: 4, rango: "80–100 pz", min: 80, precioPz: 8, mod: FECHA_INICIAL },
   ],
   totebags: [
-    { id: 1, rango: "1–10 pz", min: 1, precioPz: 145, mod: FECHA_INICIAL },
-    { id: 2, rango: "11–30 pz", min: 11, precioPz: 135, mod: FECHA_INICIAL },
-    { id: 3, rango: "31–60 pz", min: 31, precioPz: 125, mod: FECHA_INICIAL },
+    { id: 1, rango: "1–10 pz", min: 1, costoPz: 87.88, mod: FECHA_INICIAL },
+    { id: 2, rango: "11–30 pz", min: 11, costoPz: 81.82, mod: FECHA_INICIAL },
+    { id: 3, rango: "31–60 pz", min: 31, costoPz: 75.76, mod: FECHA_INICIAL },
   ],
 };
 
@@ -843,26 +843,27 @@ function FormPines({ onAdd, pines }) {
   );
 }
 
-/* ===================== FORM: TOTEBAGS (precio fijo por cantidad) ===================== */
+/* ===================== FORM: TOTEBAGS (costo escalonado por cantidad, margen según tipo de cliente) ===================== */
 function FormTotebags({ onAdd, totebags }) {
   const [cant, setCant] = useState(10);
   const [color, setColor] = useState("Negra");
   const ordenados = useMemo(() => [...totebags].sort((a, b) => a.min - b.min), [totebags]);
   const r = useMemo(() => {
     const cantNum = Number(cant) || 0;
-    let tier = ordenados[0] || { precioPz: 0, min: 1 };
+    let tier = ordenados[0] || { costoPz: 0, min: 1 };
     ordenados.forEach((t) => { if (cantNum >= t.min) tier = t; });
-    const unit = tier.precioPz;
+    const unit = tier.costoPz;
     const idxActual = ordenados.indexOf(tier);
     const siguiente = ordenados[idxActual + 1];
     let promo = null;
     if (siguiente && cantNum < siguiente.min) {
       const faltan = siguiente.min - cantNum;
-      promo = `🎁 Agrega ${faltan} totebag${faltan > 1 ? "s" : ""} más y cada una te sale en ${fmt(siguiente.precioPz)} (llevando ${siguiente.min})`;
+      promo = `🎁 Agrega ${faltan} totebag${faltan > 1 ? "s" : ""} más y baja el costo a ${fmt(siguiente.costoPz)} c/u (llevando ${siguiente.min})`;
     } else if (!siguiente && ordenados.length) {
-      promo = `✅ Ya tienes el mejor precio por volumen: ${fmt(unit)} c/u`;
+      promo = `✅ Ya tienes el mejor costo por volumen: ${fmt(unit)} c/u`;
     }
-    return { esFijo: true, precioFijo: unit * cantNum, cant: cantNum, desc: `Totebag ${color} (DTF incl.) ×${cantNum}`, promo };
+    const detalle = { porPieza: [{ label: `Totebag ${color} + 1 diseño DTF (costo escalonado)`, valor: unit }], unicos: [] };
+    return { costo: unit * cantNum, cant: cantNum, desc: `Totebag ${color} (DTF incl.) ×${cantNum}`, promo, detalle };
   }, [cant, color, ordenados]);
   return (
     <>
@@ -874,11 +875,11 @@ function FormTotebags({ onAdd, totebags }) {
       <label className="cz-lbl" style={{ marginTop: 10 }}>Cantidad</label>
       <input className="cz-in" type="number" value={cant} onChange={(e) => setCant(e.target.value)} />
       <div style={{ fontSize: 11, color: "#7B8290", marginTop: 10, display: "flex", flexDirection: "column", gap: 2 }}>
-        {ordenados.map((t) => <div key={t.id}>{t.rango}: {fmt(t.precioPz)} c/u</div>)}
+        {ordenados.map((t) => <div key={t.id}>{t.rango}: {fmt(t.costoPz)} c/u (costo)</div>)}
       </div>
-      <div style={{ fontSize: 11, color: "#7B8290", marginTop: 8 }}>👜 Precio de venta ya incluye la bolsa + 1 diseño DTF (área máx. 35×36cm). Precio final, no se le agrega margen.</div>
+      <div style={{ fontSize: 11, color: "#7B8290", marginTop: 8 }}>👜 Costo ya incluye la bolsa + 1 diseño DTF (área máx. 35×36cm). El precio de venta se calcula abajo según el tipo de cliente.</div>
       {r.promo && <div style={{ fontSize: 12, color: "#2EA84F", marginTop: 8 }}>{r.promo}</div>}
-      <PieForm costo={r.precioFijo} desc={r.desc} onAdd={() => onAdd(r)} color={SERVICIOS.TOTE.color} fijo />
+      <PieForm costo={r.costo} desc={r.desc} onAdd={() => onAdd(r)} color={SERVICIOS.TOTE.color} />
     </>
   );
 }
@@ -1596,13 +1597,13 @@ function VistaInsumos({ materiales, setMateriales, preciosFijos, setPreciosFijos
 
       <div className="cz-card">
         <span className="cz-d" style={{ fontSize: 18, fontWeight: 700, textTransform: "uppercase" }}>Precios fijos — Totebags</span>
-        <div style={{ fontSize: 11, color: "#7B8290", marginTop: 4 }}>Precio final de venta por volumen (bolsa + 1 diseño DTF máx. 35×36cm) — no lleva margen adicional.</div>
+        <div style={{ fontSize: 11, color: "#7B8290", marginTop: 4 }}>Costo por volumen (bolsa + 1 diseño DTF máx. 35×36cm). El precio de venta lo calcula el cotizador automático según el tipo de cliente (igual que el resto del catálogo).</div>
         <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
           {preciosFijos.totebags.map((t) => (
             <div key={t.id} className="insumo-row">
               <input className="cz-in" style={{ flex: 1, minWidth: 90 }} value={t.rango} onChange={(e) => actualizarTote(t.id, "rango", e.target.value)} />
               <div style={{ flex: 1, minWidth: 90 }}><label className="cz-lbl" style={{ margin: 0 }}>Desde (pz)</label><input className="cz-in" type="number" value={t.min} onChange={(e) => actualizarTote(t.id, "min", e.target.value)} /></div>
-              <div style={{ flex: 1, minWidth: 90 }}><label className="cz-lbl" style={{ margin: 0 }}>Precio c/u</label><input className="cz-in" type="number" value={t.precioPz} onChange={(e) => actualizarTote(t.id, "precioPz", e.target.value)} /></div>
+              <div style={{ flex: 1, minWidth: 90 }}><label className="cz-lbl" style={{ margin: 0 }}>Costo c/u</label><input className="cz-in" type="number" value={t.costoPz} onChange={(e) => actualizarTote(t.id, "costoPz", e.target.value)} /></div>
               <span className="insumo-mod">Mod: {t.mod}</span>
             </div>
           ))}
@@ -1728,7 +1729,17 @@ function App() {
     if (cargado.dtf.some((m) => m.id === "tote-negra" || m.id === "tote-cafe")) cargado.dtf = cargado.dtf.filter((m) => m.id !== "tote-negra" && m.id !== "tote-cafe");
     return cargado;
   });
-  const [preciosFijos, setPreciosFijos] = useState(() => ({ ...DEFAULT_PRECIOS_FIJOS, ...loadLS("cz_preciosFijos", DEFAULT_PRECIOS_FIJOS) }));
+  const [preciosFijos, setPreciosFijos] = useState(() => {
+    const cargado = { ...DEFAULT_PRECIOS_FIJOS, ...loadLS("cz_preciosFijos", DEFAULT_PRECIOS_FIJOS) };
+    if (cargado.totebags && cargado.totebags.some((t) => t.precioPz !== undefined)) {
+      cargado.totebags = cargado.totebags.map((t) => {
+        if (t.precioPz === undefined) return t;
+        const { precioPz, ...resto } = t;
+        return { ...resto, costoPz: Math.round((precioPz / 1.65) * 100) / 100 };
+      });
+    }
+    return cargado;
+  });
   const [configProduccion, setConfigProduccion] = useState(() => ({ ...DEFAULT_CONFIG_PRODUCCION, ...loadLS("cz_configProduccion", DEFAULT_CONFIG_PRODUCCION) }));
   const [costosOperativos, setCostosOperativos] = useState(() => loadLS("cz_costosOperativos", DEFAULT_COSTOS_OPERATIVOS));
   const [costoMaquinas, setCostoMaquinas] = useState(() => loadLS("cz_costoMaquinas", DEFAULT_COSTO_MAQUINAS));
