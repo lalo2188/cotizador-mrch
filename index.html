@@ -36,6 +36,12 @@ const fmt = (n) => "$" + (n || 0).toLocaleString("es-MX", { minimumFractionDigit
 const precio = (costo, pct, modo) => (modo === "venta" ? costo / (1 - pct) : costo * (1 + pct));
 const costoEfectivo = (p) => (p.costoManual != null ? p.costoManual : p.costo);
 const valorPartida = (p, tier, mults, modoMargen) => (p.precioManual != null ? p.precioManual : (p.esFijo ? p.precioFijo : precio(costoEfectivo(p), mults[tier], modoMargen)));
+const nodoCosto = (n) => {
+  const loteCant = Number(n.loteCant) || 0;
+  const loteCosto = Number(n.loteCosto) || 0;
+  const cantNecesaria = Number(n.cantNecesaria) || 0;
+  return (loteCant > 0 ? loteCosto / loteCant : 0) * cantNecesaria;
+};
 let _id = 0; const nid = () => ++_id;
 const hoy = () => new Date().toLocaleDateString("es-MX");
 const FECHA_INICIAL = hoy();
@@ -50,6 +56,7 @@ const SERVICIOS = {
   PINES: { nombre: "Pines", color: "#C2410C", icono: "📌" },
   TOTE: { nombre: "Totebags", color: "#0EA5A0", icono: "👜" },
   IMP3D: { nombre: "Impresión 3D", color: "#0EA5E9", icono: "🖨️" },
+  LAB: { nombre: "Studio Lab", color: "#A855F7", icono: "🧪" },
 };
 
 /* ===================== VALORES INICIALES DE INSUMOS (editables luego en la pestaña Insumos) ===================== */
@@ -923,6 +930,41 @@ function FormImpresion3D({ onAdd, filamentos, costosPorHora, tarifaHr }) {
   );
 }
 
+/* ===================== FORM: STUDIO LAB (productos armados por nodos) ===================== */
+function FormLab({ onAdd, productosLab, tarifaHr }) {
+  const primero = productosLab[0] || null;
+  const [prodId, setProdId] = useState(primero ? primero.id : null);
+  const [cant, setCant] = useState(1);
+  const [minManoObra, setMinManoObra] = useState(0);
+  const r = useMemo(() => {
+    const prod = productosLab.find((p) => p.id === prodId) || primero;
+    if (!prod) return { costo: 0, cant: 1, desc: "" };
+    const cantNum = Number(cant) || 1;
+    const costoManoObra = (Number(minManoObra) / 60) * tarifaHr;
+    const costoPorPieza = prod.costoNeto + costoManoObra;
+    const detalle = { porPieza: [{ label: `${prod.nombre} (costo neto Studio Lab)`, valor: prod.costoNeto }, ...(costoManoObra > 0 ? [{ label: `Mano de obra (${minManoObra} min)`, valor: costoManoObra }] : [])], unicos: [] };
+    return { costo: costoPorPieza * cantNum, cant: cantNum, desc: `${prod.nombre} ×${cantNum}`, detalle };
+  }, [prodId, cant, minManoObra, productosLab, tarifaHr]);
+
+  if (productosLab.length === 0) {
+    return <div style={{ fontSize: 13, color: "#7B8290" }}>Aún no tienes productos guardados en 🧪 Studio Lab. Ve a esa pestaña y arma tu primer producto por componentes.</div>;
+  }
+  return (
+    <>
+      <label className="cz-lbl">Producto (Studio Lab)</label>
+      <select className="cz-in" value={prodId || ""} onChange={(e) => setProdId(e.target.value)}>
+        {productosLab.map((p) => <option key={p.id} value={p.id}>{p.nombre} — costo neto {fmt(p.costoNeto)}</option>)}
+      </select>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
+        <div><label className="cz-lbl">Cantidad</label><input className="cz-in" type="number" value={cant} onChange={(e) => setCant(e.target.value)} /></div>
+        <div><label className="cz-lbl">Mano de obra (min/pza)</label><input className="cz-in" type="number" value={minManoObra} onChange={(e) => setMinManoObra(e.target.value)} /></div>
+      </div>
+      <div style={{ fontSize: 11, color: "#7B8290", marginTop: 8 }}>Tarifa de mano de obra: {fmt(tarifaHr)}/hora (editable en Insumos → Mano de obra).</div>
+      <PieForm costo={r.costo} desc={r.desc} onAdd={() => onAdd(r)} color={SERVICIOS.LAB.color} />
+    </>
+  );
+}
+
 /* ===================== VISTA COTIZAR ===================== */
 function VistaCotizar({ mults, modoMargen, clientes, onGuardarHistorial, insumos }) {
   const [svc, setSvc] = useState("DTF");
@@ -948,6 +990,7 @@ function VistaCotizar({ mults, modoMargen, clientes, onGuardarHistorial, insumos
     PINES: <FormPines onAdd={add} pines={insumos.preciosFijos.pines} />,
     TOTE: <FormTotebags onAdd={add} totebags={insumos.preciosFijos.totebags} />,
     IMP3D: <FormImpresion3D onAdd={add} filamentos={insumos.materiales.filamento3d} costosPorHora={insumos.costosPorHora} tarifaHr={insumos.manoObra.tarifaHr} />,
+    LAB: <FormLab onAdd={add} productosLab={insumos.productosLab} tarifaHr={insumos.manoObra.tarifaHr} />,
   };
 
   const total = partidas.reduce((s, p) => s + valorPartida(p, tier, mults, modoMargen), 0) + Number(envio || 0);
@@ -1324,6 +1367,93 @@ function VistaClientes({ clientes, onAgregar, onEliminar }) {
             <button onClick={() => onEliminar(c.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 18 }}>×</button>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+/* ===================== VISTA STUDIO LAB (constructor de productos por nodos) ===================== */
+function VistaLab({ productosLab, onGuardar, onEliminar }) {
+  const nodoVacio = () => ({ id: nid(), nombre: "", loteCant: 1, loteCosto: 0, cantNecesaria: 1, link: "" });
+  const [editId, setEditId] = useState(null);
+  const [nombre, setNombre] = useState("");
+  const [nodos, setNodos] = useState([nodoVacio()]);
+
+  const costoNeto = useMemo(() => nodos.reduce((s, n) => s + nodoCosto(n), 0), [nodos]);
+
+  const actualizarNodo = (id, campo, valor) => setNodos((prev) => prev.map((n) => (n.id === id ? { ...n, [campo]: valor } : n)));
+  const agregarNodo = () => setNodos((prev) => [...prev, nodoVacio()]);
+  const quitarNodo = (id) => setNodos((prev) => prev.filter((n) => n.id !== id));
+
+  const nuevo = () => { setEditId(null); setNombre(""); setNodos([nodoVacio()]); };
+  const cargar = (p) => { setEditId(p.id); setNombre(p.nombre); setNodos(p.nodos.map((n) => ({ ...n }))); };
+
+  const guardar = () => {
+    if (!nombre.trim()) { alert("Ponle un nombre al producto"); return; }
+    const nodosLimpios = nodos.filter((n) => n.nombre.trim());
+    if (nodosLimpios.length === 0) { alert("Agrega al menos un componente"); return; }
+    onGuardar({ id: editId || nid(), nombre: nombre.trim(), nodos: nodosLimpios, costoNeto: nodosLimpios.reduce((s, n) => s + nodoCosto(n), 0), mod: hoy() });
+    nuevo();
+  };
+
+  return (
+    <div style={{ maxWidth: 860, display: "flex", flexDirection: "column", gap: 14 }}>
+      <div className="cz-card">
+        <span className="cz-d" style={{ fontSize: 20, fontWeight: 700, textTransform: "uppercase" }}>🧪 Studio Lab — {editId ? "Editar producto" : "Nuevo producto"}</span>
+        <div style={{ fontSize: 12, color: "#7B8290", marginTop: 4 }}>Arma el producto por componentes: cuánto compraste (lote), en cuánto te salió, y cuántos necesitas por pieza. El cotizador calcula el costo neto de materiales — la mano de obra y la ganancia se agregan después, al cotizarlo en la pestaña Cotizar.</div>
+        <label className="cz-lbl" style={{ marginTop: 12 }}>Nombre del producto</label>
+        <input className="cz-in" placeholder="Ej. Llavero sublimado" value={nombre} onChange={(e) => setNombre(e.target.value)} />
+
+        <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+          {nodos.map((n, i) => {
+            const cu = nodoCosto(n);
+            const unitLote = Number(n.loteCant) > 0 ? Number(n.loteCosto) / Number(n.loteCant) : 0;
+            return (
+              <div key={n.id} style={{ border: "1.5px solid #EEF0F2", borderRadius: 8, padding: 10 }}>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <input className="cz-in" style={{ flex: 1, fontWeight: 600 }} placeholder={`Componente ${i + 1} (ej. broche de pico)`} value={n.nombre} onChange={(e) => actualizarNodo(n.id, "nombre", e.target.value)} />
+                  {nodos.length > 1 && <button onClick={() => quitarNodo(n.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 16 }}>×</button>}
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginTop: 6 }}>
+                  <div><label className="cz-lbl" style={{ margin: 0 }}>Compré (pzas del lote)</label><input className="cz-in" type="number" value={n.loteCant} onChange={(e) => actualizarNodo(n.id, "loteCant", e.target.value)} /></div>
+                  <div><label className="cz-lbl" style={{ margin: 0 }}>Costo del lote ($)</label><input className="cz-in" type="number" value={n.loteCosto} onChange={(e) => actualizarNodo(n.id, "loteCosto", e.target.value)} /></div>
+                  <div><label className="cz-lbl" style={{ margin: 0 }}>Necesito x pieza</label><input className="cz-in" type="number" value={n.cantNecesaria} onChange={(e) => actualizarNodo(n.id, "cantNecesaria", e.target.value)} /></div>
+                </div>
+                <input className="cz-in" style={{ marginTop: 6, fontSize: 12 }} placeholder="Link de compra (opcional)" value={n.link} onChange={(e) => actualizarNodo(n.id, "link", e.target.value)} />
+                <div style={{ fontSize: 11, color: "#7B8290", marginTop: 6 }}>
+                  {fmt(unitLote)}/pza × {n.cantNecesaria || 0} necesarias = <b style={{ color: "#14161D" }}>{fmt(cu)}</b>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <button className="cz-btn" style={{ marginTop: 10 }} onClick={agregarNodo}>+ Agregar componente</button>
+
+        <div className="trow" style={{ fontWeight: 700, fontSize: 15, background: "#FFF4EE", margin: "14px -6px 0", padding: "8px 6px", borderRadius: 4 }}>
+          <span>COSTO NETO DEL PRODUCTO</span><span>{fmt(costoNeto)}</span>
+        </div>
+        <div style={{ fontSize: 11, color: "#7B8290", marginTop: 6 }}>Este es el costo puro de materiales. La mano de obra, empaque y ganancia se agregan al momento de cotizarlo.</div>
+
+        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+          <button className="cz-btn org" style={{ flex: 1 }} onClick={guardar}>{editId ? "💾 Guardar cambios" : "+ Crear producto"}</button>
+          {editId && <button className="cz-btn" onClick={nuevo}>Cancelar</button>}
+        </div>
+      </div>
+
+      <div className="cz-card">
+        <span className="cz-d" style={{ fontSize: 18, fontWeight: 700, textTransform: "uppercase" }}>Productos guardados ({productosLab.length})</span>
+        <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+          {productosLab.length === 0 && <div style={{ color: "#9AA0AE", fontSize: 13 }}>Aún no has creado ningún producto. Arma uno arriba.</div>}
+          {productosLab.map((p) => (
+            <div key={p.id} className="insumo-row" style={{ cursor: "pointer" }} onClick={() => cargar(p)}>
+              <span style={{ flex: 2, fontWeight: 600 }}>{p.nombre}</span>
+              <span style={{ flex: 1, fontSize: 12, color: "#7B8290" }}>{p.nodos.length} componente{p.nodos.length === 1 ? "" : "s"}</span>
+              <span style={{ flex: 1, fontWeight: 600 }}>{fmt(p.costoNeto)}</span>
+              <span className="insumo-mod">Mod: {p.mod}</span>
+              <button onClick={(e) => { e.stopPropagation(); onEliminar(p.id); }} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 16 }}>×</button>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -1745,8 +1875,10 @@ function App() {
   const [costoMaquinas, setCostoMaquinas] = useState(() => loadLS("cz_costoMaquinas", DEFAULT_COSTO_MAQUINAS));
   const [manoObra, setManoObra] = useState(() => loadLS("cz_manoObra", DEFAULT_MANO_OBRA));
   const [catalogoOtros, setCatalogoOtros] = useState(() => loadLS("cz_catalogoOtros", DEFAULT_CATALOGO_OTROS));
+  const [productosLab, setProductosLab] = useState(() => loadLS("cz_productosLab", []));
 
   useEffect(() => saveLS("cz_catalogoOtros", catalogoOtros), [catalogoOtros]);
+  useEffect(() => saveLS("cz_productosLab", productosLab), [productosLab]);
   useEffect(() => saveLS("cz_mults", mults), [mults]);
   useEffect(() => saveLS("cz_modoMargen", modoMargen), [modoMargen]);
   useEffect(() => saveLS("cz_clientes", clientes), [clientes]);
@@ -1767,7 +1899,10 @@ function App() {
     };
   }, [costosOperativos, costoMaquinas]);
 
-  const insumos = { materiales, preciosFijos, configProduccion, costosPorHora, manoObra };
+  const insumos = { materiales, preciosFijos, configProduccion, costosPorHora, manoObra, productosLab };
+
+  const guardarProductoLab = (p) => setProductosLab((prev) => (prev.some((x) => x.id === p.id) ? prev.map((x) => (x.id === p.id ? p : x)) : [...prev, p]));
+  const eliminarProductoLab = (id) => { if (confirm("¿Eliminar este producto de Studio Lab?")) setProductosLab((prev) => prev.filter((p) => p.id !== id)); };
 
   const agregarHistorial = (entry) => setHistorial((prev) => [entry, ...prev]);
   const eliminarHistorial = (id) => setHistorial((prev) => prev.filter((h) => h.id !== id));
@@ -1780,6 +1915,7 @@ function App() {
     ["cotizar", "⚡ Cotizar"],
     ["inversa", "🔄 Inversa"],
     ["clientes", "👥 Clientes"],
+    ["lab", "🧪 Studio Lab"],
     ["historial", "🕐 Historial"],
     ["insumos", "📦 Insumos"],
     ["config", "⚙ Config"],
@@ -1797,6 +1933,7 @@ function App() {
         {tab === "cotizar" && <VistaCotizar mults={mults} modoMargen={modoMargen} clientes={clientes} onGuardarHistorial={agregarHistorial} insumos={insumos} />}
         {tab === "inversa" && <VistaInversa mults={mults} modoMargen={modoMargen} />}
         {tab === "clientes" && <VistaClientes clientes={clientes} onAgregar={agregarCliente} onEliminar={eliminarCliente} />}
+        {tab === "lab" && <VistaLab productosLab={productosLab} onGuardar={guardarProductoLab} onEliminar={eliminarProductoLab} />}
         {tab === "historial" && <VistaHistorial historial={historial} onEliminar={eliminarHistorial} onLimpiar={limpiarHistorial} />}
         {tab === "insumos" && (
           <VistaInsumos
