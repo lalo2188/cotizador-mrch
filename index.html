@@ -1373,84 +1373,42 @@ function VistaClientes({ clientes, onAgregar, onEliminar }) {
 }
 
 /* ===================== VISTA STUDIO LAB (constructor de productos por nodos) ===================== */
-function VistaLab({ productosLab, onGuardar, onEliminar }) {
-  const nodoVacio = () => ({ id: nid(), nombre: "", loteCant: 1, loteCosto: 0, cantNecesaria: 1, link: "" });
-  const [editId, setEditId] = useState(null);
-  const [nombre, setNombre] = useState("");
-  const [nodos, setNodos] = useState([nodoVacio()]);
-
-  const costoNeto = useMemo(() => nodos.reduce((s, n) => s + nodoCosto(n), 0), [nodos]);
-
-  const actualizarNodo = (id, campo, valor) => setNodos((prev) => prev.map((n) => (n.id === id ? { ...n, [campo]: valor } : n)));
-  const agregarNodo = () => setNodos((prev) => [...prev, nodoVacio()]);
-  const quitarNodo = (id) => setNodos((prev) => prev.filter((n) => n.id !== id));
-
-  const nuevo = () => { setEditId(null); setNombre(""); setNodos([nodoVacio()]); };
-  const cargar = (p) => { setEditId(p.id); setNombre(p.nombre); setNodos(p.nodos.map((n) => ({ ...n }))); };
-
-  const guardar = () => {
-    if (!nombre.trim()) { alert("Ponle un nombre al producto"); return; }
-    const nodosLimpios = nodos.filter((n) => n.nombre.trim());
-    if (nodosLimpios.length === 0) { alert("Agrega al menos un componente"); return; }
-    onGuardar({ id: editId || nid(), nombre: nombre.trim(), nodos: nodosLimpios, costoNeto: nodosLimpios.reduce((s, n) => s + nodoCosto(n), 0), mod: hoy() });
-    nuevo();
-  };
+function VistaLab({ productosLab, onEliminar }) {
+  const [detalle, setDetalle] = useState(null);
 
   return (
-    <div style={{ maxWidth: 860, display: "flex", flexDirection: "column", gap: 14 }}>
-      <div className="cz-card">
-        <span className="cz-d" style={{ fontSize: 20, fontWeight: 700, textTransform: "uppercase" }}>🧪 Studio Lab — {editId ? "Editar producto" : "Nuevo producto"}</span>
-        <div style={{ fontSize: 12, color: "#7B8290", marginTop: 4 }}>Arma el producto por componentes: cuánto compraste (lote), en cuánto te salió, y cuántos necesitas por pieza. El cotizador calcula el costo neto de materiales — la mano de obra y la ganancia se agregan después, al cotizarlo en la pestaña Cotizar.</div>
-        <label className="cz-lbl" style={{ marginTop: 12 }}>Nombre del producto</label>
-        <input className="cz-in" placeholder="Ej. Llavero sublimado" value={nombre} onChange={(e) => setNombre(e.target.value)} />
-
-        <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
-          {nodos.map((n, i) => {
-            const cu = nodoCosto(n);
-            const unitLote = Number(n.loteCant) > 0 ? Number(n.loteCosto) / Number(n.loteCant) : 0;
-            return (
-              <div key={n.id} style={{ border: "1.5px solid #EEF0F2", borderRadius: 8, padding: 10 }}>
-                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                  <input className="cz-in" style={{ flex: 1, fontWeight: 600 }} placeholder={`Componente ${i + 1} (ej. broche de pico)`} value={n.nombre} onChange={(e) => actualizarNodo(n.id, "nombre", e.target.value)} />
-                  {nodos.length > 1 && <button onClick={() => quitarNodo(n.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 16 }}>×</button>}
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginTop: 6 }}>
-                  <div><label className="cz-lbl" style={{ margin: 0 }}>Compré (pzas del lote)</label><input className="cz-in" type="number" value={n.loteCant} onChange={(e) => actualizarNodo(n.id, "loteCant", e.target.value)} /></div>
-                  <div><label className="cz-lbl" style={{ margin: 0 }}>Costo del lote ($)</label><input className="cz-in" type="number" value={n.loteCosto} onChange={(e) => actualizarNodo(n.id, "loteCosto", e.target.value)} /></div>
-                  <div><label className="cz-lbl" style={{ margin: 0 }}>Necesito x pieza</label><input className="cz-in" type="number" value={n.cantNecesaria} onChange={(e) => actualizarNodo(n.id, "cantNecesaria", e.target.value)} /></div>
-                </div>
-                <input className="cz-in" style={{ marginTop: 6, fontSize: 12 }} placeholder="Link de compra (opcional)" value={n.link} onChange={(e) => actualizarNodo(n.id, "link", e.target.value)} />
-                <div style={{ fontSize: 11, color: "#7B8290", marginTop: 6 }}>
-                  {fmt(unitLote)}/pza × {n.cantNecesaria || 0} necesarias = <b style={{ color: "#14161D" }}>{fmt(cu)}</b>
-                </div>
-              </div>
-            );
-          })}
+    <div style={{ maxWidth: 1060, display: "flex", flexDirection: "column", gap: 14 }}>
+      <div className="cz-card" style={{ padding: 0, overflow: "hidden" }}>
+        <div style={{ padding: "14px 16px 0" }}>
+          <span className="cz-d" style={{ fontSize: 20, fontWeight: 700, textTransform: "uppercase" }}>🧪 Studio Lab — Constructor de productos</span>
+          <div style={{ fontSize: 12, color: "#7B8290", marginTop: 4, marginBottom: 10 }}>Conecta insumos (nodos) a un producto final para comparar qué te conviene comprar. Al guardar, el producto queda disponible abajo y en la pestaña Cotizar.</div>
         </div>
-        <button className="cz-btn" style={{ marginTop: 10 }} onClick={agregarNodo}>+ Agregar componente</button>
-
-        <div className="trow" style={{ fontWeight: 700, fontSize: 15, background: "#FFF4EE", margin: "14px -6px 0", padding: "8px 6px", borderRadius: 4 }}>
-          <span>COSTO NETO DEL PRODUCTO</span><span>{fmt(costoNeto)}</span>
-        </div>
-        <div style={{ fontSize: 11, color: "#7B8290", marginTop: 6 }}>Este es el costo puro de materiales. La mano de obra, empaque y ganancia se agregan al momento de cotizarlo.</div>
-
-        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-          <button className="cz-btn org" style={{ flex: 1 }} onClick={guardar}>{editId ? "💾 Guardar cambios" : "+ Crear producto"}</button>
-          {editId && <button className="cz-btn" onClick={nuevo}>Cancelar</button>}
-        </div>
+        <iframe src="studio-lab.html" title="Studio Lab" style={{ width: "100%", height: 900, border: "none", display: "block" }} />
       </div>
 
       <div className="cz-card">
         <span className="cz-d" style={{ fontSize: 18, fontWeight: 700, textTransform: "uppercase" }}>Productos guardados ({productosLab.length})</span>
         <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
-          {productosLab.length === 0 && <div style={{ color: "#9AA0AE", fontSize: 13 }}>Aún no has creado ningún producto. Arma uno arriba.</div>}
+          {productosLab.length === 0 && <div style={{ color: "#9AA0AE", fontSize: 13 }}>Aún no has guardado ningún producto. Arma uno arriba y dale "Guardar Producto Final".</div>}
           {productosLab.map((p) => (
-            <div key={p.id} className="insumo-row" style={{ cursor: "pointer" }} onClick={() => cargar(p)}>
-              <span style={{ flex: 2, fontWeight: 600 }}>{p.nombre}</span>
-              <span style={{ flex: 1, fontSize: 12, color: "#7B8290" }}>{p.nodos.length} componente{p.nodos.length === 1 ? "" : "s"}</span>
-              <span style={{ flex: 1, fontWeight: 600 }}>{fmt(p.costoNeto)}</span>
-              <span className="insumo-mod">Mod: {p.mod}</span>
-              <button onClick={(e) => { e.stopPropagation(); onEliminar(p.id); }} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 16 }}>×</button>
+            <div key={p.id}>
+              <div className="insumo-row" style={{ cursor: "pointer" }} onClick={() => setDetalle(detalle === p.id ? null : p.id)}>
+                <span style={{ flex: 2, fontWeight: 600 }}>{p.nombre}</span>
+                <span style={{ flex: 1, fontSize: 12, color: "#7B8290" }}>{p.nodos.length} componente{p.nodos.length === 1 ? "" : "s"}</span>
+                <span style={{ flex: 1, fontWeight: 600 }}>{fmt(p.costoNeto)}</span>
+                <span className="insumo-mod">Mod: {p.mod}</span>
+                <button onClick={(e) => { e.stopPropagation(); onEliminar(p.id); }} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 16 }}>×</button>
+              </div>
+              {detalle === p.id && (
+                <div style={{ border: "1.5px solid #EEF0F2", borderTop: "none", borderRadius: "0 0 8px 8px", padding: 10, fontSize: 12, color: "#7B8290" }}>
+                  {p.nodos.map((n) => (
+                    <div key={n.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "4px 0" }}>
+                      <span>{n.nombre}</span>
+                      {n.link ? <a href={n.link} target="_blank" rel="noreferrer" style={{ color: "#F4561D" }}>Ver link ↗</a> : <span>—</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -1879,6 +1837,16 @@ function App() {
 
   useEffect(() => saveLS("cz_catalogoOtros", catalogoOtros), [catalogoOtros]);
   useEffect(() => saveLS("cz_productosLab", productosLab), [productosLab]);
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === "cz_productosLab") setProductosLab(loadLS("cz_productosLab", []));
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+  useEffect(() => {
+    if (tab === "lab") setProductosLab(loadLS("cz_productosLab", []));
+  }, [tab]);
   useEffect(() => saveLS("cz_mults", mults), [mults]);
   useEffect(() => saveLS("cz_modoMargen", modoMargen), [modoMargen]);
   useEffect(() => saveLS("cz_clientes", clientes), [clientes]);
@@ -1901,7 +1869,6 @@ function App() {
 
   const insumos = { materiales, preciosFijos, configProduccion, costosPorHora, manoObra, productosLab };
 
-  const guardarProductoLab = (p) => setProductosLab((prev) => (prev.some((x) => x.id === p.id) ? prev.map((x) => (x.id === p.id ? p : x)) : [...prev, p]));
   const eliminarProductoLab = (id) => { if (confirm("¿Eliminar este producto de Studio Lab?")) setProductosLab((prev) => prev.filter((p) => p.id !== id)); };
 
   const agregarHistorial = (entry) => setHistorial((prev) => [entry, ...prev]);
@@ -1933,7 +1900,7 @@ function App() {
         {tab === "cotizar" && <VistaCotizar mults={mults} modoMargen={modoMargen} clientes={clientes} onGuardarHistorial={agregarHistorial} insumos={insumos} />}
         {tab === "inversa" && <VistaInversa mults={mults} modoMargen={modoMargen} />}
         {tab === "clientes" && <VistaClientes clientes={clientes} onAgregar={agregarCliente} onEliminar={eliminarCliente} />}
-        {tab === "lab" && <VistaLab productosLab={productosLab} onGuardar={guardarProductoLab} onEliminar={eliminarProductoLab} />}
+        {tab === "lab" && <VistaLab productosLab={productosLab} onEliminar={eliminarProductoLab} />}
         {tab === "historial" && <VistaHistorial historial={historial} onEliminar={eliminarHistorial} onLimpiar={limpiarHistorial} />}
         {tab === "insumos" && (
           <VistaInsumos

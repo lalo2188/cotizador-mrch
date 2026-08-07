@@ -1,0 +1,1350 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Studio Lab — Constructor de Productos MRCH</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #FAFAFB;
+            min-height: 100vh;
+            padding: 16px;
+        }
+
+        .header {
+            margin-bottom: 16px;
+        }
+
+        .header h1 {
+            font-size: 1.3em;
+            color: #1f2937;
+        }
+
+        .header p {
+            font-size: 13px;
+            color: #6b7280;
+            margin-top: 2px;
+        }
+
+        .controls {
+            background: white;
+            padding: 16px;
+            border-radius: 10px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+        }
+
+        .controls-info {
+            background: #FAF5FF;
+            border-left: 4px solid #A855F7;
+            padding: 12px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #6B21A8;
+        }
+
+        .controls-info strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .controls button {
+            background: #A855F7;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 15px;
+            margin-right: 10px;
+            margin-bottom: 8px;
+            transition: all 0.3s;
+        }
+
+        .controls button:hover {
+            background: #9333EA;
+            transform: translateY(-2px);
+        }
+
+        .controls button.finalize {
+            background: #10b981;
+        }
+
+        .controls button.finalize:hover {
+            background: #059669;
+        }
+
+        .view-toggle {
+            background: white;
+            padding: 12px 16px;
+            border-radius: 10px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .view-toggle h3 {
+            color: #1f2937;
+            margin: 0;
+            font-size: 1.1em;
+        }
+
+        .view-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .view-btn {
+            background: #e5e7eb;
+            color: #6b7280;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        .view-btn.active {
+            background: #A855F7;
+            color: white;
+        }
+
+        .view-btn:hover {
+            background: #9333EA;
+            color: white;
+        }
+
+        .table-view {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+            display: none;
+        }
+
+        .table-view.active {
+            display: block;
+        }
+
+        .quick-input-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+        }
+
+        .quick-input-table th {
+            background: #f3f4f6;
+            padding: 12px;
+            text-align: left;
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        .quick-input-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .quick-input-table input {
+            width: 100%;
+            padding: 8px;
+            border: 2px solid #e5e7eb;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .quick-input-table input:focus {
+            outline: none;
+            border-color: #A855F7;
+        }
+
+        .quick-input-table .unit-cost {
+            font-weight: bold;
+            color: #A855F7;
+            text-align: center;
+        }
+
+        .table-actions {
+            display: flex;
+            gap: 5px;
+            justify-content: center;
+        }
+
+        .table-btn {
+            padding: 6px 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .table-btn.add {
+            background: #10b981;
+            color: white;
+        }
+
+        .table-btn.add:hover {
+            background: #059669;
+        }
+
+        .table-btn.remove {
+            background: #ef4444;
+            color: white;
+        }
+
+        .table-btn.remove:hover {
+            background: #dc2626;
+        }
+
+        .table-btn.create {
+            background: #A855F7;
+            color: white;
+        }
+
+        .table-btn.create:hover {
+            background: #9333EA;
+        }
+
+        .workspace {
+            background: #f8f9fa;
+            border-radius: 10px;
+            min-height: 700px;
+            height: 700px;
+            position: relative;
+            overflow: auto;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            width: 3000px;
+            height: 3000px;
+        }
+
+        .workspace-inner {
+            width: 3000px;
+            height: 3000px;
+            position: relative;
+        }
+
+        .node {
+            position: absolute;
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            min-width: 280px;
+            cursor: move;
+            border: 3px solid #A855F7;
+            resize: both;
+            overflow: auto;
+            transition: all 0.3s ease;
+        }
+
+        .node.minimized {
+            min-width: 200px;
+            width: 200px !important;
+            height: auto !important;
+            resize: none;
+            padding: 10px;
+        }
+
+        .node.minimized .node-content {
+            display: none;
+        }
+
+        .node.minimized .node-header {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+
+        .node-resize-handle {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 20px;
+            height: 20px;
+            cursor: se-resize;
+            background: linear-gradient(135deg, transparent 50%, #A855F7 50%);
+            border-bottom-right-radius: 8px;
+        }
+
+        .node.minimized .node-resize-handle {
+            display: none;
+        }
+
+        .node.final-product {
+            border-color: #10b981;
+            background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+        }
+
+        .node.final-product .node-resize-handle {
+            background: linear-gradient(135deg, transparent 50%, #10b981 50%);
+        }
+
+        .node-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        .node-header-left {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .node-header-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .node-header-right {
+            display: flex;
+            gap: 5px;
+            flex-shrink: 0;
+        }
+
+        .node-icon {
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .node-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #1f2937;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            line-height: 1.3;
+        }
+
+        .node.final-product .node-title {
+            color: #10b981;
+        }
+
+        .node-subtitle {
+            font-size: 11px;
+            color: #A855F7;
+            font-weight: 600;
+        }
+
+        .node.final-product .node-subtitle {
+            color: #059669;
+        }
+
+        .node-type {
+            font-size: 12px;
+            font-weight: bold;
+            color: #A855F7;
+            text-transform: uppercase;
+        }
+
+        .node.minimized .node-type {
+            font-size: 14px;
+        }
+
+        .node.final-product .node-type {
+            color: #10b981;
+        }
+
+        .node-minimize {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 8px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .node-minimize:hover {
+            background: #2563eb;
+        }
+
+        .node-delete {
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 8px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .node-delete:hover {
+            background: #dc2626;
+        }
+
+        .node-field {
+            margin-bottom: 10px;
+        }
+
+        .node-field label {
+            display: block;
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
+
+        .node-field input {
+            width: 100%;
+            padding: 8px;
+            border: 2px solid #e5e7eb;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .node-field input:focus {
+            outline: none;
+            border-color: #A855F7;
+        }
+
+        .node-cost {
+            background: #f3f4f6;
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        .node-cost-label {
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 4px;
+        }
+
+        .node-cost-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #A855F7;
+        }
+
+        .node.final-product .node-cost-value {
+            color: #10b981;
+            font-size: 24px;
+        }
+
+        .connection-point {
+            width: 20px;
+            height: 20px;
+            background: #A855F7;
+            border: 4px solid white;
+            border-radius: 50%;
+            position: absolute;
+            cursor: crosshair;
+            transition: all 0.2s;
+            z-index: 100;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+
+        .connection-point:hover {
+            transform: scale(1.4);
+            box-shadow: 0 0 15px rgba(168, 85, 247, 0.6);
+        }
+
+        .connection-point:active {
+            transform: scale(1.6);
+        }
+
+        .connection-point.output {
+            right: -12px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .connection-point.output:hover {
+            transform: translateY(-50%) scale(1.4);
+        }
+
+        .connection-point.input {
+            left: -12px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .connection-point.input:hover {
+            transform: translateY(-50%) scale(1.4);
+        }
+
+        .node.final-product .connection-point.input {
+            background: #10b981;
+        }
+
+        .image-preview {
+            width: 100%;
+            max-width: 150px;
+            height: 100px;
+            object-fit: cover;
+            border-radius: 6px;
+            margin-top: 8px;
+        }
+
+        .connected-list {
+            margin-top: 12px;
+            padding: 10px;
+            background: white;
+            border-radius: 6px;
+            border: 2px solid #e5e7eb;
+        }
+
+        .connected-list-title {
+            font-size: 12px;
+            font-weight: bold;
+            color: #10b981;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .connected-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 8px;
+            background: #f0fdf4;
+            border-radius: 4px;
+            margin-bottom: 4px;
+            font-size: 13px;
+        }
+
+        .connected-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .connected-item-name {
+            color: #166534;
+            font-weight: 500;
+            flex: 1;
+        }
+
+        .connected-item-cost {
+            color: #10b981;
+            font-weight: bold;
+            font-size: 12px;
+        }
+
+        .no-connections {
+            color: #9ca3af;
+            font-size: 12px;
+            font-style: italic;
+            text-align: center;
+            padding: 8px;
+        }
+
+        .empty-hint {
+            position: absolute;
+            top: 40px;
+            left: 40px;
+            color: #9ca3af;
+            font-size: 14px;
+            max-width: 320px;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🧪 Studio Lab — Constructor de Productos</h1>
+        <p>Conecta insumos a un producto final para comparar costos antes de decidir qué comprar.</p>
+    </div>
+
+    <div class="controls">
+        <div class="controls-info">
+            <strong>📌 Cómo usar:</strong>
+            • Haz clic en el punto morado de la DERECHA de un insumo, luego suelta sobre el punto de la IZQUIERDA del producto final para conectarlos<br>
+            • Arrastra los nodos para moverlos | Redimensiona desde la esquina inferior derecha | "─" minimiza el nodo<br>
+            • Todo se guarda automáticamente en este navegador mientras trabajas. Al dar "Guardar Producto Final" queda disponible en "Productos guardados" y en la pestaña Cotizar.
+        </div>
+        <button onclick="addComponentNode()">➕ Agregar Insumo</button>
+        <button onclick="addFinalProductNode()">🎯 Agregar Producto Final</button>
+        <button onclick="clearConnections()">🧹 Limpiar Conexiones</button>
+        <button class="finalize" onclick="finalizeProduct()">✅ Guardar Producto Final</button>
+    </div>
+
+    <div class="view-toggle">
+        <h3>Vista de Trabajo</h3>
+        <div class="view-buttons">
+            <button class="view-btn active" onclick="switchView('nodes')">🎨 Nodos Visuales</button>
+            <button class="view-btn" onclick="switchView('table')">📊 Tabla Rápida</button>
+        </div>
+    </div>
+
+    <div class="table-view" id="tableView">
+        <h3 style="margin-bottom: 15px; color: #1f2937;">Agregar Insumos Rápidamente</h3>
+        <table class="quick-input-table">
+            <thead>
+                <tr>
+                    <th style="width: 30%;">Nombre</th>
+                    <th style="width: 15%;">Cantidad (lote)</th>
+                    <th style="width: 15%;">Precio Total ($)</th>
+                    <th style="width: 25%;">URL Compra</th>
+                    <th style="width: 10%;">Costo Unit.</th>
+                    <th style="width: 5%;">Acción</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                <!-- Las filas se generarán dinámicamente -->
+            </tbody>
+        </table>
+        <button class="table-btn add" onclick="addTableRow()">➕ Agregar Fila</button>
+        <button class="table-btn create" onclick="createNodesFromTable()">🎨 Crear Nodos desde Tabla</button>
+    </div>
+
+    <div class="workspace" id="workspace">
+        <canvas id="canvas"></canvas>
+        <div class="workspace-inner" id="workspaceInner"></div>
+    </div>
+
+    <script>
+        const CANVAS_KEY = 'cz_labCanvas';
+        const PRODUCTS_KEY = 'cz_productosLab';
+
+        let nodes = [];
+        let connections = [];
+        let draggingNode = null;
+        let connectingFrom = null;
+        let nodeIdCounter = 0;
+
+        const workspace = document.getElementById('workspace');
+        const workspaceInner = document.getElementById('workspaceInner');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            canvas.width = 3000;
+            canvas.height = 3000;
+            drawConnections();
+        }
+
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        workspace.addEventListener('scroll', drawConnections);
+
+        function saveCanvasState() {
+            try {
+                const cleanNodes = nodes.map(n => ({ id: n.id, type: n.type, x: n.x, y: n.y, width: n.width, height: n.height, minimized: n.minimized, data: n.data }));
+                localStorage.setItem(CANVAS_KEY, JSON.stringify({ nodes: cleanNodes, connections, nodeIdCounter }));
+            } catch (e) { /* almacenamiento lleno o no disponible, ignorar */ }
+        }
+
+        function restoreCanvasState() {
+            try {
+                const raw = localStorage.getItem(CANVAS_KEY);
+                if (!raw) return false;
+                const data = JSON.parse(raw);
+                if (!data || !Array.isArray(data.nodes) || data.nodes.length === 0) return false;
+                nodes = data.nodes;
+                connections = Array.isArray(data.connections) ? data.connections : [];
+                nodeIdCounter = data.nodeIdCounter || nodes.length;
+                nodes.forEach(n => renderNode(n));
+                drawConnections();
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function addComponentNode() {
+            const node = {
+                id: `node-${nodeIdCounter++}`,
+                type: 'component',
+                x: 100 + Math.random() * 200,
+                y: 100 + Math.random() * 200,
+                data: {
+                    name: '',
+                    quantity: '',
+                    price: '',
+                    url: ''
+                }
+            };
+            nodes.push(node);
+            renderNode(node);
+            saveCanvasState();
+        }
+
+        function addFinalProductNode() {
+            const node = {
+                id: `node-${nodeIdCounter++}`,
+                type: 'final',
+                x: 600,
+                y: 250,
+                data: {
+                    name: '',
+                    url: ''
+                }
+            };
+            nodes.push(node);
+            renderNode(node);
+            saveCanvasState();
+        }
+
+        function renderNode(node) {
+            const nodeEl = document.createElement('div');
+            nodeEl.className = `node ${node.type === 'final' ? 'final-product' : ''}`;
+            nodeEl.id = node.id;
+            nodeEl.style.left = node.x + 'px';
+            nodeEl.style.top = node.y + 'px';
+
+            if (node.width) nodeEl.style.width = node.width + 'px';
+            if (node.height) nodeEl.style.height = node.height + 'px';
+            if (node.minimized) nodeEl.classList.add('minimized');
+
+            const isFinal = node.type === 'final';
+            const unitCost = !isFinal ? calculateUnitCost(node) : 0;
+            const displayName = node.data.name || (isFinal ? 'Producto sin nombre' : 'Insumo sin nombre');
+
+            nodeEl.innerHTML = `
+                <div class="node-header">
+                    <div class="node-header-left">
+                        <span class="node-icon">${isFinal ? '🎯' : '📦'}</span>
+                        <div class="node-header-info">
+                            <div class="node-title">${displayName}</div>
+                            ${!isFinal && !node.minimized ? `<div class="node-subtitle">Costo Unit: $${unitCost.toFixed(2)}</div>` : ''}
+                            ${isFinal && !node.minimized ? `<div class="node-subtitle">Producto Final</div>` : ''}
+                        </div>
+                    </div>
+                    <div class="node-header-right">
+                        <button class="node-minimize" onclick="toggleMinimize('${node.id}')">${node.minimized ? '▢' : '─'}</button>
+                        <button class="node-delete" onclick="deleteNode('${node.id}')">✕</button>
+                    </div>
+                </div>
+                <div class="node-content">
+                    <div class="node-field">
+                        <label>Nombre</label>
+                        <input type="text" data-field="name" value="${node.data.name}"
+                               placeholder="${isFinal ? 'Ej: Llavero sublimado' : 'Ej: Broche de pico'}">
+                    </div>
+                    ${!isFinal ? `
+                    <div class="node-field">
+                        <label>Cantidad (lote)</label>
+                        <input type="number" data-field="quantity" value="${node.data.quantity}"
+                               placeholder="Ej: 100">
+                    </div>
+                    <div class="node-field">
+                        <label>Precio Total del Lote ($)</label>
+                        <input type="number" data-field="price" value="${node.data.price}"
+                               placeholder="Ej: 500">
+                    </div>
+                    ` : ''}
+                    <div class="node-field">
+                        <label>URL ${isFinal ? 'Imagen' : 'Compra'}</label>
+                        <input type="text" data-field="url" value="${node.data.url}"
+                               placeholder="https://">
+                    </div>
+                    ${node.data.url && node.data.url.match(/\.(jpeg|jpg|gif|png|webp)$/i) ?
+                        `<img src="${node.data.url}" class="image-preview" onerror="this.style.display='none'">` : ''}
+                    <div class="node-cost">
+                        <div class="node-cost-label">${isFinal ? 'Costo Total' : 'Costo Unitario'}</div>
+                        <div class="node-cost-value">$${isFinal ? calculateTotalCost(node.id) : unitCost.toFixed(2)}</div>
+                    </div>
+                    ${isFinal ? renderConnectedList(node.id) : ''}
+                </div>
+                <div class="connection-point output" data-node="${node.id}" data-type="output"></div>
+                ${isFinal ? `<div class="connection-point input" data-node="${node.id}" data-type="input"></div>` : ''}
+                <div class="node-resize-handle"></div>
+            `;
+
+            // Event listeners para inputs
+            nodeEl.querySelectorAll('input').forEach(input => {
+                input.addEventListener('input', (e) => {
+                    node.data[e.target.dataset.field] = e.target.value;
+
+                    if (e.target.dataset.field === 'name') {
+                        const titleEl = nodeEl.querySelector('.node-title');
+                        if (titleEl) {
+                            titleEl.textContent = e.target.value || (isFinal ? 'Producto sin nombre' : 'Insumo sin nombre');
+                        }
+                    }
+
+                    if (!isFinal && (e.target.dataset.field === 'quantity' || e.target.dataset.field === 'price')) {
+                        const subtitleEl = nodeEl.querySelector('.node-subtitle');
+                        if (subtitleEl) {
+                            const newUnitCost = calculateUnitCost(node);
+                            subtitleEl.textContent = `Costo Unit: $${newUnitCost.toFixed(2)}`;
+                        }
+                    }
+
+                    updateNodeCost(node.id);
+                    drawConnections();
+                    saveCanvasState();
+                });
+            });
+
+            // Event listeners para drag
+            nodeEl.addEventListener('mousedown', startDrag);
+
+            // Event listeners para connection points
+            nodeEl.querySelectorAll('.connection-point').forEach(point => {
+                point.addEventListener('mousedown', (e) => {
+                    e.stopPropagation();
+                    startConnection(e);
+                });
+            });
+
+            workspaceInner.appendChild(nodeEl);
+
+            // Observar cambios de tamaño (resize manual) para mantener conexiones y estado sincronizados
+            if (window.ResizeObserver) {
+                const ro = new ResizeObserver(() => {
+                    if (!node.minimized) {
+                        node.width = nodeEl.offsetWidth;
+                        node.height = nodeEl.offsetHeight;
+                    }
+                    drawConnections();
+                    saveCanvasState();
+                });
+                ro.observe(nodeEl);
+            }
+        }
+
+        function calculateUnitCost(node) {
+            if (!node.data.quantity || !node.data.price || node.data.quantity == 0) return 0;
+            return parseFloat(node.data.price) / parseFloat(node.data.quantity);
+        }
+
+        function toggleMinimize(nodeId) {
+            const node = nodes.find(n => n.id === nodeId);
+            const nodeEl = document.getElementById(nodeId);
+
+            if (!node || !nodeEl) return;
+
+            node.minimized = !node.minimized;
+
+            if (node.minimized) {
+                nodeEl.classList.add('minimized');
+            } else {
+                nodeEl.classList.remove('minimized');
+            }
+
+            const btn = nodeEl.querySelector('.node-minimize');
+            btn.textContent = node.minimized ? '▢' : '─';
+
+            const subtitle = nodeEl.querySelector('.node-subtitle');
+            if (subtitle) {
+                subtitle.style.display = node.minimized ? 'none' : 'block';
+            }
+
+            drawConnections();
+            saveCanvasState();
+        }
+
+        function calculateTotalCost(finalNodeId) {
+            let total = 0;
+            connections.forEach(conn => {
+                if (conn.to === finalNodeId) {
+                    const sourceNode = nodes.find(n => n.id === conn.from);
+                    if (sourceNode) {
+                        total += calculateUnitCost(sourceNode);
+                    }
+                }
+            });
+            return total.toFixed(2);
+        }
+
+        function getConnectedComponents(finalNodeId) {
+            const components = [];
+            connections.forEach(conn => {
+                if (conn.to === finalNodeId) {
+                    const sourceNode = nodes.find(n => n.id === conn.from);
+                    if (sourceNode) {
+                        components.push({
+                            id: sourceNode.id,
+                            name: sourceNode.data.name || 'Sin nombre',
+                            cost: calculateUnitCost(sourceNode)
+                        });
+                    }
+                }
+            });
+            return components;
+        }
+
+        function renderConnectedList(nodeId) {
+            const components = getConnectedComponents(nodeId);
+
+            if (components.length === 0) {
+                return `<div class="connected-list">
+                    <div class="connected-list-title">📋 Componentes conectados</div>
+                    <div class="no-connections">No hay componentes conectados</div>
+                </div>`;
+            }
+
+            const itemsHtml = components.map(comp => `
+                <div class="connected-item">
+                    <span class="connected-item-name">• ${comp.name}</span>
+                    <span class="connected-item-cost">$${comp.cost.toFixed(2)}</span>
+                </div>
+            `).join('');
+
+            return `<div class="connected-list">
+                <div class="connected-list-title">
+                    📋 Componentes conectados (${components.length})
+                </div>
+                ${itemsHtml}
+            </div>`;
+        }
+
+        function updateNodeCost(nodeId) {
+            const nodeEl = document.getElementById(nodeId);
+            const node = nodes.find(n => n.id === nodeId);
+            if (!nodeEl || !node) return;
+
+            const costValue = nodeEl.querySelector('.node-cost-value');
+            if (node.type === 'final') {
+                costValue.textContent = '$' + calculateTotalCost(nodeId);
+
+                const connectedListContainer = nodeEl.querySelector('.connected-list');
+                if (connectedListContainer) {
+                    connectedListContainer.outerHTML = renderConnectedList(nodeId);
+                }
+            } else {
+                costValue.textContent = '$' + calculateUnitCost(node).toFixed(2);
+            }
+
+            const existingImg = nodeEl.querySelector('.image-preview');
+            if (existingImg) existingImg.remove();
+
+            if (node.data.url && node.data.url.match(/\.(jpeg|jpg|gif|png|webp)$/i)) {
+                const img = document.createElement('img');
+                img.className = 'image-preview';
+                img.src = node.data.url;
+                img.onerror = () => img.style.display = 'none';
+                const costDiv = nodeEl.querySelector('.node-cost');
+                costDiv.parentNode.insertBefore(img, costDiv);
+            }
+
+            connections.forEach(conn => {
+                if (conn.from === nodeId) {
+                    updateNodeCost(conn.to);
+                }
+            });
+        }
+
+        function deleteNode(nodeId) {
+            nodes = nodes.filter(n => n.id !== nodeId);
+            connections = connections.filter(c => c.from !== nodeId && c.to !== nodeId);
+            document.getElementById(nodeId)?.remove();
+            drawConnections();
+            saveCanvasState();
+        }
+
+        function startDrag(e) {
+            if (e.target.tagName === 'INPUT' || e.target.classList.contains('connection-point')) return;
+
+            draggingNode = e.currentTarget;
+            const rect = draggingNode.getBoundingClientRect();
+
+            draggingNode.offsetX = e.clientX - rect.left;
+            draggingNode.offsetY = e.clientY - rect.top;
+
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('mouseup', stopDrag);
+        }
+
+        function drag(e) {
+            if (!draggingNode) return;
+
+            const workspaceRect = workspace.getBoundingClientRect();
+            let x = e.clientX - workspaceRect.left + workspace.scrollLeft - draggingNode.offsetX;
+            let y = e.clientY - workspaceRect.top + workspace.scrollTop - draggingNode.offsetY;
+
+            x = Math.max(0, Math.min(x, 3000 - draggingNode.offsetWidth));
+            y = Math.max(0, Math.min(y, 3000 - draggingNode.offsetHeight));
+
+            draggingNode.style.left = x + 'px';
+            draggingNode.style.top = y + 'px';
+
+            const node = nodes.find(n => n.id === draggingNode.id);
+            if (node) {
+                node.x = x;
+                node.y = y;
+            }
+
+            drawConnections();
+        }
+
+        function stopDrag() {
+            draggingNode = null;
+            document.removeEventListener('mousemove', drag);
+            document.removeEventListener('mouseup', stopDrag);
+            saveCanvasState();
+        }
+
+        function startConnection(e) {
+            e.stopPropagation();
+            e.preventDefault();
+
+            const point = e.target;
+            const nodeId = point.dataset.node;
+            const type = point.dataset.type;
+
+            if (type === 'output') {
+                connectingFrom = nodeId;
+
+                point.style.transform = 'scale(1.5)';
+                point.style.boxShadow = '0 0 15px rgba(168, 85, 247, 0.8)';
+
+                canvas.style.pointerEvents = 'auto';
+                document.addEventListener('mousemove', drawTempConnection);
+                document.addEventListener('mouseup', completeConnection);
+            }
+        }
+
+        let tempConnectionEnd = null;
+
+        function drawTempConnection(e) {
+            if (!connectingFrom) return;
+
+            const workspaceRect = workspace.getBoundingClientRect();
+            tempConnectionEnd = {
+                x: e.clientX - workspaceRect.left + workspace.scrollLeft,
+                y: e.clientY - workspaceRect.top + workspace.scrollTop
+            };
+
+            drawConnections();
+
+            if (tempConnectionEnd) {
+                const fromNode = document.getElementById(connectingFrom);
+                if (fromNode) {
+                    const fromPoint = fromNode.querySelector('.connection-point.output');
+                    const fromRect = fromPoint.getBoundingClientRect();
+
+                    const x1 = fromRect.left - workspaceRect.left + workspace.scrollLeft + fromRect.width / 2;
+                    const y1 = fromRect.top - workspaceRect.top + workspace.scrollTop + fromRect.height / 2;
+                    const x2 = tempConnectionEnd.x;
+                    const y2 = tempConnectionEnd.y;
+
+                    const cpx1 = x1 + (x2 - x1) / 2;
+                    const cpx2 = x1 + (x2 - x1) / 2;
+
+                    ctx.beginPath();
+                    ctx.moveTo(x1, y1);
+                    ctx.bezierCurveTo(cpx1, y1, cpx2, y2, x2, y2);
+                    ctx.strokeStyle = 'rgba(168, 85, 247, 0.5)';
+                    ctx.lineWidth = 3;
+                    ctx.setLineDash([5, 5]);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+            }
+        }
+
+        function completeConnection(e) {
+            if (!connectingFrom) return;
+
+            const point = e.target;
+
+            const originPoint = document.querySelector(`[data-node="${connectingFrom}"][data-type="output"]`);
+            if (originPoint) {
+                originPoint.style.transform = '';
+                originPoint.style.boxShadow = '';
+            }
+
+            let connected = false;
+            if (point.classList.contains('connection-point') && point.dataset.type === 'input') {
+                const toNodeId = point.dataset.node;
+
+                if (connectingFrom !== toNodeId) {
+                    const exists = connections.some(c => c.from === connectingFrom && c.to === toNodeId);
+                    if (!exists) {
+                        connections.push({ from: connectingFrom, to: toNodeId });
+                        drawConnections();
+                        updateNodeCost(toNodeId);
+                        connected = true;
+
+                        point.style.transform = 'scale(1.3)';
+                        setTimeout(() => {
+                            point.style.transform = '';
+                        }, 200);
+                    }
+                }
+            }
+
+            connectingFrom = null;
+            tempConnectionEnd = null;
+            canvas.style.pointerEvents = 'none';
+            document.removeEventListener('mousemove', drawTempConnection);
+            document.removeEventListener('mouseup', completeConnection);
+            drawConnections();
+            if (connected) saveCanvasState();
+        }
+
+        function drawConnections() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            connections.forEach(conn => {
+                const fromNode = document.getElementById(conn.from);
+                const toNode = document.getElementById(conn.to);
+
+                if (!fromNode || !toNode) return;
+
+                const fromPoint = fromNode.querySelector('.connection-point.output');
+                const toPoint = toNode.querySelector('.connection-point.input');
+                if (!fromPoint || !toPoint) return;
+
+                const fromRect = fromPoint.getBoundingClientRect();
+                const toRect = toPoint.getBoundingClientRect();
+                const workspaceRect = workspace.getBoundingClientRect();
+
+                const x1 = fromRect.left - workspaceRect.left + workspace.scrollLeft + fromRect.width / 2;
+                const y1 = fromRect.top - workspaceRect.top + workspace.scrollTop + fromRect.height / 2;
+                const x2 = toRect.left - workspaceRect.left + workspace.scrollLeft + toRect.width / 2;
+                const y2 = toRect.top - workspaceRect.top + workspace.scrollTop + toRect.height / 2;
+
+                const cpx1 = x1 + (x2 - x1) / 2;
+                const cpx2 = x1 + (x2 - x1) / 2;
+
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.bezierCurveTo(cpx1, y1, cpx2, y2, x2, y2);
+                ctx.strokeStyle = '#A855F7';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+                const angle = Math.atan2(y2 - y1, x2 - x1);
+                const arrowLength = 10;
+                ctx.beginPath();
+                ctx.moveTo(x2, y2);
+                ctx.lineTo(
+                    x2 - arrowLength * Math.cos(angle - Math.PI / 6),
+                    y2 - arrowLength * Math.sin(angle - Math.PI / 6)
+                );
+                ctx.lineTo(
+                    x2 - arrowLength * Math.cos(angle + Math.PI / 6),
+                    y2 - arrowLength * Math.sin(angle + Math.PI / 6)
+                );
+                ctx.closePath();
+                ctx.fillStyle = '#A855F7';
+                ctx.fill();
+            });
+        }
+
+        function clearConnections() {
+            if (confirm('¿Deseas limpiar todas las conexiones?')) {
+                connections = [];
+                drawConnections();
+                nodes.forEach(node => {
+                    if (node.type === 'final') {
+                        updateNodeCost(node.id);
+                    }
+                });
+                saveCanvasState();
+            }
+        }
+
+        function finalizeProduct() {
+            const finalNodes = nodes.filter(n => n.type === 'final');
+
+            if (finalNodes.length === 0) {
+                alert('Agrega un nodo de "🎯 Producto Final" primero');
+                return;
+            }
+
+            let guardados = 0;
+            let sinNombre = false;
+            let sinConectar = false;
+
+            finalNodes.forEach(finalNode => {
+                const nombre = (finalNode.data.name || '').trim();
+                if (!nombre) { sinNombre = true; return; }
+
+                const connectedComponents = connections
+                    .filter(c => c.to === finalNode.id)
+                    .map(c => nodes.find(n => n.id === c.from))
+                    .filter(Boolean);
+
+                if (connectedComponents.length === 0) { sinConectar = true; return; }
+
+                const nodosForApp = connectedComponents.map(n => ({
+                    id: n.id,
+                    nombre: (n.data.name || 'Sin nombre').trim(),
+                    loteCant: Number(n.data.quantity) || 0,
+                    loteCosto: Number(n.data.price) || 0,
+                    cantNecesaria: 1,
+                    link: n.data.url || ''
+                }));
+
+                const costoNeto = connectedComponents.reduce((s, n) => s + calculateUnitCost(n), 0);
+                const productId = finalNode.data.savedProductId || ('lab_' + Date.now() + '_' + Math.floor(Math.random() * 100000));
+                finalNode.data.savedProductId = productId;
+
+                const product = {
+                    id: productId,
+                    nombre: nombre,
+                    nodos: nodosForApp,
+                    costoNeto: costoNeto,
+                    mod: new Date().toLocaleDateString('es-MX')
+                };
+
+                let existing = [];
+                try { existing = JSON.parse(localStorage.getItem(PRODUCTS_KEY) || '[]'); } catch (e) { existing = []; }
+                const idx = existing.findIndex(p => p.id === productId);
+                if (idx >= 0) existing[idx] = product; else existing.push(product);
+                localStorage.setItem(PRODUCTS_KEY, JSON.stringify(existing));
+
+                guardados++;
+            });
+
+            saveCanvasState();
+
+            if (guardados === 0) {
+                if (sinNombre) alert('Ponle nombre a tu "Producto Final" antes de guardar.');
+                else if (sinConectar) alert('Conecta al menos un insumo al "Producto Final" antes de guardar.');
+                else alert('No hay nada que guardar todavía.');
+                return;
+            }
+
+            alert('✅ ' + guardados + ' producto(s) guardado(s). Ya están en "Productos guardados" (abajo del constructor) y disponibles en la pestaña Cotizar.');
+        }
+
+        // Table view functions
+        let tableRows = [];
+
+        function switchView(view) {
+            const nodesView = document.getElementById('workspace');
+            const tableView = document.getElementById('tableView');
+            const btns = document.querySelectorAll('.view-btn');
+
+            if (view === 'table') {
+                nodesView.style.display = 'none';
+                tableView.classList.add('active');
+                btns[0].classList.remove('active');
+                btns[1].classList.add('active');
+            } else {
+                nodesView.style.display = 'block';
+                tableView.classList.remove('active');
+                btns[0].classList.add('active');
+                btns[1].classList.remove('active');
+            }
+        }
+
+        function addTableRow() {
+            const rowId = `row-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+            const row = {
+                id: rowId,
+                name: '',
+                quantity: '',
+                price: '',
+                url: ''
+            };
+            tableRows.push(row);
+            renderTableRows();
+        }
+
+        function removeTableRow(rowId) {
+            tableRows = tableRows.filter(r => r.id !== rowId);
+            renderTableRows();
+        }
+
+        function calculateTableUnitCost(quantity, price) {
+            if (!quantity || !price || quantity == 0) return 0;
+            return (parseFloat(price) / parseFloat(quantity)).toFixed(2);
+        }
+
+        function renderTableRows() {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+
+            tableRows.forEach((row) => {
+                const tr = document.createElement('tr');
+                const unitCost = calculateTableUnitCost(row.quantity, row.price);
+
+                tr.innerHTML = `
+                    <td><input type="text" value="${row.name}" placeholder="Nombre del insumo"
+                        onchange="updateTableRow('${row.id}', 'name', this.value)"></td>
+                    <td><input type="number" value="${row.quantity}" placeholder="100"
+                        onchange="updateTableRow('${row.id}', 'quantity', this.value)"></td>
+                    <td><input type="number" value="${row.price}" placeholder="500.00"
+                        onchange="updateTableRow('${row.id}', 'price', this.value)"></td>
+                    <td><input type="text" value="${row.url}" placeholder="https://"
+                        onchange="updateTableRow('${row.id}', 'url', this.value)"></td>
+                    <td class="unit-cost">$${unitCost}</td>
+                    <td class="table-actions">
+                        <button class="table-btn remove" onclick="removeTableRow('${row.id}')">✕</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updateTableRow(rowId, field, value) {
+            const row = tableRows.find(r => r.id === rowId);
+            if (row) {
+                row[field] = value;
+                renderTableRows();
+            }
+        }
+
+        function createNodesFromTable() {
+            if (tableRows.length === 0) {
+                alert('No hay filas para crear nodos');
+                return;
+            }
+
+            let createdCount = 0;
+            tableRows.forEach((row, index) => {
+                if (row.name || row.quantity || row.price) {
+                    const node = {
+                        id: `node-${nodeIdCounter++}`,
+                        type: 'component',
+                        x: 100 + (index % 3) * 320,
+                        y: 100 + Math.floor(index / 3) * 250,
+                        data: {
+                            name: row.name,
+                            quantity: row.quantity,
+                            price: row.price,
+                            url: row.url
+                        }
+                    };
+                    nodes.push(node);
+                    renderNode(node);
+                    createdCount++;
+                }
+            });
+
+            tableRows = [];
+            renderTableRows();
+            addTableRow();
+
+            switchView('nodes');
+            saveCanvasState();
+
+            alert(`✅ Se crearon ${createdCount} nodos de insumos`);
+        }
+
+        // Inicializar: restaurar lo que había, o arrancar con una fila vacía en la tabla
+        const restored = restoreCanvasState();
+        addTableRow();
+    </script>
+</body>
+</html>
