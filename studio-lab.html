@@ -247,19 +247,24 @@
 
         .node {
             position: absolute;
+            cursor: move;
+            overflow: visible;
+        }
+
+        .node-inner {
+            position: relative;
             background: white;
             border-radius: 10px;
             padding: 15px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
             min-width: 280px;
-            cursor: move;
             border: 3px solid #A855F7;
             resize: both;
             overflow: auto;
             transition: all 0.3s ease;
         }
 
-        .node.minimized {
+        .node.minimized .node-inner {
             min-width: 200px;
             width: 200px !important;
             height: auto !important;
@@ -292,7 +297,7 @@
             display: none;
         }
 
-        .node.final-product {
+        .node.final-product .node-inner {
             border-color: #10b981;
             background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
         }
@@ -716,8 +721,6 @@
             nodeEl.style.left = node.x + 'px';
             nodeEl.style.top = node.y + 'px';
 
-            if (node.width) nodeEl.style.width = node.width + 'px';
-            if (node.height) nodeEl.style.height = node.height + 'px';
             if (node.minimized) nodeEl.classList.add('minimized');
 
             const isFinal = node.type === 'final';
@@ -725,55 +728,61 @@
             const displayName = node.data.name || (isFinal ? 'Producto sin nombre' : 'Insumo sin nombre');
 
             nodeEl.innerHTML = `
-                <div class="node-header">
-                    <div class="node-header-left">
-                        <span class="node-icon">${isFinal ? '🎯' : '📦'}</span>
-                        <div class="node-header-info">
-                            <div class="node-title">${displayName}</div>
-                            ${!isFinal && !node.minimized ? `<div class="node-subtitle">Costo Unit: $${unitCost.toFixed(2)}</div>` : ''}
-                            ${isFinal && !node.minimized ? `<div class="node-subtitle">Producto Final</div>` : ''}
+                <div class="node-inner">
+                    <div class="node-header">
+                        <div class="node-header-left">
+                            <span class="node-icon">${isFinal ? '🎯' : '📦'}</span>
+                            <div class="node-header-info">
+                                <div class="node-title">${displayName}</div>
+                                ${!isFinal && !node.minimized ? `<div class="node-subtitle">Costo Unit: $${unitCost.toFixed(2)}</div>` : ''}
+                                ${isFinal && !node.minimized ? `<div class="node-subtitle">Producto Final</div>` : ''}
+                            </div>
+                        </div>
+                        <div class="node-header-right">
+                            <button class="node-minimize" onclick="toggleMinimize('${node.id}')">${node.minimized ? '▢' : '─'}</button>
+                            <button class="node-delete" onclick="deleteNode('${node.id}')">✕</button>
                         </div>
                     </div>
-                    <div class="node-header-right">
-                        <button class="node-minimize" onclick="toggleMinimize('${node.id}')">${node.minimized ? '▢' : '─'}</button>
-                        <button class="node-delete" onclick="deleteNode('${node.id}')">✕</button>
+                    <div class="node-content">
+                        <div class="node-field">
+                            <label>Nombre</label>
+                            <input type="text" data-field="name" value="${node.data.name}"
+                                   placeholder="${isFinal ? 'Ej: Llavero sublimado' : 'Ej: Broche de pico'}">
+                        </div>
+                        ${!isFinal ? `
+                        <div class="node-field">
+                            <label>Cantidad (lote)</label>
+                            <input type="number" data-field="quantity" value="${node.data.quantity}"
+                                   placeholder="Ej: 100">
+                        </div>
+                        <div class="node-field">
+                            <label>Precio Total del Lote ($)</label>
+                            <input type="number" data-field="price" value="${node.data.price}"
+                                   placeholder="Ej: 500">
+                        </div>
+                        ` : ''}
+                        <div class="node-field">
+                            <label>URL ${isFinal ? 'Imagen' : 'Compra'}</label>
+                            <input type="text" data-field="url" value="${node.data.url}"
+                                   placeholder="https://">
+                        </div>
+                        ${node.data.url && node.data.url.match(/\.(jpeg|jpg|gif|png|webp)$/i) ?
+                            `<img src="${node.data.url}" class="image-preview" onerror="this.style.display='none'">` : ''}
+                        <div class="node-cost">
+                            <div class="node-cost-label">${isFinal ? 'Costo Total' : 'Costo Unitario'}</div>
+                            <div class="node-cost-value">$${isFinal ? calculateTotalCost(node.id) : unitCost.toFixed(2)}</div>
+                        </div>
+                        ${isFinal ? renderConnectedList(node.id) : ''}
                     </div>
-                </div>
-                <div class="node-content">
-                    <div class="node-field">
-                        <label>Nombre</label>
-                        <input type="text" data-field="name" value="${node.data.name}"
-                               placeholder="${isFinal ? 'Ej: Llavero sublimado' : 'Ej: Broche de pico'}">
-                    </div>
-                    ${!isFinal ? `
-                    <div class="node-field">
-                        <label>Cantidad (lote)</label>
-                        <input type="number" data-field="quantity" value="${node.data.quantity}"
-                               placeholder="Ej: 100">
-                    </div>
-                    <div class="node-field">
-                        <label>Precio Total del Lote ($)</label>
-                        <input type="number" data-field="price" value="${node.data.price}"
-                               placeholder="Ej: 500">
-                    </div>
-                    ` : ''}
-                    <div class="node-field">
-                        <label>URL ${isFinal ? 'Imagen' : 'Compra'}</label>
-                        <input type="text" data-field="url" value="${node.data.url}"
-                               placeholder="https://">
-                    </div>
-                    ${node.data.url && node.data.url.match(/\.(jpeg|jpg|gif|png|webp)$/i) ?
-                        `<img src="${node.data.url}" class="image-preview" onerror="this.style.display='none'">` : ''}
-                    <div class="node-cost">
-                        <div class="node-cost-label">${isFinal ? 'Costo Total' : 'Costo Unitario'}</div>
-                        <div class="node-cost-value">$${isFinal ? calculateTotalCost(node.id) : unitCost.toFixed(2)}</div>
-                    </div>
-                    ${isFinal ? renderConnectedList(node.id) : ''}
+                    <div class="node-resize-handle"></div>
                 </div>
                 <div class="connection-point output" data-node="${node.id}" data-type="output"></div>
                 ${isFinal ? `<div class="connection-point input" data-node="${node.id}" data-type="input"></div>` : ''}
-                <div class="node-resize-handle"></div>
             `;
+
+            const innerEl = nodeEl.querySelector('.node-inner');
+            if (node.width) innerEl.style.width = node.width + 'px';
+            if (node.height) innerEl.style.height = node.height + 'px';
 
             // Event listeners para inputs
             nodeEl.querySelectorAll('input').forEach(input => {
@@ -818,13 +827,13 @@
             if (window.ResizeObserver) {
                 const ro = new ResizeObserver(() => {
                     if (!node.minimized) {
-                        node.width = nodeEl.offsetWidth;
-                        node.height = nodeEl.offsetHeight;
+                        node.width = innerEl.offsetWidth;
+                        node.height = innerEl.offsetHeight;
                     }
                     drawConnections();
                     saveCanvasState();
                 });
-                ro.observe(nodeEl);
+                ro.observe(innerEl);
             }
         }
 
