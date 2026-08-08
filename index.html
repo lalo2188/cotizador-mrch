@@ -458,12 +458,34 @@ function PieForm({ costo, desc, onAdd, color, fijo }) {
   );
 }
 
+function SwatchPicker({ colores, idx, onSelect, label }) {
+  if (!colores || colores.length === 0) return null;
+  return (
+    <>
+      <label className="cz-lbl" style={{ marginTop: 10 }}>{label || "Color"}</label>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {colores.map((c, i) => (
+          <button key={c.id} type="button" onClick={() => onSelect(i)} title={c.nombre}
+            style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 8px", borderRadius: 20, cursor: "pointer",
+              border: idx === i ? "2px solid #F4561D" : "1px solid #D8DBE0", background: idx === i ? "#FFF4EE" : "#fff" }}>
+            {c.imagen
+              ? <img src={c.imagen} style={{ width: 16, height: 16, borderRadius: "50%", objectFit: "cover" }} />
+              : <span style={{ width: 16, height: 16, borderRadius: "50%", background: c.hex || "#ccc", display: "inline-block", border: "1px solid #D8DBE0" }} />}
+            <span style={{ fontSize: 12 }}>{c.nombre}</span>
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
 /* ===================== FORM: DTF (multi-impresión) ===================== */
 function FormDTF({ onAdd, materialesDTF, materialesEmpaque = [], configProduccion, tarifaHr }) {
   const disenos = Object.keys(DISENOS_DTF);
   const [modeloId, setModeloId] = useState((materialesDTF[0] && materialesDTF[0].id) || "");
   const [colorIdx, setColorIdx] = useState(0);
   const [colorEspecifico, setColorEspecifico] = useState("");
+  const [varIdx, setVarIdx] = useState(0);
   const [genero, setGenero] = useState("Hombre");
   const [talla, setTalla] = useState("M");
   const [cant, setCant] = useState(10);
@@ -492,12 +514,13 @@ function FormDTF({ onAdd, materialesDTF, materialesEmpaque = [], configProduccio
   const item = materialesDTF.find((m) => m.id === modeloId) || materialesDTF[0] || { precio: 0 };
   const esEscalonado = item.tipo === "escalonado";
   const color = esEscalonado ? (item.colores[colorIdx] || item.colores[0]) : null;
+  const variantesItem = item.variantes || [];
   const cantNum = Number(cant) || 0;
   const tierKey = cantNum >= 504 ? "t3" : cantNum >= 72 ? "t2" : "t1";
   const tierLabel = cantNum >= 504 ? "504+ pz" : cantNum >= 72 ? "72–503 pz" : "12–71 pz";
   const ivaTextil = Number(configProduccion.ivaTextil || 0);
 
-  const cambiarModelo = (id) => { setModeloId(id); setColorIdx(0); setColorEspecifico(""); };
+  const cambiarModelo = (id) => { setModeloId(id); setColorIdx(0); setColorEspecifico(""); setVarIdx(0); };
 
   const r = useMemo(() => {
     const costoSus = esEscalonado && color ? color[tierKey] * (1 + ivaTextil) : Number(item.precio) || 0;
@@ -513,7 +536,8 @@ function FormDTF({ onAdd, materialesDTF, materialesEmpaque = [], configProduccio
     if (tipoDiseno === "sencillo") manip = (Number(configProduccion.disenoSencilloMin) / 60) * tarifaHr;
     if (tipoDiseno === "complejo") manip = (Number(configProduccion.disenoComplejoMin) / 60) * tarifaHr;
     const ubic = imps.map((i) => (i.custom ? "pers." : i.diseno.replace("Frontal ", "").replace("Espalda ", "Esp."))).join(" + ");
-    const colorMostrado = color ? (colorEspecifico.trim() ? `${color.nombre} (${colorEspecifico.trim()})` : color.nombre) : null;
+    const nombreEspecifico = variantesItem.length > 0 ? ((variantesItem[varIdx] || {}).nombre || null) : (colorEspecifico.trim() || null);
+    const colorMostrado = color ? (nombreEspecifico ? `${color.nombre} (${nombreEspecifico})` : color.nombre) : (variantesItem.length > 0 ? nombreEspecifico : null);
     const nombreSus = item.nombre + (colorMostrado ? ` · ${colorMostrado}` : "");
     let promo = null;
     let promoUrge = false;
@@ -534,7 +558,7 @@ function FormDTF({ onAdd, materialesDTF, materialesEmpaque = [], configProduccio
       unicos: [{ label: tipoDiseno === "proporcionado" ? "Diseño/revisión" : "Diseño (creación)", valor: manip }],
     };
     return { costo: porPieza * cant + manip, cant, desc: `${nombreSus} (${talla}) · ${ubic}`, promo, promoUrge, detalle };
-  }, [modeloId, colorIdx, colorEspecifico, genero, talla, cant, tipoDiseno, imps, materialesDTF, materialesEmpaque, empSel, configProduccion, tarifaHr]);
+  }, [modeloId, colorIdx, colorEspecifico, varIdx, genero, talla, cant, tipoDiseno, imps, materialesDTF, materialesEmpaque, empSel, configProduccion, tarifaHr]);
 
   return (
     <>
@@ -570,10 +594,13 @@ function FormDTF({ onAdd, materialesDTF, materialesEmpaque = [], configProduccio
           Tier de volumen: <b>{tierLabel}</b> · costo tela (con IVA {Math.round(ivaTextil * 100)}%): {fmt(color ? color[tierKey] * (1 + ivaTextil) : 0)}/pz
         </div>
       )}
-      {esEscalonado && (
+      {esEscalonado && variantesItem.length > 0 && (
+        <SwatchPicker colores={variantesItem} idx={varIdx} onSelect={setVarIdx} label="Color específico" />
+      )}
+      {esEscalonado && variantesItem.length === 0 && (
         <div style={{ marginTop: 8 }}>
           <label className="cz-lbl">Color específico (opcional)</label>
-          <input className="cz-in" placeholder={`Ej. Rojo cereza, Azul marino… (se cotiza al precio de "${color ? color.nombre : ""}")`} value={colorEspecifico} onChange={(e) => setColorEspecifico(e.target.value)} />
+          <input className="cz-in" placeholder={`Ej. Rojo cereza, Azul marino… (se cotiza al precio de "${color ? color.nombre : ""}"). Registra variantes con foto en Insumos para elegirlas con un clic.`} value={colorEspecifico} onChange={(e) => setColorEspecifico(e.target.value)} />
         </div>
       )}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
@@ -686,22 +713,28 @@ function FormUV({ onAdd, materialesUV, configProduccion }) {
   const [h, setH] = useState(primero.h);
   const [sus, setSus] = useState(primero.precio);
   const [cant, setCant] = useState(1);
+  const [colorIdx, setColorIdx] = useState(0);
   const cambiarObj = (id) => {
     const o = materialesUV.find((m) => m.id === Number(id));
     if (!o) return;
-    setObjId(o.id); setW(o.w); setH(o.h); setSus(o.precio);
+    setObjId(o.id); setW(o.w); setH(o.h); setSus(o.precio); setColorIdx(0);
   };
+  const objActual = materialesUV.find((m) => m.id === objId) || primero;
+  const variantesObj = objActual.variantes || [];
   const r = useMemo(() => {
     const UV_CM2 = configProduccion.uvPrecioMetro / (configProduccion.uvAnchoCm * 100);
     const area = Math.ceil(Number(w) * Number(h));
     const costo = (Number(sus) + area * UV_CM2) * cant;
-    const objName = (materialesUV.find((m) => m.id === objId) || {}).nombre || "Objeto";
-    return { costo, cant, desc: `${objName} · UV ${w}×${h}cm ×${cant}` };
-  }, [objId, w, h, sus, cant, materialesUV, configProduccion]);
+    const obj = materialesUV.find((m) => m.id === objId) || {};
+    const objName = obj.nombre || "Objeto";
+    const vSel = (obj.variantes || [])[colorIdx] || null;
+    return { costo, cant, desc: `${objName}${vSel ? " · " + vSel.nombre : ""} · UV ${w}×${h}cm ×${cant}` };
+  }, [objId, colorIdx, w, h, sus, cant, materialesUV, configProduccion]);
   return (
     <>
       <label className="cz-lbl">Objeto a decorar</label>
       <select className="cz-in" value={objId} onChange={(e) => cambiarObj(e.target.value)}>{materialesUV.map((o) => <option key={o.id} value={o.id}>{o.nombre}</option>)}</select>
+      <SwatchPicker colores={variantesObj} idx={colorIdx} onSelect={setColorIdx} />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginTop: 10 }}>
         <div><label className="cz-lbl">Ancho cm</label><input className="cz-in" type="number" value={w} onChange={(e) => setW(e.target.value)} /></div>
         <div><label className="cz-lbl">Alto cm</label><input className="cz-in" type="number" value={h} onChange={(e) => setH(e.target.value)} /></div>
@@ -709,7 +742,7 @@ function FormUV({ onAdd, materialesUV, configProduccion }) {
         <div><label className="cz-lbl">Cantidad</label><input className="cz-in" type="number" value={cant} onChange={(e) => setCant(Number(e.target.value))} /></div>
       </div>
       <div style={{ fontSize: 12, color: "#7B8290", marginTop: 8 }}>Área "full wrap" precargada por objeto · editable. Film UV: ${(configProduccion.uvPrecioMetro / (configProduccion.uvAnchoCm * 100)).toFixed(3)}/cm².</div>
-      <PieForm costo={r.costo} desc={`${(materialesUV.find((m) => m.id === objId) || {}).nombre || ""} ×${cant}`} onAdd={() => onAdd(r)} color={SERVICIOS.UV.color} />
+      <PieForm costo={r.costo} desc={r.desc} onAdd={() => onAdd(r)} color={SERVICIOS.UV.color} />
     </>
   );
 }
@@ -722,10 +755,11 @@ function FormSubli({ onAdd, materialesSublimado, configProduccion }) {
   const [ancho, setAncho] = useState(primero.ancho || 2.5);
   const [cant, setCant] = useState(primero.continuo ? 10 : 12);
   const [sus, setSus] = useState(primero.precio);
+  const [colorIdx, setColorIdx] = useState(0);
   const cambiar = (id) => {
     const d = materialesSublimado.find((m) => m.id === Number(id));
     if (!d) return;
-    setProdId(d.id); setW(d.w || 10); setH(d.h || 10); setAncho(d.ancho || 2.5); setSus(d.precio); setCant(d.continuo ? 10 : 12);
+    setProdId(d.id); setW(d.w || 10); setH(d.h || 10); setAncho(d.ancho || 2.5); setSus(d.precio); setCant(d.continuo ? 10 : 12); setColorIdx(0);
   };
   const r = useMemo(() => {
     const prod = materialesSublimado.find((m) => m.id === prodId) || primero;
@@ -735,14 +769,17 @@ function FormSubli({ onAdd, materialesSublimado, configProduccion }) {
     const costoImp = (areaTot / configProduccion.subliArea) * configProduccion.subliMetro;
     const costo = Number(sus) * cant + costoImp;
     const u = continuo ? `${cant}m × ${ancho}cm` : `${w}×${h}cm ×${cant}`;
-    return { costo, cant, desc: `${prod.nombre || ""} · ${u}` };
-  }, [prodId, w, h, ancho, cant, sus, materialesSublimado, configProduccion]);
+    const vSel = (prod.variantes || [])[colorIdx] || null;
+    return { costo, cant, desc: `${prod.nombre || ""}${vSel ? " · " + vSel.nombre : ""} · ${u}` };
+  }, [prodId, colorIdx, w, h, ancho, cant, sus, materialesSublimado, configProduccion]);
   const prodActual = materialesSublimado.find((m) => m.id === prodId) || primero;
   const continuo = prodActual.continuo;
+  const variantesProd = prodActual.variantes || [];
   return (
     <>
       <label className="cz-lbl">Producto</label>
       <select className="cz-in" value={prodId} onChange={(e) => cambiar(e.target.value)}>{materialesSublimado.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select>
+      <SwatchPicker colores={variantesProd} idx={colorIdx} onSelect={setColorIdx} />
       {continuo ? (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 10 }}>
           <div><label className="cz-lbl">Metros</label><input className="cz-in" type="number" value={cant} onChange={(e) => setCant(Number(e.target.value))} /></div>
@@ -767,16 +804,22 @@ function FormSubli({ onAdd, materialesSublimado, configProduccion }) {
 function FormLaser({ onAdd, materialesLaser, costosPorHora, tarifaHr }) {
   const [matIdx, setMatIdx] = useState(Math.min(4, materialesLaser.length - 1)), [cant, setCant] = useState(1), [minMaquina, setMinMaquina] = useState(8);
   const [disenoPropio, setDisenoPropio] = useState(false), [minDiseno, setMinDiseno] = useState(10);
+  const [colorIdx, setColorIdx] = useState(0);
+  const cambiarMat = (i) => { setMatIdx(i); setColorIdx(0); };
+  const matActual = materialesLaser[matIdx] || materialesLaser[0] || { nombre: "", precio: 0, variantes: [] };
+  const variantesMat = matActual.variantes || [];
   const r = useMemo(() => {
     const mat = materialesLaser[matIdx] || materialesLaser[0] || { nombre: "", precio: 0 };
     const costoMaquinaHr = costosPorHora.generalPorHora + costosPorHora.cncPorHora;
     const costo = mat.precio * cant + (Number(minMaquina) / 60) * costoMaquinaHr * cant + (disenoPropio ? (Number(minDiseno) / 60) * tarifaHr : 0);
-    return { costo, cant, desc: `${mat.nombre} ×${cant}${disenoPropio ? " (diseño propio)" : ""}` };
-  }, [matIdx, cant, minMaquina, disenoPropio, minDiseno, materialesLaser, costosPorHora, tarifaHr]);
+    const vSel = (mat.variantes || [])[colorIdx] || null;
+    return { costo, cant, desc: `${mat.nombre}${vSel ? " · " + vSel.nombre : ""} ×${cant}${disenoPropio ? " (diseño propio)" : ""}` };
+  }, [matIdx, colorIdx, cant, minMaquina, disenoPropio, minDiseno, materialesLaser, costosPorHora, tarifaHr]);
   return (
     <>
       <label className="cz-lbl">Material</label>
-      <select className="cz-in" value={matIdx} onChange={(e) => setMatIdx(Number(e.target.value))}>{materialesLaser.map((m, i) => <option key={m.id} value={i}>{m.nombre} — {fmt(m.precio)}</option>)}</select>
+      <select className="cz-in" value={matIdx} onChange={(e) => cambiarMat(Number(e.target.value))}>{materialesLaser.map((m, i) => <option key={m.id} value={i}>{m.nombre} — {fmt(m.precio)}</option>)}</select>
+      <SwatchPicker colores={variantesMat} idx={colorIdx} onSelect={setColorIdx} />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
         <div><label className="cz-lbl">Cantidad</label><input className="cz-in" type="number" value={cant} onChange={(e) => setCant(Number(e.target.value))} /></div>
         <div><label className="cz-lbl">Min máquina</label><input className="cz-in" type="number" value={minMaquina} onChange={(e) => setMinMaquina(e.target.value)} /></div>
@@ -950,21 +993,7 @@ function FormCatalogoOtro({ onAdd, items, color }) {
       </div>
 
       {colores.length > 0 ? (
-        <>
-          <label className="cz-lbl" style={{ marginTop: 10 }}>Color</label>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {colores.map((c, i) => (
-              <button key={c.id} type="button" onClick={() => setColorIdx(i)} title={c.nombre}
-                style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 8px", borderRadius: 20, cursor: "pointer",
-                  border: colorIdx === i ? "2px solid #F4561D" : "1px solid #D8DBE0", background: colorIdx === i ? "#FFF4EE" : "#fff" }}>
-                {c.imagen
-                  ? <img src={c.imagen} style={{ width: 16, height: 16, borderRadius: "50%", objectFit: "cover" }} />
-                  : <span style={{ width: 16, height: 16, borderRadius: "50%", background: c.hex || "#ccc", display: "inline-block", border: "1px solid #D8DBE0" }} />}
-                <span style={{ fontSize: 12 }}>{c.nombre}</span>
-              </button>
-            ))}
-          </div>
-        </>
+        <SwatchPicker colores={colores} idx={colorIdx} onSelect={setColorIdx} />
       ) : (
         <div style={{ fontSize: 11, color: "#9AA0AE", marginTop: 8 }}>Este modelo no tiene variantes de color registradas (opcional — agrégalas en Insumos).</div>
       )}
@@ -1022,17 +1051,23 @@ function FormImpresion3D({ onAdd, filamentos, costosPorHora, tarifaHr }) {
 function FormLab({ onAdd, productosLab, tarifaHr }) {
   const primero = productosLab[0] || null;
   const [prodId, setProdId] = useState(primero ? primero.id : null);
+  const [colorIdx, setColorIdx] = useState(0);
   const [cant, setCant] = useState(1);
   const [minManoObra, setMinManoObra] = useState(0);
+  const cambiarProd = (id) => { setProdId(id); setColorIdx(0); };
+  const prodActual = productosLab.find((p) => p.id === prodId) || primero || { variantes: [] };
+  const variantes = prodActual.variantes || [];
+  const colorSel = variantes[colorIdx] || null;
   const r = useMemo(() => {
     const prod = productosLab.find((p) => p.id === prodId) || primero;
     if (!prod) return { costo: 0, cant: 1, desc: "" };
     const cantNum = Number(cant) || 1;
     const costoManoObra = (Number(minManoObra) / 60) * tarifaHr;
     const costoPorPieza = prod.costoNeto + costoManoObra;
+    const vSel = (prod.variantes || [])[colorIdx] || null;
     const detalle = { porPieza: [{ label: `${prod.nombre} (costo neto Studio Lab)`, valor: prod.costoNeto }, ...(costoManoObra > 0 ? [{ label: `Mano de obra (${minManoObra} min)`, valor: costoManoObra }] : [])], unicos: [] };
-    return { costo: costoPorPieza * cantNum, cant: cantNum, desc: `${prod.nombre} ×${cantNum}`, detalle };
-  }, [prodId, cant, minManoObra, productosLab, tarifaHr]);
+    return { costo: costoPorPieza * cantNum, cant: cantNum, desc: `${prod.nombre}${vSel ? " · " + vSel.nombre : ""} ×${cantNum}`, detalle };
+  }, [prodId, colorIdx, cant, minManoObra, productosLab, tarifaHr]);
 
   if (productosLab.length === 0) {
     return <div style={{ fontSize: 13, color: "#7B8290" }}>Aún no tienes productos guardados en 🧪 Studio Lab. Ve a esa pestaña y arma tu primer producto por componentes.</div>;
@@ -1040,9 +1075,10 @@ function FormLab({ onAdd, productosLab, tarifaHr }) {
   return (
     <>
       <label className="cz-lbl">Producto (Studio Lab)</label>
-      <select className="cz-in" value={prodId || ""} onChange={(e) => setProdId(e.target.value)}>
+      <select className="cz-in" value={prodId || ""} onChange={(e) => cambiarProd(e.target.value)}>
         {productosLab.map((p) => <option key={p.id} value={p.id}>{p.nombre} — costo neto {fmt(p.costoNeto)}</option>)}
       </select>
+      <SwatchPicker colores={variantes} idx={colorIdx} onSelect={setColorIdx} />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
         <div><label className="cz-lbl">Cantidad</label><input className="cz-in" type="number" value={cant} onChange={(e) => setCant(e.target.value)} /></div>
         <div><label className="cz-lbl">Mano de obra (min/pza)</label><input className="cz-in" type="number" value={minManoObra} onChange={(e) => setMinManoObra(e.target.value)} /></div>
@@ -1463,7 +1499,7 @@ function VistaClientes({ clientes, onAgregar, onEliminar }) {
 }
 
 /* ===================== VISTA STUDIO LAB (constructor de productos por nodos) ===================== */
-function VistaLab({ productosLab, onEliminar }) {
+function VistaLab({ productosLab, onEliminar, onAgregarColor, onQuitarColor }) {
   const [detalle, setDetalle] = useState(null);
 
   return (
@@ -1497,6 +1533,10 @@ function VistaLab({ productosLab, onEliminar }) {
                       {n.link ? <a href={n.link} target="_blank" rel="noreferrer" style={{ color: "#F4561D" }}>Ver link ↗</a> : <span>—</span>}
                     </div>
                   ))}
+                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px dashed #D8DBE0" }}>
+                    <div style={{ fontWeight: 600, color: "#5B6270", marginBottom: 2 }}>Variantes de color (opcional, mismo costo)</div>
+                    <ColorVariantes colores={p.variantes || []} onAgregar={(c) => onAgregarColor(p.id, c)} onQuitar={(cid) => onQuitarColor(p.id, cid)} />
+                  </div>
                 </div>
               )}
             </div>
@@ -1679,6 +1719,12 @@ function VistaInsumos({ materiales, setMateriales, preciosFijos, setPreciosFijos
   const quitarImagen = (cat, id) => {
     setMateriales((prev) => ({ ...prev, [cat]: prev[cat].map((m) => (m.id === id ? { ...m, imagen: "" } : m)) }));
   };
+  const agregarColorMaterial = (cat, id, color) => {
+    setMateriales((prev) => ({ ...prev, [cat]: prev[cat].map((m) => (m.id === id ? { ...m, variantes: [...(m.variantes || []), color], mod: hoy() } : m)) }));
+  };
+  const quitarColorMaterial = (cat, id, colorId) => {
+    setMateriales((prev) => ({ ...prev, [cat]: prev[cat].map((m) => (m.id === id ? { ...m, variantes: (m.variantes || []).filter((c) => c.id !== colorId), mod: hoy() } : m)) }));
+  };
   const toggleFavoritoOtro = (sub, id) => {
     setCatalogoOtros((prev) => ({ ...prev, [sub]: prev[sub].map((o) => (o.id === id ? { ...o, favorito: !o.favorito, mod: hoy() } : o)) }));
   };
@@ -1753,30 +1799,37 @@ function VistaInsumos({ materiales, setMateriales, preciosFijos, setPreciosFijos
                         </React.Fragment>
                       ))}
                     </div>
+                    <ColorVariantes colores={m.variantes || []} onAgregar={(c) => agregarColorMaterial("dtf", m.id, c)} onQuitar={(cid) => quitarColorMaterial("dtf", m.id, cid)} />
                   </div>
                 ) : (
-                  <div key={m.id} className="insumo-row">
-                    <FavImg favorito={m.favorito} imagen={m.imagen} onToggleFav={() => toggleFavorito("dtf", m.id)} onSubirImagen={(f) => subirImagen("dtf", m.id, f)} onQuitarImagen={() => quitarImagen("dtf", m.id)} />
-                    <input className="cz-in" style={{ flex: 2, minWidth: 140 }} value={m.nombre} onChange={(e) => actualizarMaterial("dtf", m.id, "nombre", e.target.value)} />
-                    <input className="cz-in" style={{ flex: 1, minWidth: 80 }} type="number" value={m.precio} onChange={(e) => actualizarMaterial("dtf", m.id, "precio", e.target.value)} />
-                    <CalcLote unidad={m.unidad} onAplicar={(v) => actualizarMaterial("dtf", m.id, "precio", v)} />
-                    <span className="insumo-mod">Mod: {m.mod}</span>
-                    <button onClick={() => eliminarMaterial("dtf", m.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 16 }}>×</button>
+                  <div key={m.id} style={{ border: "1.5px solid #EEF0F2", borderRadius: 8, padding: 8, marginBottom: 8 }}>
+                    <div className="insumo-row" style={{ border: "none", padding: 0 }}>
+                      <FavImg favorito={m.favorito} imagen={m.imagen} onToggleFav={() => toggleFavorito("dtf", m.id)} onSubirImagen={(f) => subirImagen("dtf", m.id, f)} onQuitarImagen={() => quitarImagen("dtf", m.id)} />
+                      <input className="cz-in" style={{ flex: 2, minWidth: 140 }} value={m.nombre} onChange={(e) => actualizarMaterial("dtf", m.id, "nombre", e.target.value)} />
+                      <input className="cz-in" style={{ flex: 1, minWidth: 80 }} type="number" value={m.precio} onChange={(e) => actualizarMaterial("dtf", m.id, "precio", e.target.value)} />
+                      <CalcLote unidad={m.unidad} onAplicar={(v) => actualizarMaterial("dtf", m.id, "precio", v)} />
+                      <span className="insumo-mod">Mod: {m.mod}</span>
+                      <button onClick={() => eliminarMaterial("dtf", m.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 16 }}>×</button>
+                    </div>
+                    <ColorVariantes colores={m.variantes || []} onAgregar={(c) => agregarColorMaterial("dtf", m.id, c)} onQuitar={(cid) => quitarColorMaterial("dtf", m.id, cid)} />
                   </div>
                 ))}
               </div>
             ))
           ) : (
             materiales[categoriaActiva].filter((m) => m.nombre.toLowerCase().includes(busqueda.toLowerCase())).map((m) => (
-              <div key={m.id} className="insumo-row">
-                <FavImg favorito={m.favorito} imagen={m.imagen} onToggleFav={() => toggleFavorito(categoriaActiva, m.id)} onSubirImagen={(f) => subirImagen(categoriaActiva, m.id, f)} onQuitarImagen={() => quitarImagen(categoriaActiva, m.id)} />
-                <input className="cz-in" style={{ flex: 2, minWidth: 140 }} value={m.nombre} onChange={(e) => actualizarMaterial(categoriaActiva, m.id, "nombre", e.target.value)} />
-                <input className="cz-in" style={{ flex: 1, minWidth: 80 }} type="number" value={m.precio} onChange={(e) => actualizarMaterial(categoriaActiva, m.id, "precio", e.target.value)} />
-                {m.w !== undefined && <input className="cz-in" style={{ width: 60 }} type="number" title="Ancho cm" value={m.w} onChange={(e) => actualizarMaterial(categoriaActiva, m.id, "w", e.target.value)} />}
-                {m.h !== undefined && <input className="cz-in" style={{ width: 60 }} type="number" title="Alto cm" value={m.h} onChange={(e) => actualizarMaterial(categoriaActiva, m.id, "h", e.target.value)} />}
-                <CalcLote unidad={m.unidad} onAplicar={(v) => actualizarMaterial(categoriaActiva, m.id, "precio", v)} />
-                <span className="insumo-mod">Mod: {m.mod}</span>
-                <button onClick={() => eliminarMaterial(categoriaActiva, m.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 16 }}>×</button>
+              <div key={m.id} style={{ border: "1.5px solid #EEF0F2", borderRadius: 8, padding: 8, marginBottom: 8 }}>
+                <div className="insumo-row" style={{ border: "none", padding: 0 }}>
+                  <FavImg favorito={m.favorito} imagen={m.imagen} onToggleFav={() => toggleFavorito(categoriaActiva, m.id)} onSubirImagen={(f) => subirImagen(categoriaActiva, m.id, f)} onQuitarImagen={() => quitarImagen(categoriaActiva, m.id)} />
+                  <input className="cz-in" style={{ flex: 2, minWidth: 140 }} value={m.nombre} onChange={(e) => actualizarMaterial(categoriaActiva, m.id, "nombre", e.target.value)} />
+                  <input className="cz-in" style={{ flex: 1, minWidth: 80 }} type="number" value={m.precio} onChange={(e) => actualizarMaterial(categoriaActiva, m.id, "precio", e.target.value)} />
+                  {m.w !== undefined && <input className="cz-in" style={{ width: 60 }} type="number" title="Ancho cm" value={m.w} onChange={(e) => actualizarMaterial(categoriaActiva, m.id, "w", e.target.value)} />}
+                  {m.h !== undefined && <input className="cz-in" style={{ width: 60 }} type="number" title="Alto cm" value={m.h} onChange={(e) => actualizarMaterial(categoriaActiva, m.id, "h", e.target.value)} />}
+                  <CalcLote unidad={m.unidad} onAplicar={(v) => actualizarMaterial(categoriaActiva, m.id, "precio", v)} />
+                  <span className="insumo-mod">Mod: {m.mod}</span>
+                  <button onClick={() => eliminarMaterial(categoriaActiva, m.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 16 }}>×</button>
+                </div>
+                <ColorVariantes colores={m.variantes || []} onAgregar={(c) => agregarColorMaterial(categoriaActiva, m.id, c)} onQuitar={(cid) => quitarColorMaterial(categoriaActiva, m.id, cid)} />
               </div>
             ))
           )}
@@ -2016,6 +2069,8 @@ function App() {
   const insumos = { materiales, preciosFijos, configProduccion, costosPorHora, manoObra, productosLab, catalogoOtros };
 
   const eliminarProductoLab = (id) => { if (confirm("¿Eliminar este producto de Studio Lab?")) setProductosLab((prev) => prev.filter((p) => p.id !== id)); };
+  const agregarColorProductoLab = (id, color) => setProductosLab((prev) => prev.map((p) => (p.id === id ? { ...p, variantes: [...(p.variantes || []), color] } : p)));
+  const quitarColorProductoLab = (id, colorId) => setProductosLab((prev) => prev.map((p) => (p.id === id ? { ...p, variantes: (p.variantes || []).filter((c) => c.id !== colorId) } : p)));
 
   const agregarHistorial = (entry) => setHistorial((prev) => [entry, ...prev]);
   const eliminarHistorial = (id) => setHistorial((prev) => prev.filter((h) => h.id !== id));
@@ -2046,7 +2101,7 @@ function App() {
         {tab === "cotizar" && <VistaCotizar mults={mults} modoMargen={modoMargen} clientes={clientes} onGuardarHistorial={agregarHistorial} insumos={insumos} />}
         {tab === "inversa" && <VistaInversa mults={mults} modoMargen={modoMargen} />}
         {tab === "clientes" && <VistaClientes clientes={clientes} onAgregar={agregarCliente} onEliminar={eliminarCliente} />}
-        {tab === "lab" && <VistaLab productosLab={productosLab} onEliminar={eliminarProductoLab} />}
+        {tab === "lab" && <VistaLab productosLab={productosLab} onEliminar={eliminarProductoLab} onAgregarColor={agregarColorProductoLab} onQuitarColor={quitarColorProductoLab} />}
         {tab === "historial" && <VistaHistorial historial={historial} onEliminar={eliminarHistorial} onLimpiar={limpiarHistorial} />}
         {tab === "insumos" && (
           <VistaInsumos
