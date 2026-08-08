@@ -57,6 +57,8 @@ const SERVICIOS = {
   TOTE: { nombre: "Totebags", color: "#0EA5A0", icono: "👜" },
   IMP3D: { nombre: "Impresión 3D", color: "#0EA5E9", icono: "🖨️" },
   LAB: { nombre: "Studio Lab", color: "#A855F7", icono: "🧪" },
+  GORRAS: { nombre: "Gorras", color: "#EAB308", icono: "🧢" },
+  TERMOS: { nombre: "Termos", color: "#0284C7", icono: "🥤" },
 };
 
 /* ===================== VALORES INICIALES DE INSUMOS (editables luego en la pestaña Insumos) ===================== */
@@ -461,6 +463,7 @@ function FormDTF({ onAdd, materialesDTF, materialesEmpaque = [], configProduccio
   const disenos = Object.keys(DISENOS_DTF);
   const [modeloId, setModeloId] = useState((materialesDTF[0] && materialesDTF[0].id) || "");
   const [colorIdx, setColorIdx] = useState(0);
+  const [colorEspecifico, setColorEspecifico] = useState("");
   const [genero, setGenero] = useState("Hombre");
   const [talla, setTalla] = useState("M");
   const [cant, setCant] = useState(10);
@@ -494,7 +497,7 @@ function FormDTF({ onAdd, materialesDTF, materialesEmpaque = [], configProduccio
   const tierLabel = cantNum >= 504 ? "504+ pz" : cantNum >= 72 ? "72–503 pz" : "12–71 pz";
   const ivaTextil = Number(configProduccion.ivaTextil || 0);
 
-  const cambiarModelo = (id) => { setModeloId(id); setColorIdx(0); };
+  const cambiarModelo = (id) => { setModeloId(id); setColorIdx(0); setColorEspecifico(""); };
 
   const r = useMemo(() => {
     const costoSus = esEscalonado && color ? color[tierKey] * (1 + ivaTextil) : Number(item.precio) || 0;
@@ -510,7 +513,8 @@ function FormDTF({ onAdd, materialesDTF, materialesEmpaque = [], configProduccio
     if (tipoDiseno === "sencillo") manip = (Number(configProduccion.disenoSencilloMin) / 60) * tarifaHr;
     if (tipoDiseno === "complejo") manip = (Number(configProduccion.disenoComplejoMin) / 60) * tarifaHr;
     const ubic = imps.map((i) => (i.custom ? "pers." : i.diseno.replace("Frontal ", "").replace("Espalda ", "Esp."))).join(" + ");
-    const nombreSus = item.nombre + (color ? ` · ${color.nombre}` : "");
+    const colorMostrado = color ? (colorEspecifico.trim() ? `${color.nombre} (${colorEspecifico.trim()})` : color.nombre) : null;
+    const nombreSus = item.nombre + (colorMostrado ? ` · ${colorMostrado}` : "");
     let promo = null;
     let promoUrge = false;
     if (esEscalonado && color) {
@@ -530,7 +534,7 @@ function FormDTF({ onAdd, materialesDTF, materialesEmpaque = [], configProduccio
       unicos: [{ label: tipoDiseno === "proporcionado" ? "Diseño/revisión" : "Diseño (creación)", valor: manip }],
     };
     return { costo: porPieza * cant + manip, cant, desc: `${nombreSus} (${talla}) · ${ubic}`, promo, promoUrge, detalle };
-  }, [modeloId, colorIdx, genero, talla, cant, tipoDiseno, imps, materialesDTF, materialesEmpaque, empSel, configProduccion, tarifaHr]);
+  }, [modeloId, colorIdx, colorEspecifico, genero, talla, cant, tipoDiseno, imps, materialesDTF, materialesEmpaque, empSel, configProduccion, tarifaHr]);
 
   return (
     <>
@@ -564,6 +568,12 @@ function FormDTF({ onAdd, materialesDTF, materialesEmpaque = [], configProduccio
       {esEscalonado && (
         <div style={{ fontSize: 11, color: "#7B8290", marginTop: 6 }}>
           Tier de volumen: <b>{tierLabel}</b> · costo tela (con IVA {Math.round(ivaTextil * 100)}%): {fmt(color ? color[tierKey] * (1 + ivaTextil) : 0)}/pz
+        </div>
+      )}
+      {esEscalonado && (
+        <div style={{ marginTop: 8 }}>
+          <label className="cz-lbl">Color específico (opcional)</label>
+          <input className="cz-in" placeholder={`Ej. Rojo cereza, Azul marino… (se cotiza al precio de "${color ? color.nombre : ""}")`} value={colorEspecifico} onChange={(e) => setColorEspecifico(e.target.value)} />
         </div>
       )}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
@@ -891,6 +901,84 @@ function FormTotebags({ onAdd, totebags }) {
   );
 }
 
+/* ===================== FORM: CATÁLOGO OTROS (Gorras / Termos) ===================== */
+function FormCatalogoOtro({ onAdd, items, color }) {
+  const [itemId, setItemId] = useState((items[0] && items[0].id) || "");
+  const [colorIdx, setColorIdx] = useState(0);
+  const [cant, setCant] = useState(1);
+  const [soloFav, setSoloFav] = useState(false);
+
+  const hayFavoritos = useMemo(() => items.some((i) => i.favorito), [items]);
+  const lista = useMemo(() => (soloFav ? items.filter((i) => i.favorito) : items), [items, soloFav]);
+
+  useEffect(() => {
+    if (lista.length && !lista.some((i) => i.id === itemId)) { setItemId(lista[0].id); setColorIdx(0); }
+  }, [lista]);
+
+  const item = items.find((i) => i.id === itemId) || items[0] || { nombre: "", precio: 0, colores: [] };
+  const colores = item.colores || [];
+  const colorSel = colores[colorIdx] || null;
+
+  const cambiarItem = (id) => { setItemId(id); setColorIdx(0); };
+
+  const cantNum = Number(cant) || 0;
+  const costoUnit = Number(item.precio) || 0;
+  const desc = `${item.nombre}${colorSel ? " · " + colorSel.nombre : ""} ×${cantNum}`;
+  const r = { costo: costoUnit * cantNum, cant: cantNum, desc, detalle: { porPieza: [{ label: item.nombre, valor: costoUnit }], unicos: [] } };
+
+  if (!items || items.length === 0) {
+    return <div style={{ color: "#9AA0AE", fontSize: 13 }}>Aún no hay modelos en este catálogo. Agrégalos en la pestaña Insumos → "Otros productos Óptima".</div>;
+  }
+
+  return (
+    <>
+      {hayFavoritos && (
+        <label style={{ fontSize: 12, display: "flex", gap: 6, alignItems: "center", cursor: "pointer", marginBottom: 8 }}>
+          <input type="checkbox" checked={soloFav} onChange={(e) => setSoloFav(e.target.checked)} /> ⭐ Solo favoritos
+        </label>
+      )}
+      <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+        {item.imagen
+          ? <img src={item.imagen} style={{ width: 42, height: 42, objectFit: "cover", borderRadius: 6, border: "1px solid #D8DBE0" }} />
+          : <div style={{ width: 42, height: 42, borderRadius: 6, border: "1px dashed #D8DBE0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: "#C7CBD2" }}>📷</div>}
+        <div style={{ flex: 1 }}>
+          <label className="cz-lbl">Modelo</label>
+          <select className="cz-in" value={itemId} onChange={(e) => cambiarItem(e.target.value)}>
+            {lista.map((i) => <option key={i.id} value={i.id}>{(i.favorito ? "⭐ " : "") + i.nombre} — {fmt(i.precio)}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {colores.length > 0 ? (
+        <>
+          <label className="cz-lbl" style={{ marginTop: 10 }}>Color</label>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {colores.map((c, i) => (
+              <button key={c.id} type="button" onClick={() => setColorIdx(i)} title={c.nombre}
+                style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 8px", borderRadius: 20, cursor: "pointer",
+                  border: colorIdx === i ? "2px solid #F4561D" : "1px solid #D8DBE0", background: colorIdx === i ? "#FFF4EE" : "#fff" }}>
+                {c.imagen
+                  ? <img src={c.imagen} style={{ width: 16, height: 16, borderRadius: "50%", objectFit: "cover" }} />
+                  : <span style={{ width: 16, height: 16, borderRadius: "50%", background: c.hex || "#ccc", display: "inline-block", border: "1px solid #D8DBE0" }} />}
+                <span style={{ fontSize: 12 }}>{c.nombre}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <div style={{ fontSize: 11, color: "#9AA0AE", marginTop: 8 }}>Este modelo no tiene variantes de color registradas (opcional — agrégalas en Insumos).</div>
+      )}
+
+      <label className="cz-lbl" style={{ marginTop: 10 }}>Cantidad</label>
+      <input className="cz-in" type="number" value={cant} onChange={(e) => setCant(e.target.value)} />
+
+      <div style={{ fontSize: 11, color: "#7B8290", marginTop: 8 }}>Costo mayoreo: {fmt(costoUnit)} c/u (mismo costo en todos los colores). El precio de venta se calcula abajo según el tipo de cliente.</div>
+
+      <PieForm costo={r.costo} desc={r.desc} onAdd={() => onAdd(r)} color={color} />
+    </>
+  );
+}
+
 /* ===================== FORM: IMPRESIÓN 3D ===================== */
 function FormImpresion3D({ onAdd, filamentos, costosPorHora, tarifaHr }) {
   const primero = filamentos[0] || { id: 0, nombre: "", precio: 0 };
@@ -991,6 +1079,8 @@ function VistaCotizar({ mults, modoMargen, clientes, onGuardarHistorial, insumos
     TOTE: <FormTotebags onAdd={add} totebags={insumos.preciosFijos.totebags} />,
     IMP3D: <FormImpresion3D onAdd={add} filamentos={insumos.materiales.filamento3d} costosPorHora={insumos.costosPorHora} tarifaHr={insumos.manoObra.tarifaHr} />,
     LAB: <FormLab onAdd={add} productosLab={insumos.productosLab} tarifaHr={insumos.manoObra.tarifaHr} />,
+    GORRAS: <FormCatalogoOtro onAdd={add} items={insumos.catalogoOtros.gorras} color={SERVICIOS.GORRAS.color} />,
+    TERMOS: <FormCatalogoOtro onAdd={add} items={insumos.catalogoOtros.termos} color={SERVICIOS.TERMOS.color} />,
   };
 
   const total = partidas.reduce((s, p) => s + valorPartida(p, tier, mults, modoMargen), 0) + Number(envio || 0);
@@ -1483,6 +1573,53 @@ function CalcLote({ unidad, onAplicar }) {
   );
 }
 
+function ColorVariantes({ colores, onAgregar, onQuitar }) {
+  const [open, setOpen] = useState(false);
+  const [nombre, setNombre] = useState("");
+  const [hex, setHex] = useState("#F4561D");
+  const [imagen, setImagen] = useState("");
+
+  const subirImagen = (file) => {
+    if (!file) return;
+    redimensionarImagen(file, 80, (dataUrl) => setImagen(dataUrl));
+  };
+
+  const cerrar = () => { setOpen(false); setNombre(""); setHex("#F4561D"); setImagen(""); };
+
+  const agregar = () => {
+    if (!nombre.trim()) { alert('Ponle un nombre al color (ej. "Azul marino")'); return; }
+    onAgregar({ id: nid(), nombre: nombre.trim(), hex, imagen });
+    cerrar();
+  };
+
+  return (
+    <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}>
+      {colores.map((c) => (
+        <span key={c.id} title={c.nombre} style={{ display: "inline-flex", alignItems: "center", gap: 3, background: "#F5F6F8", borderRadius: 20, padding: "2px 6px 2px 2px" }}>
+          {c.imagen
+            ? <img src={c.imagen} style={{ width: 16, height: 16, borderRadius: "50%", objectFit: "cover" }} />
+            : <span style={{ width: 16, height: 16, borderRadius: "50%", background: c.hex || "#ccc", display: "inline-block", border: "1px solid #D8DBE0" }} />}
+          <span style={{ fontSize: 10, color: "#5B6270" }}>{c.nombre}</span>
+          <button onClick={() => onQuitar(c.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 12, lineHeight: 1, padding: 0 }}>×</button>
+        </span>
+      ))}
+      {!open && <button onClick={() => setOpen(true)} style={{ border: "1px dashed #D8DBE0", background: "none", borderRadius: 20, padding: "2px 8px", fontSize: 10, color: "#7B8290", cursor: "pointer" }}>+ color</button>}
+      {open && (
+        <span style={{ display: "flex", gap: 4, alignItems: "center", background: "#FFF4EE", border: "1px dashed #F4A26155", borderRadius: 6, padding: "4px 6px" }}>
+          <input className="cz-in" style={{ width: 92, padding: "3px 6px", fontSize: 11 }} placeholder="Ej. Azul marino" value={nombre} onChange={(e) => setNombre(e.target.value)} autoFocus />
+          <input type="color" value={hex} onChange={(e) => setHex(e.target.value)} title="Color aproximado" style={{ width: 24, height: 24, border: "none", padding: 0, cursor: "pointer", background: "none" }} />
+          <label style={{ cursor: "pointer", fontSize: 14 }} title="Foto (opcional)">
+            {imagen ? <img src={imagen} style={{ width: 20, height: 20, borderRadius: "50%", objectFit: "cover" }} /> : "📷"}
+            <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => subirImagen(e.target.files[0])} />
+          </label>
+          <button className="cz-btn org" style={{ padding: "3px 8px", fontSize: 11 }} onClick={agregar}>Agregar</button>
+          <button onClick={cerrar} style={{ border: "none", background: "none", color: "#7B8290", cursor: "pointer", fontSize: 11 }}>Cancelar</button>
+        </span>
+      )}
+    </div>
+  );
+}
+
 /* ===================== VISTA INSUMOS ===================== */
 function VistaInsumos({ materiales, setMateriales, preciosFijos, setPreciosFijos, configProduccion, setConfigProduccion, costosOperativos, setCostosOperativos, costoMaquinas, setCostoMaquinas, manoObra, setManoObra, costosPorHora, catalogoOtros, setCatalogoOtros }) {
   const [categoriaActiva, setCategoriaActiva] = useState("laser");
@@ -1550,6 +1687,12 @@ function VistaInsumos({ materiales, setMateriales, preciosFijos, setPreciosFijos
     redimensionarImagen(file, 160, (dataUrl) => {
       setCatalogoOtros((prev) => ({ ...prev, [sub]: prev[sub].map((o) => (o.id === id ? { ...o, imagen: dataUrl, mod: hoy() } : o)) }));
     });
+  };
+  const agregarColorOtro = (sub, id, color) => {
+    setCatalogoOtros((prev) => ({ ...prev, [sub]: prev[sub].map((o) => (o.id === id ? { ...o, colores: [...(o.colores || []), color], mod: hoy() } : o)) }));
+  };
+  const quitarColorOtro = (sub, id, colorId) => {
+    setCatalogoOtros((prev) => ({ ...prev, [sub]: prev[sub].map((o) => (o.id === id ? { ...o, colores: (o.colores || []).filter((c) => c.id !== colorId), mod: hoy() } : o)) }));
   };
 
   const actualizarCortador = (id, campo, valor) => {
@@ -1721,18 +1864,21 @@ function VistaInsumos({ materiales, setMateriales, preciosFijos, setPreciosFijos
       </div>
 
       <div className="cz-card">
-        <span className="cz-d" style={{ fontSize: 18, fontWeight: 700, textTransform: "uppercase" }}>Otros productos Óptima (referencia)</span>
-        <div style={{ fontSize: 11, color: "#7B8290", marginTop: 4 }}>Precios de mayoreo, sin IVA. Aún no están conectados a ningún formulario de cotización — pídeme que los active si los necesitas.</div>
+        <span className="cz-d" style={{ fontSize: 18, fontWeight: 700, textTransform: "uppercase" }}>Otros productos Óptima (Gorras y Termos)</span>
+        <div style={{ fontSize: 11, color: "#7B8290", marginTop: 4 }}>Costo de mayoreo, sin IVA — mismo costo en todos los colores. Ya están conectados a Cotizar (pestañas 🧢 Gorras / 🥤 Termos), el margen se aplica automático según el tipo de cliente. Agrega variantes de color con un circulito o una foto para poder elegir cuál cotizar.</div>
         {["gorras", "termos"].map((sub) => (
           <div key={sub} style={{ marginTop: 12 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: "#7B8290", textTransform: "uppercase", letterSpacing: ".05em" }}>{sub}</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginTop: 6 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 6, marginTop: 6 }}>
               {catalogoOtros[sub].map((o) => (
-                <div key={o.id} style={{ display: "flex", gap: 4, alignItems: "center", fontSize: 12, flexWrap: "wrap" }}>
-                  <FavImg favorito={o.favorito} imagen={o.imagen} size={22} onToggleFav={() => toggleFavoritoOtro(sub, o.id)} onSubirImagen={(f) => subirImagenOtro(sub, o.id, f)} />
-                  <span style={{ flex: 1 }}>{o.nombre}</span>
-                  <input className="cz-in" style={{ width: 66, padding: "4px 6px", fontSize: 12 }} type="number" value={o.precio} onChange={(e) => actualizarOtro(sub, o.id, e.target.value)} />
-                  <CalcLote unidad="pieza" onAplicar={(v) => actualizarOtro(sub, o.id, v)} />
+                <div key={o.id} style={{ border: "1px solid #EEF0F2", borderRadius: 8, padding: 8, fontSize: 12 }}>
+                  <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap" }}>
+                    <FavImg favorito={o.favorito} imagen={o.imagen} size={22} onToggleFav={() => toggleFavoritoOtro(sub, o.id)} onSubirImagen={(f) => subirImagenOtro(sub, o.id, f)} />
+                    <span style={{ flex: 1 }}>{o.nombre}</span>
+                    <input className="cz-in" style={{ width: 66, padding: "4px 6px", fontSize: 12 }} type="number" value={o.precio} onChange={(e) => actualizarOtro(sub, o.id, e.target.value)} />
+                    <CalcLote unidad="pieza" onAplicar={(v) => actualizarOtro(sub, o.id, v)} />
+                  </div>
+                  <ColorVariantes colores={o.colores || []} onAgregar={(c) => agregarColorOtro(sub, o.id, c)} onQuitar={(cid) => quitarColorOtro(sub, o.id, cid)} />
                 </div>
               ))}
             </div>
@@ -1867,7 +2013,7 @@ function App() {
     };
   }, [costosOperativos, costoMaquinas]);
 
-  const insumos = { materiales, preciosFijos, configProduccion, costosPorHora, manoObra, productosLab };
+  const insumos = { materiales, preciosFijos, configProduccion, costosPorHora, manoObra, productosLab, catalogoOtros };
 
   const eliminarProductoLab = (id) => { if (confirm("¿Eliminar este producto de Studio Lab?")) setProductosLab((prev) => prev.filter((p) => p.id !== id)); };
 
