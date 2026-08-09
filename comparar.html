@@ -18,18 +18,20 @@
   .del-prod { border: none; background: none; color: #C0392B; cursor: pointer; font-size: 12px; font-weight: 600; white-space: nowrap; }
   .opciones-head { display: flex; gap: 8px; padding: 0 8px; font-size: 10px; font-weight: 700; color: #9AA0AE; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
   .opciones-head .oh-nombre { flex: 1.4; }
-  .opciones-head .oh-fields { flex: 2; display: flex; gap: 8px; }
-  .opciones-head .oh-fields span { flex: 1; }
+  .opciones-head .oh-fields { flex: 2.6; display: flex; gap: 8px; }
+  .opciones-head .oh-fields span { flex: 1.3; }
+  .opciones-head .oh-fields span.oh-unidad { flex: 1; }
   .opciones-head .oh-footer { flex: 1.3; text-align: right; }
   .opcion { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 8px; border: 1.5px solid #EEF0F2; margin-bottom: 8px; transition: border-color .2s, background .2s; }
   .opcion.best { border-color: #2EA84F; background: #EFFBF2; }
-  .opcion input { border: 1px solid #D8DBE0; border-radius: 6px; padding: 7px 8px; font-size: 13px; width: 100%; min-width: 0; font-family: inherit; }
-  .opcion input:focus { outline: none; border-color: #F4561D; }
+  .opcion input, .opcion select { border: 1px solid #D8DBE0; border-radius: 6px; padding: 7px 8px; font-size: 13px; width: 100%; min-width: 0; font-family: inherit; background: #fff; }
+  .opcion input:focus, .opcion select:focus { outline: none; border-color: #F4561D; }
   .op-nombre { flex: 1.4; min-width: 0; }
-  .op-fields { flex: 2; display: flex; gap: 8px; min-width: 0; }
-  .op-fields input { flex: 1; }
+  .op-fields { flex: 2.6; display: flex; gap: 8px; min-width: 0; }
+  .op-fields input { flex: 1.3; }
+  .op-fields select.op-unidad { flex: 1; }
   .op-footer { flex: 1.3; display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
-  .unit { font-size: 12px; font-weight: 700; text-align: right; white-space: nowrap; color: #7B8290; min-width: 60px; }
+  .unit { font-size: 12px; font-weight: 700; text-align: right; white-space: nowrap; color: #7B8290; min-width: 74px; }
   .opcion.best .unit { color: #2EA84F; }
   .badge { font-size: 10px; font-weight: 700; color: #2EA84F; background: #DCFCE7; padding: 4px 8px; border-radius: 20px; white-space: nowrap; text-align: center; }
   .del-op { border: none; background: none; color: #C0392B; cursor: pointer; font-size: 16px; line-height: 1; flex-shrink: 0; }
@@ -55,7 +57,7 @@
     <p>Compara opciones de compra (paquetes, promociones, distintos proveedores) y ve al instante cuál te sale más barato por unidad. Todo se guarda automáticamente en este navegador.</p>
   </div>
   <div class="wrap">
-    <div class="tip">💡 Ej: "12 rollos por $100" vs "16 rollos por $180" — mete cantidad y precio de cada opción y la más barata por unidad se marca en verde.</div>
+    <div class="tip">💡 Ej: "12 rollos por $100" vs "16 rollos por $180" — mete cantidad y precio de cada opción y la más barata por unidad se marca en verde. Si una opción viene en ml y otra en L (o una en g y otra en kg), elige la unidad de cada una y el comparador las convierte solo.</div>
   </div>
   <div class="wrap" id="productos" style="margin-top: 14px;"></div>
   <div class="wrap" style="margin-top: 14px;">
@@ -94,15 +96,31 @@
     return '$' + n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
+  // Cada unidad se normaliza a una unidad base (pza, ml o g) para poder comparar
+  // opciones aunque estén capturadas en unidades distintas (ej. 500ml vs 1L).
+  const UNIDADES = {
+    pza: { factor: 1, base: 'pza', label: 'pza' },
+    ml: { factor: 1, base: 'ml', label: 'ml' },
+    l: { factor: 1000, base: 'ml', label: 'L' },
+    g: { factor: 1, base: 'g', label: 'g' },
+    kg: { factor: 1000, base: 'g', label: 'kg' },
+  };
+
+  function fmtUnit(n, base) {
+    const dec = base === 'pza' ? 2 : 4;
+    return '$' + n.toLocaleString('es-MX', { minimumFractionDigits: dec, maximumFractionDigits: dec }) + '/' + base;
+  }
+
   function unitario(o) {
     const c = parseFloat(o.cantidad);
     const pr = parseFloat(o.precio);
     if (!c || c <= 0 || isNaN(pr) || pr < 0) return null;
-    return pr / c;
+    const u = UNIDADES[o.unidad] || UNIDADES.pza;
+    return { valor: pr / (c * u.factor), base: u.base };
   }
 
   function opcionVacia() {
-    return { id: nid(), nombre: '', cantidad: '', precio: '' };
+    return { id: nid(), nombre: '', cantidad: '', precio: '', unidad: 'pza' };
   }
 
   function letraSiguiente(n) {
@@ -154,10 +172,15 @@
     row.className = 'opcion';
     row.dataset.opcionId = o.id;
     const placeholderNombre = 'Opción ' + letraSiguiente(idx);
+    if (!o.unidad) o.unidad = 'pza';
+    const opcionesUnidad = Object.keys(UNIDADES).map((k) =>
+      '<option value="' + k + '"' + (o.unidad === k ? ' selected' : '') + '>' + UNIDADES[k].label + '</option>'
+    ).join('');
     row.innerHTML =
       '<input type="text" class="op-nombre" value="' + escapeAttr(o.nombre) + '" placeholder="' + placeholderNombre + '">' +
       '<div class="op-fields">' +
       '<input type="number" value="' + escapeAttr(o.cantidad) + '" placeholder="Cantidad" min="0">' +
+      '<select class="op-unidad">' + opcionesUnidad + '</select>' +
       '<input type="number" value="' + escapeAttr(o.precio) + '" placeholder="Precio $" min="0">' +
       '</div>' +
       '<div class="op-footer">' +
@@ -169,9 +192,11 @@
     const inNombre = row.querySelector('.op-nombre');
     const fieldInputs = row.querySelectorAll('.op-fields input');
     const inCant = fieldInputs[0], inPrecio = fieldInputs[1];
+    const selUnidad = row.querySelector('.op-unidad');
     inNombre.addEventListener('input', (e) => { o.nombre = e.target.value; guardar(); });
     inCant.addEventListener('input', (e) => { o.cantidad = e.target.value; guardar(); actualizarUnitarios(p.id); });
     inPrecio.addEventListener('input', (e) => { o.precio = e.target.value; guardar(); actualizarUnitarios(p.id); });
+    selUnidad.addEventListener('change', (e) => { o.unidad = e.target.value; guardar(); actualizarUnitarios(p.id); });
     row.querySelector('.del-op').addEventListener('click', () => eliminarOpcion(p.id, o.id));
     return row;
   }
@@ -185,7 +210,7 @@
       '<input class="prod-nombre" value="' + escapeAttr(p.nombre) + '" placeholder="Nombre del producto">' +
       '<button class="del-prod">Eliminar producto ×</button>' +
       '</div>' +
-      '<div class="opciones-head"><span class="oh-nombre">Opción</span><div class="oh-fields"><span>Cantidad</span><span>Precio $</span></div><span class="oh-footer">Por unidad</span></div>' +
+      '<div class="opciones-head"><span class="oh-nombre">Opción</span><div class="oh-fields"><span>Cantidad</span><span class="oh-unidad">Unidad</span><span>Precio $</span></div><span class="oh-footer">Por unidad</span></div>' +
       '<div class="opciones"></div>' +
       '<button class="add-op">+ Agregar otra opción</button>';
 
@@ -204,15 +229,26 @@
     const card = document.querySelector('.card[data-producto-id="' + pid + '"]');
     if (!card) return;
     const unitarios = p.opciones.map((o) => unitario(o));
-    const validos = unitarios.filter((u) => u !== null);
-    const mejor = validos.length > 1 ? Math.min.apply(null, validos) : null;
+
+    // El "mejor" precio solo se compara entre opciones que comparten la misma
+    // unidad base (ml, g o pza) — así ml/L y g/kg se normalizan y comparan bien,
+    // pero no se compara por accidente, por ejemplo, ml contra pza.
+    const mejorPorBase = {};
+    unitarios.forEach((u) => {
+      if (!u) return;
+      if (mejorPorBase[u.base] === undefined || u.valor < mejorPorBase[u.base]) mejorPorBase[u.base] = u.valor;
+    });
+    const basesConEmpate = {};
+    unitarios.forEach((u) => { if (u) basesConEmpate[u.base] = (basesConEmpate[u.base] || 0) + 1; });
+
     p.opciones.forEach((o, i) => {
       const row = card.querySelector('.opcion[data-opcion-id="' + o.id + '"]');
       if (!row) return;
       const u = unitarios[i];
-      const esMejor = mejor !== null && u !== null && Math.abs(u - mejor) < 0.0001;
+      const hayComparacion = u && basesConEmpate[u.base] > 1;
+      const esMejor = hayComparacion && Math.abs(u.valor - mejorPorBase[u.base]) < 0.0001;
       row.classList.toggle('best', esMejor);
-      row.querySelector('.unit').textContent = u !== null ? fmt(u) + '/u' : '—';
+      row.querySelector('.unit').textContent = u ? fmtUnit(u.valor, u.base) : '—';
       row.querySelector('.badge').style.visibility = esMejor ? 'visible' : 'hidden';
     });
   }
