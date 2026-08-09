@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Comparador de precios — MRCH</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #F5F6F8; color: #14161D; padding: 20px; }
+  .header { max-width: 920px; margin: 0 auto 16px; }
+  .header h1 { font-size: 1.5em; }
+  .header p { font-size: 13px; color: #7B8290; margin-top: 4px; max-width: 640px; }
+  .wrap { max-width: 920px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  .card { background: #fff; border-radius: 10px; padding: 16px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
+  .card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .prod-nombre { flex: 1; font-size: 16px; font-weight: 700; border: none; border-bottom: 2px solid #EEF0F2; padding: 4px 2px; outline: none; background: transparent; color: #14161D; }
+  .prod-nombre:focus { border-color: #F4561D; }
+  .del-prod { border: none; background: none; color: #C0392B; cursor: pointer; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .opciones-head { display: grid; grid-template-columns: 1.4fr 1fr 1fr 90px 110px 24px; gap: 8px; padding: 0 8px; font-size: 10px; font-weight: 700; color: #9AA0AE; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+  .opcion { display: grid; grid-template-columns: 1.4fr 1fr 1fr 90px 110px 24px; gap: 8px; align-items: center; padding: 8px; border-radius: 8px; border: 1.5px solid #EEF0F2; margin-bottom: 8px; transition: border-color .2s, background .2s; }
+  .opcion.best { border-color: #2EA84F; background: #EFFBF2; }
+  .opcion input { border: 1px solid #D8DBE0; border-radius: 6px; padding: 7px 8px; font-size: 13px; width: 100%; font-family: inherit; }
+  .opcion input:focus { outline: none; border-color: #F4561D; }
+  .unit { font-size: 12px; font-weight: 700; text-align: right; white-space: nowrap; color: #7B8290; }
+  .opcion.best .unit { color: #2EA84F; }
+  .badge { font-size: 10px; font-weight: 700; color: #2EA84F; background: #DCFCE7; padding: 4px 8px; border-radius: 20px; white-space: nowrap; text-align: center; }
+  .del-op { border: none; background: none; color: #C0392B; cursor: pointer; font-size: 16px; line-height: 1; }
+  .add-op { border: 1px dashed #D8DBE0; background: none; color: #7B8290; cursor: pointer; border-radius: 8px; padding: 8px; font-size: 12px; width: 100%; margin-top: 2px; }
+  .add-op:hover { border-color: #F4561D; color: #F4561D; }
+  .btn-primary { background: #F4561D; color: #fff; border: none; border-radius: 8px; padding: 12px 20px; font-size: 14px; font-weight: 700; cursor: pointer; }
+  .btn-primary:hover { background: #D9450F; }
+  .empty { text-align: center; color: #9AA0AE; padding: 48px 20px; }
+  .empty .icon { font-size: 36px; margin-bottom: 8px; }
+  .tip { background: #FFF4EE; border-left: 4px solid #F4561D; padding: 10px 12px; border-radius: 4px; font-size: 12px; color: #7A3A1F; }
+  @media (max-width: 640px) {
+    .opciones-head { display: none; }
+    .opcion { grid-template-columns: 1fr 1fr; grid-template-areas: "nombre nombre" "cant precio" "unit badge" "del del"; }
+  }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1>📊 Comparador de precios</h1>
+    <p>Compara opciones de compra (paquetes, promociones, distintos proveedores) y ve al instante cuál te sale más barato por unidad. Todo se guarda automáticamente en este navegador.</p>
+  </div>
+  <div class="wrap">
+    <div class="tip">💡 Ej: "12 rollos por $100" vs "16 rollos por $180" — mete cantidad y precio de cada opción y la más barata por unidad se marca en verde.</div>
+  </div>
+  <div class="wrap" id="productos" style="margin-top: 14px;"></div>
+  <div class="wrap" style="margin-top: 14px;">
+    <button class="btn-primary" onclick="agregarProducto()">+ Nuevo producto a comparar</button>
+  </div>
+
+<script>
+  const LS_KEY = 'cz_comparar';
+  let productos = [];
+  let idCounter = 0;
+  const nid = () => 'id' + (idCounter++) + '_' + Date.now();
+
+  function guardar() {
+    try { localStorage.setItem(LS_KEY, JSON.stringify({ productos, idCounter })); } catch (e) {}
+  }
+
+  function cargar() {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (!raw) return false;
+      const data = JSON.parse(raw);
+      if (!data || !Array.isArray(data.productos) || data.productos.length === 0) return false;
+      productos = data.productos;
+      idCounter = data.idCounter || 0;
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function escapeAttr(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function fmt(n) {
+    return '$' + n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function unitario(o) {
+    const c = parseFloat(o.cantidad);
+    const pr = parseFloat(o.precio);
+    if (!c || c <= 0 || isNaN(pr) || pr < 0) return null;
+    return pr / c;
+  }
+
+  function opcionVacia(letra) {
+    return { id: nid(), nombre: 'Opción ' + letra, cantidad: '', precio: '' };
+  }
+
+  function letraSiguiente(n) {
+    // A, B, C ... Z, AA, AB ... (n es el índice 0-based de la nueva opción)
+    let s = '';
+    let x = n;
+    do {
+      s = String.fromCharCode(65 + (x % 26)) + s;
+      x = Math.floor(x / 26) - 1;
+    } while (x >= 0);
+    return s;
+  }
+
+  function agregarProducto() {
+    productos.push({
+      id: nid(),
+      nombre: 'Producto ' + (productos.length + 1),
+      opciones: [opcionVacia('A'), opcionVacia('B')],
+    });
+    guardar();
+    render();
+  }
+
+  function eliminarProducto(pid) {
+    if (!confirm('¿Eliminar este producto de la comparación?')) return;
+    productos = productos.filter((p) => p.id !== pid);
+    guardar();
+    render();
+  }
+
+  function agregarOpcion(pid) {
+    const p = productos.find((p) => p.id === pid);
+    if (!p) return;
+    p.opciones.push(opcionVacia(letraSiguiente(p.opciones.length)));
+    guardar();
+    render();
+  }
+
+  function eliminarOpcion(pid, oid) {
+    const p = productos.find((p) => p.id === pid);
+    if (!p) return;
+    p.opciones = p.opciones.filter((o) => o.id !== oid);
+    guardar();
+    render();
+  }
+
+  function crearFilaOpcion(p, o) {
+    const row = document.createElement('div');
+    row.className = 'opcion';
+    row.dataset.opcionId = o.id;
+    row.innerHTML =
+      '<input type="text" value="' + escapeAttr(o.nombre) + '" placeholder="Nombre de la opción">' +
+      '<input type="number" value="' + escapeAttr(o.cantidad) + '" placeholder="Cantidad" min="0">' +
+      '<input type="number" value="' + escapeAttr(o.precio) + '" placeholder="Precio $" min="0">' +
+      '<span class="unit">—</span>' +
+      '<span class="badge" style="visibility:hidden">✓ MÁS BARATO</span>' +
+      '<button class="del-op" title="Quitar opción">×</button>';
+
+    const inputs = row.querySelectorAll('input');
+    const inNombre = inputs[0], inCant = inputs[1], inPrecio = inputs[2];
+    inNombre.addEventListener('input', (e) => { o.nombre = e.target.value; guardar(); });
+    inCant.addEventListener('input', (e) => { o.cantidad = e.target.value; guardar(); actualizarUnitarios(p.id); });
+    inPrecio.addEventListener('input', (e) => { o.precio = e.target.value; guardar(); actualizarUnitarios(p.id); });
+    row.querySelector('.del-op').addEventListener('click', () => eliminarOpcion(p.id, o.id));
+    return row;
+  }
+
+  function crearTarjetaProducto(p) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.dataset.productoId = p.id;
+    card.innerHTML =
+      '<div class="card-head">' +
+      '<input class="prod-nombre" value="' + escapeAttr(p.nombre) + '" placeholder="Nombre del producto">' +
+      '<button class="del-prod">Eliminar producto ×</button>' +
+      '</div>' +
+      '<div class="opciones-head"><span>Opción</span><span>Cantidad</span><span>Precio $</span><span>Por unidad</span><span></span><span></span></div>' +
+      '<div class="opciones"></div>' +
+      '<button class="add-op">+ Agregar otra opción</button>';
+
+    card.querySelector('.prod-nombre').addEventListener('input', (e) => { p.nombre = e.target.value; guardar(); });
+    card.querySelector('.del-prod').addEventListener('click', () => eliminarProducto(p.id));
+    card.querySelector('.add-op').addEventListener('click', () => agregarOpcion(p.id));
+
+    const opcionesEl = card.querySelector('.opciones');
+    p.opciones.forEach((o) => opcionesEl.appendChild(crearFilaOpcion(p, o)));
+    return card;
+  }
+
+  function actualizarUnitarios(pid) {
+    const p = productos.find((p) => p.id === pid);
+    if (!p) return;
+    const card = document.querySelector('.card[data-producto-id="' + pid + '"]');
+    if (!card) return;
+    const unitarios = p.opciones.map((o) => unitario(o));
+    const validos = unitarios.filter((u) => u !== null);
+    const mejor = validos.length > 1 ? Math.min.apply(null, validos) : null;
+    p.opciones.forEach((o, i) => {
+      const row = card.querySelector('.opcion[data-opcion-id="' + o.id + '"]');
+      if (!row) return;
+      const u = unitarios[i];
+      const esMejor = mejor !== null && u !== null && Math.abs(u - mejor) < 0.0001;
+      row.classList.toggle('best', esMejor);
+      row.querySelector('.unit').textContent = u !== null ? fmt(u) + '/u' : '—';
+      row.querySelector('.badge').style.visibility = esMejor ? 'visible' : 'hidden';
+    });
+  }
+
+  function render() {
+    const cont = document.getElementById('productos');
+    cont.innerHTML = '';
+    if (productos.length === 0) {
+      const vacio = document.createElement('div');
+      vacio.className = 'card empty';
+      vacio.innerHTML = '<div class="icon">🧮</div>Aún no tienes productos que comparar.<br>Dale a "+ Nuevo producto a comparar" para empezar.';
+      cont.appendChild(vacio);
+      return;
+    }
+    productos.forEach((p) => {
+      cont.appendChild(crearTarjetaProducto(p));
+      actualizarUnitarios(p.id);
+    });
+  }
+
+  if (!cargar()) {
+    agregarProducto();
+  } else {
+    render();
+  }
+</script>
+</body>
+</html>

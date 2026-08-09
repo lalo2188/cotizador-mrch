@@ -2096,6 +2096,7 @@ function App() {
         <span className="cz-d" style={{ fontSize: 19, fontWeight: 700, color: "#fff", padding: "0 10px 0 4px", whiteSpace: "nowrap" }}>MRCH<span style={{ color: "#F4561D" }}>·</span>COTIZA</span>
         {tabs.map(([k, t]) => <button key={k} className={"cz-tab" + (tab === k ? " on" : "")} onClick={() => setTab(k)}>{t}</button>)}
         <a className="cz-extra" href="herreria.html">🔧 Herrería</a>
+        <a className="cz-extra" href="comparar.html">📊 Comparar</a>
       </div>
       <div style={{ maxWidth: 1060, margin: "0 auto", padding: 16 }}>
         {tab === "cotizar" && <VistaCotizar mults={mults} modoMargen={modoMargen} clientes={clientes} onGuardarHistorial={agregarHistorial} insumos={insumos} />}
