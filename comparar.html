@@ -16,15 +16,23 @@
   .prod-nombre { flex: 1; font-size: 16px; font-weight: 700; border: none; border-bottom: 2px solid #EEF0F2; padding: 4px 2px; outline: none; background: transparent; color: #14161D; }
   .prod-nombre:focus { border-color: #F4561D; }
   .del-prod { border: none; background: none; color: #C0392B; cursor: pointer; font-size: 12px; font-weight: 600; white-space: nowrap; }
-  .opciones-head { display: grid; grid-template-columns: 1.4fr 1fr 1fr 90px 110px 24px; gap: 8px; padding: 0 8px; font-size: 10px; font-weight: 700; color: #9AA0AE; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
-  .opcion { display: grid; grid-template-columns: 1.4fr 1fr 1fr 90px 110px 24px; gap: 8px; align-items: center; padding: 8px; border-radius: 8px; border: 1.5px solid #EEF0F2; margin-bottom: 8px; transition: border-color .2s, background .2s; }
+  .opciones-head { display: flex; gap: 8px; padding: 0 8px; font-size: 10px; font-weight: 700; color: #9AA0AE; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+  .opciones-head .oh-nombre { flex: 1.4; }
+  .opciones-head .oh-fields { flex: 2; display: flex; gap: 8px; }
+  .opciones-head .oh-fields span { flex: 1; }
+  .opciones-head .oh-footer { flex: 1.3; text-align: right; }
+  .opcion { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 8px; border: 1.5px solid #EEF0F2; margin-bottom: 8px; transition: border-color .2s, background .2s; }
   .opcion.best { border-color: #2EA84F; background: #EFFBF2; }
-  .opcion input { border: 1px solid #D8DBE0; border-radius: 6px; padding: 7px 8px; font-size: 13px; width: 100%; font-family: inherit; }
+  .opcion input { border: 1px solid #D8DBE0; border-radius: 6px; padding: 7px 8px; font-size: 13px; width: 100%; min-width: 0; font-family: inherit; }
   .opcion input:focus { outline: none; border-color: #F4561D; }
-  .unit { font-size: 12px; font-weight: 700; text-align: right; white-space: nowrap; color: #7B8290; }
+  .op-nombre { flex: 1.4; min-width: 0; }
+  .op-fields { flex: 2; display: flex; gap: 8px; min-width: 0; }
+  .op-fields input { flex: 1; }
+  .op-footer { flex: 1.3; display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+  .unit { font-size: 12px; font-weight: 700; text-align: right; white-space: nowrap; color: #7B8290; min-width: 60px; }
   .opcion.best .unit { color: #2EA84F; }
   .badge { font-size: 10px; font-weight: 700; color: #2EA84F; background: #DCFCE7; padding: 4px 8px; border-radius: 20px; white-space: nowrap; text-align: center; }
-  .del-op { border: none; background: none; color: #C0392B; cursor: pointer; font-size: 16px; line-height: 1; }
+  .del-op { border: none; background: none; color: #C0392B; cursor: pointer; font-size: 16px; line-height: 1; flex-shrink: 0; }
   .add-op { border: 1px dashed #D8DBE0; background: none; color: #7B8290; cursor: pointer; border-radius: 8px; padding: 8px; font-size: 12px; width: 100%; margin-top: 2px; }
   .add-op:hover { border-color: #F4561D; color: #F4561D; }
   .btn-primary { background: #F4561D; color: #fff; border: none; border-radius: 8px; padding: 12px 20px; font-size: 14px; font-weight: 700; cursor: pointer; }
@@ -34,7 +42,10 @@
   .tip { background: #FFF4EE; border-left: 4px solid #F4561D; padding: 10px 12px; border-radius: 4px; font-size: 12px; color: #7A3A1F; }
   @media (max-width: 640px) {
     .opciones-head { display: none; }
-    .opcion { grid-template-columns: 1fr 1fr; grid-template-areas: "nombre nombre" "cant precio" "unit badge" "del del"; }
+    .opcion { flex-direction: column; align-items: stretch; }
+    .op-nombre { width: 100%; }
+    .op-fields { flex-direction: column; }
+    .op-footer { justify-content: space-between; }
   }
 </style>
 </head>
@@ -90,8 +101,8 @@
     return pr / c;
   }
 
-  function opcionVacia(letra) {
-    return { id: nid(), nombre: 'Opción ' + letra, cantidad: '', precio: '' };
+  function opcionVacia() {
+    return { id: nid(), nombre: '', cantidad: '', precio: '' };
   }
 
   function letraSiguiente(n) {
@@ -109,7 +120,7 @@
     productos.push({
       id: nid(),
       nombre: 'Producto ' + (productos.length + 1),
-      opciones: [opcionVacia('A'), opcionVacia('B')],
+      opciones: [opcionVacia(), opcionVacia()],
     });
     guardar();
     render();
@@ -125,7 +136,7 @@
   function agregarOpcion(pid) {
     const p = productos.find((p) => p.id === pid);
     if (!p) return;
-    p.opciones.push(opcionVacia(letraSiguiente(p.opciones.length)));
+    p.opciones.push(opcionVacia());
     guardar();
     render();
   }
@@ -138,20 +149,26 @@
     render();
   }
 
-  function crearFilaOpcion(p, o) {
+  function crearFilaOpcion(p, o, idx) {
     const row = document.createElement('div');
     row.className = 'opcion';
     row.dataset.opcionId = o.id;
+    const placeholderNombre = 'Opción ' + letraSiguiente(idx);
     row.innerHTML =
-      '<input type="text" value="' + escapeAttr(o.nombre) + '" placeholder="Nombre de la opción">' +
+      '<input type="text" class="op-nombre" value="' + escapeAttr(o.nombre) + '" placeholder="' + placeholderNombre + '">' +
+      '<div class="op-fields">' +
       '<input type="number" value="' + escapeAttr(o.cantidad) + '" placeholder="Cantidad" min="0">' +
       '<input type="number" value="' + escapeAttr(o.precio) + '" placeholder="Precio $" min="0">' +
+      '</div>' +
+      '<div class="op-footer">' +
       '<span class="unit">—</span>' +
       '<span class="badge" style="visibility:hidden">✓ MÁS BARATO</span>' +
-      '<button class="del-op" title="Quitar opción">×</button>';
+      '<button class="del-op" title="Quitar opción">×</button>' +
+      '</div>';
 
-    const inputs = row.querySelectorAll('input');
-    const inNombre = inputs[0], inCant = inputs[1], inPrecio = inputs[2];
+    const inNombre = row.querySelector('.op-nombre');
+    const fieldInputs = row.querySelectorAll('.op-fields input');
+    const inCant = fieldInputs[0], inPrecio = fieldInputs[1];
     inNombre.addEventListener('input', (e) => { o.nombre = e.target.value; guardar(); });
     inCant.addEventListener('input', (e) => { o.cantidad = e.target.value; guardar(); actualizarUnitarios(p.id); });
     inPrecio.addEventListener('input', (e) => { o.precio = e.target.value; guardar(); actualizarUnitarios(p.id); });
@@ -168,7 +185,7 @@
       '<input class="prod-nombre" value="' + escapeAttr(p.nombre) + '" placeholder="Nombre del producto">' +
       '<button class="del-prod">Eliminar producto ×</button>' +
       '</div>' +
-      '<div class="opciones-head"><span>Opción</span><span>Cantidad</span><span>Precio $</span><span>Por unidad</span><span></span><span></span></div>' +
+      '<div class="opciones-head"><span class="oh-nombre">Opción</span><div class="oh-fields"><span>Cantidad</span><span>Precio $</span></div><span class="oh-footer">Por unidad</span></div>' +
       '<div class="opciones"></div>' +
       '<button class="add-op">+ Agregar otra opción</button>';
 
@@ -177,7 +194,7 @@
     card.querySelector('.add-op').addEventListener('click', () => agregarOpcion(p.id));
 
     const opcionesEl = card.querySelector('.opciones');
-    p.opciones.forEach((o) => opcionesEl.appendChild(crearFilaOpcion(p, o)));
+    p.opciones.forEach((o, i) => opcionesEl.appendChild(crearFilaOpcion(p, o, i)));
     return card;
   }
 
