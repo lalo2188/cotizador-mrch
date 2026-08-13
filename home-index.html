@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cotizadores</title>
+<meta name="description" content="Acceso a los cotizadores del equipo">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #14161D;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .wrap { max-width: 980px; width: 100%; }
+  .top { text-align: center; margin-bottom: 36px; color: #fff; }
+  .top h1 { font-size: 2em; font-weight: 700; letter-spacing: .02em; }
+  .top p { color: #9AA0AE; font-size: 14px; margin-top: 8px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
+  .card {
+    position: relative;
+    border-radius: 16px;
+    padding: 32px 24px;
+    text-decoration: none;
+    color: #fff;
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    transition: transform .2s ease, box-shadow .2s ease;
+    display: block;
+  }
+  .card:hover { transform: translateY(-4px); box-shadow: 0 14px 30px rgba(0,0,0,0.35); }
+  .card .icon { font-size: 42px; display: block; margin-bottom: 14px; }
+  .card h2 { font-size: 1.4em; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
+  .card p { font-size: 13px; opacity: .85; margin-top: 8px; line-height: 1.5; }
+  .card .tag { display: inline-block; margin-top: 16px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; background: rgba(255,255,255,0.18); padding: 6px 12px; border-radius: 20px; }
+  .lalo { background: linear-gradient(135deg, #F4561D 0%, #C2410C 100%); }
+  .lola { background: linear-gradient(135deg, #A855F7 0%, #6D28D9 100%); }
+  .azul { background: linear-gradient(135deg, #0EA5E9 0%, #0369A1 100%); }
+  .footer { text-align: center; color: #5B6270; font-size: 12px; margin-top: 32px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <h1>🧾 Cotizadores</h1>
+      <p>Elige tu espacio de trabajo</p>
+    </div>
+    <div class="grid">
+      <a class="card lalo" href="/lalo/">
+        <span class="icon">⚡</span>
+        <h2>Lalo</h2>
+        <p>DTF, sublimado, láser, DTF UV, cortadores, pines, impresión 3D, Studio Lab, Herrería y el Comparador de precios.</p>
+        <span class="tag">MRCH</span>
+      </a>
+      <a class="card lola" href="/lola/">
+        <span class="icon">🎀</span>
+        <h2>Lola</h2>
+        <p>Por ahora, el Comparador de precios. Aquí iremos agregando más herramientas.</p>
+        <span class="tag">Próximamente más</span>
+      </a>
+      <a class="card azul" href="/azul/">
+        <span class="icon">🌸</span>
+        <h2>Azul</h2>
+        <p>Ramos y figuras de limpiapipas: catálogo de objetos por color y cotizador de cantidades.</p>
+        <span class="tag">Corichi Fiore</span>
+      </a>
+    </div>
+    <div class="footer">MRCH · Cotizadores internos</div>
+  </div>
+</body>
+</html>
