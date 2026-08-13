@@ -1,0 +1,2139 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MRCH - Cotizador Profesional</title>
+<meta name="description" content="Sistema profesional de cotizaciones para servicios de corte láser, DTF, DTF UV, sublimado, cortadores de galleta, pines e impresión 3D">
+
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/plain" id="app-source">
+const { useState, useMemo, useEffect } = React;
+
+/* ===================== DATOS TÉCNICOS FIJOS (no son precios) ===================== */
+const DISENOS_DTF = {
+  "Espalda Full Size":      { Hombre: { S:[28,39], M:[29,41], L:[33,43], XL:[35,45] }, Mujer: { S:[26,37], M:[28,39], L:[31,42], XL:[33,43] } },
+  "Espalda Mediano":        { Hombre: { S:[25,34], M:[26,35], L:[28,36], XL:[29,37] }, Mujer: { S:[23,32], M:[24,33], L:[26,24], XL:[27,36] } },
+  "Espalda Extendido":      { Hombre: { S:[27,9],  M:[29,10], L:[32,11], XL:[34,13] }, Mujer: { S:[26,9],  M:[27,9],  L:[28,10], XL:[30,12] } },
+  "Frontal Extendido Pecho":{ Hombre: { S:[25,9],  M:[26,10], L:[28,11], XL:[29,13] }, Mujer: { S:[23,8],  M:[24,9],  L:[26,10], XL:[27,12] } },
+  "Frontal Cuadro Grande":  { Hombre: { S:[25,25], M:[26,26], L:[28,28], XL:[29,29] }, Mujer: { S:[23,23], M:[24,24], L:[26,26], XL:[27,27] } },
+  "Frontal Cuadro Mediano": { Hombre: { S:[20,20], M:[22,22], L:[24,24], XL:[25,25] }, Mujer: { S:[17,17], M:[19,19], L:[21,21], XL:[23,23] } },
+  "Frontal Cuadro Chico":   { Hombre: { S:[15,15], M:[16,16], L:[17,17], XL:[19,19] }, Mujer: { S:[14,14], M:[15,15], L:[16,16], XL:[18,18] } },
+  "Frontal Logo":           { Hombre: { S:[5,7],   M:[5,8],   L:[6,9],   XL:[7,9]   }, Mujer: { S:[5,7],   M:[5,8],   L:[6,9],   XL:[7,9]   } },
+};
+const PACK_TALLA = { S: 2.5, M: 2.5, L: 3.5, XL: 3.5 };
+const TIERS = { "Cliente final": 0.65, "Amigo": 0.35, "Familia": 0.18, "Revendedor": 0.25, "Sin margen": 0 };
+const EMOJI_TIER = { "Cliente final": "👤", "Amigo": "🤝", "Familia": "👨‍👩‍👧", "Revendedor": "🏪", "Sin margen": "⚖️" };
+const HOURS_PER_MONTH = 240; // 30 días × 8 horas
+
+const fmt = (n) => "$" + (n || 0).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const precio = (costo, pct, modo) => (modo === "venta" ? costo / (1 - pct) : costo * (1 + pct));
+const costoEfectivo = (p) => (p.costoManual != null ? p.costoManual : p.costo);
+const valorPartida = (p, tier, mults, modoMargen) => (p.precioManual != null ? p.precioManual : (p.esFijo ? p.precioFijo : precio(costoEfectivo(p), mults[tier], modoMargen)));
+const nodoCosto = (n) => {
+  const loteCant = Number(n.loteCant) || 0;
+  const loteCosto = Number(n.loteCosto) || 0;
+  const cantNecesaria = Number(n.cantNecesaria) || 0;
+  return (loteCant > 0 ? loteCosto / loteCant : 0) * cantNecesaria;
+};
+let _id = 0; const nid = () => ++_id;
+const hoy = () => new Date().toLocaleDateString("es-MX");
+const FECHA_INICIAL = hoy();
+
+const SERVICIOS = {
+  DTF: { nombre: "DTF", color: "#E91E8C", icono: "👕" },
+  DTFSUELTO: { nombre: "DTF Suelto", color: "#64748B", icono: "📏" },
+  SUBLI: { nombre: "Sublimación", color: "#0FA3B1", icono: "☕" },
+  LASER: { nombre: "Láser", color: "#F4561D", icono: "🔥" },
+  UV: { nombre: "DTF UV", color: "#7B5CFF", icono: "✨" },
+  TRESD: { nombre: "Cortadores", color: "#2EA84F", icono: "🍪" },
+  PINES: { nombre: "Pines", color: "#C2410C", icono: "📌" },
+  TOTE: { nombre: "Totebags", color: "#0EA5A0", icono: "👜" },
+  IMP3D: { nombre: "Impresión 3D", color: "#0EA5E9", icono: "🖨️" },
+  LAB: { nombre: "Studio Lab", color: "#A855F7", icono: "🧪" },
+  GORRAS: { nombre: "Gorras", color: "#EAB308", icono: "🧢" },
+  TERMOS: { nombre: "Termos", color: "#0284C7", icono: "🥤" },
+};
+
+/* ===================== VALORES INICIALES DE INSUMOS (editables luego en la pestaña Insumos) ===================== */
+const DEFAULT_MATERIALES = {
+  laser: [
+    { id: 1, nombre: "MDF 3mm (40×40)", precio: 12.22, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: 2, nombre: "Caobilla 3mm (40×40)", precio: 12.78, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: 3, nombre: "Dije militar metálico", precio: 31.10, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: 4, nombre: "Plato perro grande", precio: 85.47, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: 5, nombre: "Termo 500ml azul", precio: 87.50, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: 6, nombre: "Termo 500ml negro", precio: 75.00, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: 7, nombre: "Termo digital 500ml", precio: 57.45, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: 8, nombre: "Placa perro aluminio", precio: 7.45, unidad: "pieza", mod: FECHA_INICIAL },
+  ],
+  dtf: [
+    { id: "32603", tipo: "escalonado", categoria: "Playeras Caballero", nombre: "32603 Max 190g/m² Algodón", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 36.00, t2: 35.28, t3: 34.56 },
+      { nombre: "Obscuro", t1: 42.50, t2: 41.65, t3: 40.80 },
+    ] },
+    { id: "38387", tipo: "escalonado", categoria: "Playeras Caballero", nombre: "38387 Cuello V 140g/m² Algodón", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 48.00, t2: 47.04, t3: 45.60 },
+      { nombre: "Colores", t1: 48.00, t2: 47.04, t3: 45.60 },
+    ] },
+    { id: "32702", tipo: "escalonado", categoria: "Playeras Caballero", nombre: "32702 Prime 155g/m² Algodón", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 33.00, t2: 32.34, t3: 31.35 },
+      { nombre: "Claro", t1: 36.50, t2: 35.77, t3: 34.68 },
+      { nombre: "Obscuro", t1: 38.00, t2: 37.24, t3: 36.10 },
+    ] },
+    { id: "370PW", tipo: "escalonado", categoria: "Playeras Caballero", nombre: "370PW Logan 200g/m² Algodón", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 43.50, t2: 42.63, t3: 41.33 },
+      { nombre: "Claro", t1: 46.00, t2: 45.08, t3: 43.70 },
+      { nombre: "Obscuro", t1: 52.00, t2: 50.96, t3: 49.40 },
+    ] },
+    { id: "34988", tipo: "escalonado", categoria: "Playeras Caballero", nombre: "34988 Snow 140g/m² Algodón/Poliéster", mod: FECHA_INICIAL, colores: [
+      { nombre: "Colores", t1: 43.30, t2: 42.43, t3: 41.14 },
+    ] },
+    { id: "34400", tipo: "escalonado", categoria: "Playeras Caballero", nombre: "34400 London 140g/m² Algodón/Poliéster", mod: FECHA_INICIAL, colores: [
+      { nombre: "Colores", t1: 43.30, t2: 42.43, t3: 41.14 },
+    ] },
+    { id: "34420", tipo: "escalonado", categoria: "Playeras Caballero", nombre: "34420 Subli 160g/m² Poliéster", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 46.00, t2: 45.08, t3: 43.70 },
+    ] },
+    { id: "37326", tipo: "escalonado", categoria: "Playeras Caballero", nombre: "37326 Tank Top 150g/m² Algodón", mod: FECHA_INICIAL, colores: [
+      { nombre: "Colores", t1: 33.60, t2: 32.93, t3: 31.92 },
+    ] },
+    { id: "34401", tipo: "escalonado", categoria: "Playeras Caballero", nombre: "34401 Premium 150g/m² Algodón peinado", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 40.00, t2: 39.20, t3: 38.00 },
+      { nombre: "Jaspe", t1: 45.50, t2: 44.59, t3: 43.23 },
+      { nombre: "Colores", t1: 46.50, t2: 45.57, t3: 44.18 },
+    ] },
+    { id: "30039", tipo: "escalonado", categoria: "Playeras Caballero", nombre: "30039 Stampa 155g/m² Algodón/Poliéster", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 31.50, t2: 30.87, t3: 30.87 },
+      { nombre: "Colores", t1: 36.30, t2: 35.57, t3: 35.57 },
+    ] },
+    { id: "32692", tipo: "escalonado", categoria: "Playeras Caballero", nombre: "32692 Heavy Manga Larga 190g/m² Algodón", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 55.00, t2: 53.90, t3: 52.25 },
+      { nombre: "Claro", t1: 67.00, t2: 65.66, t3: 63.65 },
+      { nombre: "Obscuro", t1: 67.00, t2: 65.66, t3: 63.65 },
+    ] },
+    { id: "32582", tipo: "escalonado", categoria: "Playeras Dama", nombre: "32582 Prime Cuello Redondo 155g/m² Algodón", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 36.50, t2: 35.77, t3: 34.68 },
+      { nombre: "Claros", t1: 39.00, t2: 38.22, t3: 37.05 },
+      { nombre: "Obscuros", t1: 41.00, t2: 40.18, t3: 38.95 },
+    ] },
+    { id: "31818", tipo: "escalonado", categoria: "Playeras Dama", nombre: "31818 Prime Cuello V 155g/m² Algodón", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 38.00, t2: 37.24, t3: 36.48 },
+      { nombre: "Claros", t1: 43.50, t2: 42.63, t3: 41.76 },
+      { nombre: "Obscuros", t1: 44.00, t2: 43.12, t3: 42.24 },
+    ] },
+    { id: "32873", tipo: "escalonado", categoria: "Playeras Dama", nombre: "32873 Tank Top 140g/m² Algodón/Poliéster", mod: FECHA_INICIAL, colores: [
+      { nombre: "Colores", t1: 34.50, t2: 33.47, t3: 32.78 },
+    ] },
+    { id: "370LJ", tipo: "escalonado", categoria: "Playeras Dama", nombre: "370LJ/371DR Crop 140g/m² Algodón/Poliéster", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 41.00, t2: 40.18, t3: 38.95 },
+      { nombre: "Obscuro", t1: 45.50, t2: 44.59, t3: 43.23 },
+    ] },
+    { id: "34990", tipo: "escalonado", categoria: "Playeras Dama", nombre: "34990 Snow Cuello V 140g/m² Algodón/Poliéster", mod: FECHA_INICIAL, colores: [
+      { nombre: "Colores", t1: 45.50, t2: 44.59, t3: 43.23 },
+    ] },
+    { id: "39028", tipo: "escalonado", categoria: "Playeras Niños", nombre: "39028 Cuello Redondo Niños 185g/m² Algodón", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 25.00, t2: 24.50, t3: 24.00 },
+      { nombre: "Claros", t1: 29.00, t2: 28.42, t3: 27.84 },
+      { nombre: "Obscuro", t1: 29.00, t2: 28.42, t3: 27.84 },
+    ] },
+    { id: "32633", tipo: "escalonado", categoria: "Polos Caballero", nombre: "32633 Polo Piqué 230g/m² Algodón", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 70.50, t2: 68.39, t3: 66.98 },
+      { nombre: "Obscuro", t1: 82.00, t2: 79.54, t3: 77.90 },
+    ] },
+    { id: "33981", tipo: "escalonado", categoria: "Polos Caballero", nombre: "33981 Polo Piqué Manga Larga 230g/m² Algodón", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 88.50, t2: 86.73, t3: 84.96 },
+      { nombre: "Claro", t1: 98.50, t2: 96.53, t3: 94.56 },
+      { nombre: "Obscuro", t1: 98.50, t2: 96.53, t3: 94.56 },
+    ] },
+    { id: "36980", tipo: "escalonado", categoria: "Polos Caballero", nombre: "36980 Polo Supreme 210g/m² Algodón/Poliéster", mod: FECHA_INICIAL, colores: [
+      { nombre: "Colores", t1: 96.00, t2: 94.08, t3: 93.12 },
+    ] },
+    { id: "32626", tipo: "escalonado", categoria: "Polos Dama", nombre: "32626 Polo Piqué 230g/m² Algodón", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 70.50, t2: 68.39, t3: 66.98 },
+      { nombre: "Claros", t1: 76.00, t2: 73.72, t3: 72.20 },
+      { nombre: "Obscuros", t1: 82.00, t2: 79.54, t3: 77.90 },
+    ] },
+    { id: "36981", tipo: "escalonado", categoria: "Polos Dama", nombre: "36981 Polo Supreme 210g/m² Algodón/Poliéster", mod: FECHA_INICIAL, colores: [
+      { nombre: "Colores", t1: 96.00, t2: 94.08, t3: 93.12 },
+    ] },
+    { id: "32412", tipo: "escalonado", categoria: "Polos Infantil", nombre: "32412 Polo Piqué Infantil 200g/m² Algodón", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 46.50, t2: 45.57, t3: 45.11 },
+      { nombre: "Claros", t1: 52.30, t2: 51.25, t3: 50.73 },
+      { nombre: "Obscuro", t1: 52.30, t2: 51.25, t3: 50.73 },
+    ] },
+    { id: "32417", tipo: "escalonado", categoria: "Polos Infantil", nombre: "32417 Polo Piqué Juvenil 200g/m² Algodón", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco", t1: 53.00, t2: 51.94, t3: 51.41 },
+      { nombre: "Obscuro", t1: 59.62, t2: 58.43, t3: 57.83 },
+    ] },
+    { id: "38102", tipo: "escalonado", categoria: "Felpas", nombre: "38102 Sudadera Supreme Cuello Redondo 267g/m²", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco/Colores", t1: 98.00, t2: 95.06, t3: 93.10 },
+    ] },
+    { id: "38103", tipo: "escalonado", categoria: "Felpas", nombre: "38103 Sudadera Supreme Capucha y Cangurera 267g/m²", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco/Colores", t1: 134.00, t2: 129.98, t3: 127.30 },
+    ] },
+    { id: "38105", tipo: "escalonado", categoria: "Felpas", nombre: "38105 Sudadera Supreme Capucha con Cierre 267g/m²", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco/Colores", t1: 155.00, t2: 150.35, t3: 147.25 },
+    ] },
+    { id: "38106", tipo: "escalonado", categoria: "Felpas", nombre: "38106 Jogger Supreme 267g/m²", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco/Colores", t1: 128.00, t2: 124.16, t3: 121.60 },
+    ] },
+    { id: "38108", tipo: "escalonado", categoria: "Felpas", nombre: "38108 Sudadera Supreme Capucha y Cangurera Dama 267g/m²", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco/Colores", t1: 134.00, t2: 129.98, t3: 127.30 },
+    ] },
+    { id: "38129", tipo: "escalonado", categoria: "Felpas", nombre: "38129 Sudadera Capucha y Cangurera Juvenil 250g/m²", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco/Colores", t1: 99.00, t2: 96.03, t3: 94.05 },
+    ] },
+    { id: "38132", tipo: "escalonado", categoria: "Felpas", nombre: "38132 Pants con Bolsas Laterales 300g/m²", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco/Colores", t1: 93.00, t2: 90.21, t3: 88.35 },
+    ] },
+    { id: "370VS", tipo: "escalonado", categoria: "Felpas", nombre: "370VS Sudadera Sport Cuello Redondo 300g/m²", mod: FECHA_INICIAL, colores: [
+      { nombre: "Colores", t1: 110.00, t2: 106.70, t3: 104.50 },
+    ] },
+    { id: "370VT", tipo: "escalonado", categoria: "Felpas", nombre: "370VT Sudadera Sport Capucha y Cangurera 300g/m²", mod: FECHA_INICIAL, colores: [
+      { nombre: "Colores", t1: 143.50, t2: 139.20, t3: 136.33 },
+    ] },
+    { id: "370VV", tipo: "escalonado", categoria: "Felpas", nombre: "370VV Sudadera Sport Capucha con Cierre 300g/m²", mod: FECHA_INICIAL, colores: [
+      { nombre: "Colores", t1: 166.00, t2: 161.02, t3: 157.70 },
+    ] },
+    { id: "370VW", tipo: "escalonado", categoria: "Felpas", nombre: "370VW Jogger Sport 300g/m²", mod: FECHA_INICIAL, colores: [
+      { nombre: "Blanco/Colores", t1: 137.00, t2: 132.89, t3: 130.15 },
+    ] },
+    { id: "35002", tipo: "escalonado", categoria: "Camisas", nombre: "35002 Camisa Manga Corta Caballero", mod: FECHA_INICIAL, colores: [
+      { nombre: "Colores", t1: 177.50, t2: 172.18, t3: 168.63 },
+    ] },
+    { id: "35003", tipo: "escalonado", categoria: "Camisas", nombre: "35003 Camisa Manga Larga Caballero", mod: FECHA_INICIAL, colores: [
+      { nombre: "Colores", t1: 201.50, t2: 195.46, t3: 191.43 },
+    ] },
+    { id: "35000", tipo: "escalonado", categoria: "Camisas", nombre: "35000 Camisa Manga Corta Dama", mod: FECHA_INICIAL, colores: [
+      { nombre: "Colores", t1: 162.00, t2: 157.14, t3: 153.90 },
+    ] },
+    { id: "35001", tipo: "escalonado", categoria: "Camisas", nombre: "35001 Camisa Manga Larga Dama", mod: FECHA_INICIAL, colores: [
+      { nombre: "Colores", t1: 185.50, t2: 179.94, t3: 176.23 },
+    ] },
+  ],
+  uv: [
+    { id: 1, nombre: "Vaso de vidrio", precio: 18, w: 24, h: 9, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: 2, nombre: "Termo 1 lt", precio: 95, w: 30, h: 22, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: 3, nombre: "Termo 500ml", precio: 75, w: 24, h: 18, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: 4, nombre: "Personalizado", precio: 0, w: 10, h: 10, unidad: "pieza", mod: FECHA_INICIAL },
+  ],
+  sublimado: [
+    { id: 1, nombre: "Taza 11oz", precio: 18.73, w: 9.5, h: 21, continuo: false, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: 2, nombre: "Llavero", precio: 4, w: 5, h: 5, continuo: false, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: 3, nombre: "Lanyard", precio: 8, w: 2, h: 90, continuo: false, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: 4, nombre: "Listón (por m)", precio: 0, ancho: 2.5, continuo: true, unidad: "metro", mod: FECHA_INICIAL },
+    { id: 5, nombre: "Solo impresión", precio: 0, w: 10, h: 10, continuo: false, unidad: "pieza", mod: FECHA_INICIAL },
+  ],
+  filamento3d: [
+    { id: 1, nombre: "PETG Violeta", precio: 259, unidad: "kg", mod: FECHA_INICIAL },
+    { id: 2, nombre: "PETG Rosa", precio: 262.48, unidad: "kg", mod: FECHA_INICIAL },
+    { id: 3, nombre: "PLA Mármol", precio: 242.59, unidad: "kg", mod: FECHA_INICIAL },
+    { id: 4, nombre: "PLA Blanco", precio: 298, unidad: "kg", mod: FECHA_INICIAL },
+    { id: 5, nombre: "PLA Blanco Mate", precio: 271, unidad: "kg", mod: FECHA_INICIAL },
+    { id: 6, nombre: "PLA Negro Xolo", precio: 298, unidad: "kg", mod: FECHA_INICIAL },
+  ],
+  empaque: [
+    { id: "emp-sticker", nombre: "Sticker", precio: 0, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: "emp-bolsa-esmerilada", nombre: "Bolsa plástico esmerilado", precio: 0, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: "emp-etiqueta", nombre: "Etiqueta", precio: 0, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: "emp-bolsa-kraft", nombre: "Bolsa kraft", precio: 0, unidad: "pieza", mod: FECHA_INICIAL },
+    { id: "emp-caja", nombre: "Caja", precio: 0, unidad: "pieza", mod: FECHA_INICIAL },
+  ],
+};
+
+const DEFAULT_PRECIOS_FIJOS = {
+  cortadores: [
+    { id: 1, rango: "5–6 cm", base: 50, descMin: null, descPrecio: null, mod: FECHA_INICIAL },
+    { id: 2, rango: "7–8 cm", base: 70, descMin: 4, descPrecio: 60, mod: FECHA_INICIAL },
+    { id: 3, rango: "9–11 cm", base: 85, descMin: 3, descPrecio: 75, mod: FECHA_INICIAL },
+    { id: 4, rango: "15 cm", base: 120, descMin: 3, descPrecio: 110, mod: FECHA_INICIAL },
+  ],
+  pines: [
+    { id: 1, rango: "1–9 pz", min: 1, precioPz: 12, mod: FECHA_INICIAL },
+    { id: 2, rango: "10–49 pz", min: 10, precioPz: 10, mod: FECHA_INICIAL },
+    { id: 3, rango: "50–79 pz", min: 50, precioPz: 9, mod: FECHA_INICIAL },
+    { id: 4, rango: "80–100 pz", min: 80, precioPz: 8, mod: FECHA_INICIAL },
+  ],
+  totebags: [
+    { id: 1, rango: "1–10 pz", min: 1, costoPz: 87.88, mod: FECHA_INICIAL },
+    { id: 2, rango: "11–30 pz", min: 11, costoPz: 81.82, mod: FECHA_INICIAL },
+    { id: 3, rango: "31–60 pz", min: 31, costoPz: 75.76, mod: FECHA_INICIAL },
+  ],
+};
+
+const DEFAULT_CONFIG_PRODUCCION = {
+  dtfPrecioMetro: 240, dtfAnchoCm: 60,
+  dtfSueltoPrecioMetro: 150, dtfSueltoAnchoCm: 58,
+  uvPrecioMetro: 350, uvAnchoCm: 30,
+  subliMetro: 150, subliArea: 11000,
+  tiempoPlanchadoMin: 6,
+  manipProporc: 20,
+  manipPzaDTF: 10,
+  disenoSencilloMin: 15,
+  disenoComplejoMin: 40,
+  ivaTextil: 0.16,
+  mod: FECHA_INICIAL,
+};
+
+/* Catálogo de referencia (precio fijo "Mayoreo"), aún no conectado a ningún formulario de cotización */
+const DEFAULT_CATALOGO_OTROS = {
+  gorras: [
+    { id: "g15", nombre: "15 Alfalife", precio: 160.00, mod: FECHA_INICIAL },
+    { id: "g30", nombre: "30 Beta", precio: 135.00, mod: FECHA_INICIAL },
+    { id: "g45", nombre: "45 Epsilon Light", precio: 140.00, mod: FECHA_INICIAL },
+    { id: "g60", nombre: "60 Omega", precio: 49.99, mod: FECHA_INICIAL },
+    { id: "g65", nombre: "65 Omega Adventure", precio: 130.00, mod: FECHA_INICIAL },
+    { id: "g75", nombre: "75 UN", precio: 125.00, mod: FECHA_INICIAL },
+    { id: "g85", nombre: "85 Sigma Fresh", precio: 130.00, mod: FECHA_INICIAL },
+    { id: "g90", nombre: "90 Tau", precio: 125.00, mod: FECHA_INICIAL },
+    { id: "g100", nombre: "100 Zeta", precio: 135.00, mod: FECHA_INICIAL },
+    { id: "g120", nombre: "120 Pro", precio: 45.00, mod: FECHA_INICIAL },
+    { id: "g125", nombre: "125 Full", precio: 54.50, mod: FECHA_INICIAL },
+    { id: "g220", nombre: "220 Gorra Jaspe", precio: 60.00, mod: FECHA_INICIAL },
+    { id: "g245", nombre: "245 City", precio: 68.50, mod: FECHA_INICIAL },
+    { id: "g270", nombre: "270 Plana", precio: 60.00, mod: FECHA_INICIAL },
+    { id: "g300", nombre: "300 Deslavada", precio: 60.00, mod: FECHA_INICIAL },
+    { id: "g301", nombre: "301 Deslavada Comb", precio: 60.00, mod: FECHA_INICIAL },
+    { id: "g350", nombre: "350 3Fifty", precio: 57.50, mod: FECHA_INICIAL },
+    { id: "g405", nombre: "405 Acrílico", precio: 21.00, mod: FECHA_INICIAL },
+    { id: "g500", nombre: "500 Visera Básica", precio: 48.00, mod: FECHA_INICIAL },
+    { id: "g545", nombre: "545 Mesh", precio: 54.50, mod: FECHA_INICIAL },
+    { id: "g600", nombre: "600 Red / 601 Red Combinada", precio: 23.50, mod: FECHA_INICIAL },
+    { id: "g620", nombre: "620 Red Básica", precio: 40.00, mod: FECHA_INICIAL },
+    { id: "g701", nombre: "701 Sport", precio: 60.00, mod: FECHA_INICIAL },
+    { id: "g710", nombre: "710 7Diez", precio: 70.00, mod: FECHA_INICIAL },
+    { id: "g750", nombre: "750 Legionaria", precio: 70.00, mod: FECHA_INICIAL },
+  ],
+  termos: [
+    { id: "tm100", nombre: "100 California", precio: 135.00, mod: FECHA_INICIAL },
+    { id: "tm110", nombre: "110 Texas", precio: 135.00, mod: FECHA_INICIAL },
+    { id: "tm120", nombre: "120 Florida", precio: 135.00, mod: FECHA_INICIAL },
+    { id: "tm130", nombre: "130 Kansas", precio: 125.00, mod: FECHA_INICIAL },
+    { id: "tm140", nombre: "140 Nevada", precio: 125.00, mod: FECHA_INICIAL },
+    { id: "tm150", nombre: "150 Arizona", precio: 110.00, mod: FECHA_INICIAL },
+  ],
+};
+
+const DEFAULT_COSTOS_OPERATIVOS = { renta: 12250, luz: 1123, agua: 100, internet: 899, gasolina: 1800, mod: FECHA_INICIAL };
+const DEFAULT_COSTO_MAQUINAS = { cnc: 9611.20, impresora3d: 223.42, mod: FECHA_INICIAL };
+const DEFAULT_MANO_OBRA = { tarifaHr: 250, mod: FECHA_INICIAL };
+
+const POST_PROCESO_3D = {
+  ninguno: { min: 0, label: "Ninguno" },
+  basico: { min: 15, label: "Básico (soportes + lijado)" },
+  avanzado: { min: 45, label: "Avanzado (lijado fino + pintura)" },
+};
+
+/* ===================== LOCALSTORAGE ===================== */
+function loadLS(key, fallback) {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch (e) { return fallback; }
+}
+function saveLS(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {}
+}
+
+/* ===================== IMÁGENES (redimensiona antes de guardar en localStorage) ===================== */
+function redimensionarImagen(file, maxDim, callback) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      let w = img.width, h = img.height;
+      if (w > h && w > maxDim) { h = Math.round(h * (maxDim / w)); w = maxDim; }
+      else if (h > maxDim) { w = Math.round(w * (maxDim / h)); h = maxDim; }
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      callback(canvas.toDataURL("image/jpeg", 0.72));
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+/* ===================== TEXTO TICKET (para WhatsApp / guardar / imprimir) ===================== */
+function generarTextoTicket(partidas, tier, mults, modoMargen, refPedido, envio = 0) {
+  const pv = (p) => valorPartida(p, tier, mults, modoMargen);
+  const total = partidas.reduce((s, p) => s + pv(p), 0) + Number(envio || 0);
+  let t = `*EL MERCHENARIO*\n`;
+  if (refPedido) t += `📌 ${refPedido}\n`;
+  t += `🗓️ ${new Date().toLocaleDateString("es-MX")}\n`;
+  t += `— — — — — — — — —\n`;
+  partidas.forEach((p) => {
+    t += `${SERVICIOS[p.servicio].icono} ${p.nombre || p.desc}\n`;
+    if (p.nombre) t += `   ${p.desc}\n`;
+    t += `   ${fmt(pv(p))}\n`;
+  });
+  if (Number(envio) > 0) t += `🚚 Envío\n   ${fmt(Number(envio))}\n`;
+  t += `— — — — — — — — —\n`;
+  t += `*TOTAL (${tier}): ${fmt(total)}*\n`;
+  t += `Anticipo 50%: ${fmt(total * 0.5)}\n`;
+  t += `\n_Precio sujeto a confirmación de medidas y diseño final._`;
+  return t;
+}
+
+function generarTextoTicketInterno(partidas, tier, mults, modoMargen, refPedido, envio = 0) {
+  const pv = (p) => valorPartida(p, tier, mults, modoMargen);
+  const ce = (p) => costoEfectivo(p);
+  const totalCosto = partidas.reduce((s, p) => s + ce(p), 0) + Number(envio || 0);
+  const totalPrecio = partidas.reduce((s, p) => s + pv(p), 0) + Number(envio || 0);
+  let t = `TICKET INTERNO — USO INTERNO, NO MOSTRAR AL CLIENTE\n`;
+  if (refPedido) t += `Ref: ${refPedido}\n`;
+  t += `${new Date().toLocaleDateString("es-MX")}\n`;
+  t += `================================\n`;
+  partidas.forEach((p) => {
+    const costo = ce(p);
+    const precio = pv(p);
+    const margen = precio - costo;
+    const margenPct = costo > 0 ? (margen / costo) * 100 : 0;
+    t += `${SERVICIOS[p.servicio].icono} ${p.nombre || p.desc}\n`;
+    t += `   ${p.desc} · ${p.cant} pz\n`;
+    if (p.detalle) {
+      p.detalle.porPieza.forEach((d) => { t += `   - ${d.label}: ${fmt(d.valor)}/pz\n`; });
+      p.detalle.unicos.forEach((d) => { t += `   - ${d.label} (único): ${fmt(d.valor)}\n`; });
+    }
+    t += `   Costo total: ${fmt(costo)}${p.costoManual != null ? " (ajustado)" : ""}\n`;
+    t += `   Precio venta (${tier}): ${fmt(precio)}\n`;
+    t += `   Margen: ${fmt(margen)} (${margenPct.toFixed(0)}%) · Ganancia promedio: ${fmt(p.cant > 0 ? margen / p.cant : 0)}/pz\n\n`;
+  });
+  const totalPiezas = partidas.reduce((s, p) => s + (Number(p.cant) || 0), 0);
+  t += `================================\n`;
+  if (Number(envio) > 0) t += `Envío (costo real, sin margen): ${fmt(Number(envio))}\n`;
+  t += `TOTAL COSTO: ${fmt(totalCosto)}\n`;
+  t += `TOTAL PRECIO (${tier}): ${fmt(totalPrecio)}\n`;
+  t += `MARGEN TOTAL: ${fmt(totalPrecio - totalCosto)} (${totalCosto > 0 ? (((totalPrecio - totalCosto) / totalCosto) * 100).toFixed(0) : 0}%)\n`;
+  t += `GANANCIA PROMEDIO POR PIEZA: ${fmt(totalPiezas > 0 ? (totalPrecio - totalCosto) / totalPiezas : 0)}\n`;
+  return t;
+}
+
+/* ===================== ESTILOS ===================== */
+const css = `
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+.cz *{box-sizing:border-box}
+.cz{font-family:-apple-system,'Segoe UI',Roboto,sans-serif;background:#EEF0F2;min-height:100vh;color:#1A1D26}
+.cz-d{font-family:'Barlow Condensed',sans-serif;letter-spacing:.04em}
+.cz-m{font-family:'IBM Plex Mono',monospace}
+.cz-nav{background:#14161D;color:#fff;display:flex;align-items:center;gap:2px;padding:0 12px;overflow-x:auto}
+.cz-tab{background:none;border:none;color:#9AA0AE;padding:14px 12px 11px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;border-bottom:3px solid transparent;white-space:nowrap}
+.cz-tab.on{color:#fff;border-color:#F4561D}
+.cz-extra{margin-left:auto;color:#9AA0AE;text-decoration:none;font-size:13px;font-weight:600;padding:8px 12px;border:1px solid #2A2E3A;border-radius:8px;white-space:nowrap}
+.cz-extra:hover{color:#fff;border-color:#F4561D}
+.cz-card{background:#fff;border-radius:10px;padding:16px;box-shadow:0 1px 3px rgba(20,22,29,.08)}
+.cz-in{width:100%;border:1.5px solid #D8DBE0;border-radius:8px;padding:9px 10px;font-size:14px;background:#fff}
+.cz-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#7B8290;margin-bottom:4px;display:block}
+.cz-btn{background:#14161D;color:#fff;border:none;border-radius:8px;padding:11px 16px;font-weight:700;cursor:pointer;font-size:14px}
+.cz-btn.org{background:#F4561D}
+.svc{border:1.5px solid #D8DBE0;background:#fff;border-radius:8px;padding:8px 6px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:12px;font-weight:600;color:#555B68;flex:1;min-width:64px}
+.svc.on{color:#fff;border-color:transparent}
+.ticket{background:#fff;font-family:'IBM Plex Mono',monospace;font-size:12.5px;padding:18px 16px 26px;box-shadow:0 4px 14px rgba(20,22,29,.15);
+  -webkit-mask:radial-gradient(circle at 8px 100%,transparent 7px,#000 7.5px) -8px 0/16px 100%;mask:radial-gradient(circle at 8px 100%,transparent 7px,#000 7.5px) -8px 0/16px 100%}
+.ticket .sep{border:none;border-top:1.5px dashed #C7CBD2;margin:9px 0}
+.trow{display:flex;justify-content:space-between;gap:8px;padding:1.5px 0}
+.tierbox{border:2px solid #E2E5EA;border-radius:9px;padding:7px 6px;cursor:pointer;flex:1;text-align:center;background:#fff}
+.tierbox.on{border-color:#F4561D;background:#FFF4EE}
+.imp{display:flex;align-items:center;gap:8px;padding:7px 9px;background:#F6F7F9;border-radius:7px;margin-bottom:6px;font-size:13px}
+.preview{background:#FFF4EE;border:1.5px dashed #F4A26155;border-radius:8px;padding:10px 12px;margin-top:12px;font-size:13px}
+.refbox{background:#14161D;color:#fff;border-radius:6px;padding:6px 10px;text-align:center;font-weight:600;margin:2px 0 6px;font-family:'Barlow Condensed',sans-serif;letter-spacing:.05em;font-size:15px;text-transform:uppercase}
+.insumo-row{display:flex;gap:8px;align-items:center;border-bottom:1px solid #EEF0F2;padding-bottom:8px;flex-wrap:wrap}
+.insumo-mod{font-size:10px;color:#9AA0AE;white-space:nowrap}
+@media(max-width:880px){.cz-grid{grid-template-columns:1fr!important}}
+`;
+
+function PieForm({ costo, desc, onAdd, color, fijo }) {
+  return (
+    <div className="preview" style={{ borderColor: color + "55" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontWeight: 600 }}>{desc}</span>
+        <span className="cz-m" style={{ fontWeight: 600 }}>{fijo ? "precio " : "costo "}{fmt(costo)}</span>
+      </div>
+      <button className="cz-btn org" style={{ width: "100%", marginTop: 10 }} onClick={onAdd}>+ Agregar a la cotización</button>
+    </div>
+  );
+}
+
+function SwatchPicker({ colores, idx, onSelect, label }) {
+  if (!colores || colores.length === 0) return null;
+  return (
+    <>
+      <label className="cz-lbl" style={{ marginTop: 10 }}>{label || "Color"}</label>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {colores.map((c, i) => (
+          <button key={c.id} type="button" onClick={() => onSelect(i)} title={c.nombre}
+            style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 8px", borderRadius: 20, cursor: "pointer",
+              border: idx === i ? "2px solid #F4561D" : "1px solid #D8DBE0", background: idx === i ? "#FFF4EE" : "#fff" }}>
+            {c.imagen
+              ? <img src={c.imagen} style={{ width: 16, height: 16, borderRadius: "50%", objectFit: "cover" }} />
+              : <span style={{ width: 16, height: 16, borderRadius: "50%", background: c.hex || "#ccc", display: "inline-block", border: "1px solid #D8DBE0" }} />}
+            <span style={{ fontSize: 12 }}>{c.nombre}</span>
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
+/* ===================== FORM: DTF (multi-impresión) ===================== */
+function FormDTF({ onAdd, materialesDTF, materialesEmpaque = [], configProduccion, tarifaHr }) {
+  const disenos = Object.keys(DISENOS_DTF);
+  const [modeloId, setModeloId] = useState((materialesDTF[0] && materialesDTF[0].id) || "");
+  const [colorIdx, setColorIdx] = useState(0);
+  const [colorEspecifico, setColorEspecifico] = useState("");
+  const [varIdx, setVarIdx] = useState(0);
+  const [genero, setGenero] = useState("Hombre");
+  const [talla, setTalla] = useState("M");
+  const [cant, setCant] = useState(10);
+  const [tipoDiseno, setTipoDiseno] = useState("proporcionado");
+  const [imps, setImps] = useState([{ id: nid(), diseno: "Espalda Full Size", custom: false, w: 0, h: 0 }]);
+  const [nd, setNd] = useState("Frontal Logo"), [nCustom, setNCustom] = useState(false), [nw, setNw] = useState(10), [nh, setNh] = useState(10);
+  const [soloFav, setSoloFav] = useState(false);
+  const [empSel, setEmpSel] = useState([]);
+  const toggleEmp = (id) => setEmpSel((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  const medidaDe = (imp) => (imp.custom ? [Number(imp.w), Number(imp.h)] : DISENOS_DTF[imp.diseno][genero][talla]);
+
+  const hayFavoritos = useMemo(() => materialesDTF.some((m) => m.favorito), [materialesDTF]);
+
+  const grupos = useMemo(() => {
+    const g = {};
+    const lista = soloFav ? materialesDTF.filter((m) => m.favorito) : materialesDTF;
+    lista.forEach((m) => { const cat = m.categoria || "Otros"; (g[cat] = g[cat] || []).push(m); });
+    return g;
+  }, [materialesDTF, soloFav]);
+
+  useEffect(() => {
+    const visibles = Object.values(grupos).flat();
+    if (visibles.length && !visibles.some((m) => m.id === modeloId)) cambiarModelo(visibles[0].id);
+  }, [grupos]);
+
+  const item = materialesDTF.find((m) => m.id === modeloId) || materialesDTF[0] || { precio: 0 };
+  const esEscalonado = item.tipo === "escalonado";
+  const color = esEscalonado ? (item.colores[colorIdx] || item.colores[0]) : null;
+  const variantesItem = item.variantes || [];
+  const cantNum = Number(cant) || 0;
+  const tierKey = cantNum >= 504 ? "t3" : cantNum >= 72 ? "t2" : "t1";
+  const tierLabel = cantNum >= 504 ? "504+ pz" : cantNum >= 72 ? "72–503 pz" : "12–71 pz";
+  const ivaTextil = Number(configProduccion.ivaTextil || 0);
+
+  const cambiarModelo = (id) => { setModeloId(id); setColorIdx(0); setColorEspecifico(""); setVarIdx(0); };
+
+  const r = useMemo(() => {
+    const costoSus = esEscalonado && color ? color[tierKey] * (1 + ivaTextil) : Number(item.precio) || 0;
+    const DTF_CM2 = configProduccion.dtfPrecioMetro / (configProduccion.dtfAnchoCm * 100);
+    let costoImp = 0;
+    imps.forEach((imp) => { const [w, h] = medidaDe(imp); costoImp += Math.ceil(w * h) * DTF_CM2; });
+    const empItems = materialesEmpaque.filter((e) => empSel.includes(e.id));
+    const pack = empItems.reduce((s, e) => s + (Number(e.precio) || 0), 0);
+    const costoPlanchado = (Number(configProduccion.tiempoPlanchadoMin) / 60) * tarifaHr;
+    const manipPza = Number(configProduccion.manipPzaDTF) || 0;
+    const porPieza = costoSus + costoImp + costoPlanchado * imps.length + pack + manipPza;
+    let manip = Number(configProduccion.manipProporc);
+    if (tipoDiseno === "sencillo") manip = (Number(configProduccion.disenoSencilloMin) / 60) * tarifaHr;
+    if (tipoDiseno === "complejo") manip = (Number(configProduccion.disenoComplejoMin) / 60) * tarifaHr;
+    const ubic = imps.map((i) => (i.custom ? "pers." : i.diseno.replace("Frontal ", "").replace("Espalda ", "Esp."))).join(" + ");
+    const nombreEspecifico = variantesItem.length > 0 ? ((variantesItem[varIdx] || {}).nombre || null) : (colorEspecifico.trim() || null);
+    const colorMostrado = color ? (nombreEspecifico ? `${color.nombre} (${nombreEspecifico})` : color.nombre) : (variantesItem.length > 0 ? nombreEspecifico : null);
+    const nombreSus = item.nombre + (colorMostrado ? ` · ${colorMostrado}` : "");
+    let promo = null;
+    let promoUrge = false;
+    if (esEscalonado && color) {
+      if (cantNum > 0 && cantNum < 12) { promo = `🧵 Óptima vende por color a partir de 12 pz. Junta ${12 - cantNum} pieza${12 - cantNum > 1 ? "s" : ""} más de "${color.nombre}" (de este pedido o de otro) para poder comprarlo.`; promoUrge = true; }
+      else if (tierKey === "t1" && cantNum < 72) promo = `🎁 Agrega ${72 - cantNum} pieza${72 - cantNum > 1 ? "s" : ""} más y el costo de tela baja a ${fmt(color.t2 * (1 + ivaTextil))}/pz (llevando 72)`;
+      else if (tierKey === "t2" && cantNum < 504) promo = `🎁 Agrega ${504 - cantNum} piezas más y el costo de tela baja a ${fmt(color.t3 * (1 + ivaTextil))}/pz (llevando 504)`;
+      else if (tierKey === "t3") promo = `✅ Ya tienes el mejor precio de tela por volumen`;
+    }
+    const detalle = {
+      porPieza: [
+        { label: "Tela/prenda", valor: costoSus },
+        { label: "Impresión DTF", valor: costoImp },
+        { label: "Planchado", valor: costoPlanchado * imps.length },
+        { label: "Manipulación", valor: manipPza },
+        { label: empItems.length ? `Empaque (${empItems.map((e) => e.nombre).join(" + ")})` : "Empaque (sin seleccionar)", valor: pack },
+      ],
+      unicos: [{ label: tipoDiseno === "proporcionado" ? "Diseño/revisión" : "Diseño (creación)", valor: manip }],
+    };
+    return { costo: porPieza * cant + manip, cant, desc: `${nombreSus} (${talla}) · ${ubic}`, promo, promoUrge, detalle };
+  }, [modeloId, colorIdx, colorEspecifico, varIdx, genero, talla, cant, tipoDiseno, imps, materialesDTF, materialesEmpaque, empSel, configProduccion, tarifaHr]);
+
+  return (
+    <>
+      {hayFavoritos && (
+        <label style={{ fontSize: 12, display: "flex", gap: 6, alignItems: "center", cursor: "pointer", marginBottom: 8 }}>
+          <input type="checkbox" checked={soloFav} onChange={(e) => setSoloFav(e.target.checked)} /> ⭐ Solo favoritos
+        </label>
+      )}
+      <div style={{ display: "grid", gridTemplateColumns: esEscalonado ? "auto 1.3fr 1fr 1fr" : "auto 1.6fr 1fr", gap: 8, alignItems: "end" }}>
+        {item.imagen
+          ? <img src={item.imagen} style={{ width: 42, height: 42, objectFit: "cover", borderRadius: 6, border: "1px solid #D8DBE0" }} title={item.nombre} />
+          : <div style={{ width: 42, height: 42, borderRadius: 6, border: "1px dashed #D8DBE0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: "#C7CBD2" }}>📷</div>}
+        <div>
+          <label className="cz-lbl">Modelo</label>
+          <select className="cz-in" value={modeloId} onChange={(e) => cambiarModelo(e.target.value)}>
+            {Object.entries(grupos).map(([cat, items]) => (
+              <optgroup key={cat} label={cat}>{items.map((m) => <option key={m.id} value={m.id}>{(m.favorito ? "⭐ " : "") + m.nombre}</option>)}</optgroup>
+            ))}
+          </select>
+        </div>
+        {esEscalonado && (
+          <div>
+            <label className="cz-lbl">Color</label>
+            <select className="cz-in" value={colorIdx} onChange={(e) => setColorIdx(Number(e.target.value))}>
+              {item.colores.map((c, i) => <option key={c.nombre} value={i}>{c.nombre}</option>)}
+            </select>
+          </div>
+        )}
+        <div><label className="cz-lbl">Cantidad</label><input className="cz-in" type="number" value={cant} onChange={(e) => setCant(Number(e.target.value))} /></div>
+      </div>
+      {esEscalonado && (
+        <div style={{ fontSize: 11, color: "#7B8290", marginTop: 6 }}>
+          Tier de volumen: <b>{tierLabel}</b> · costo tela (con IVA {Math.round(ivaTextil * 100)}%): {fmt(color ? color[tierKey] * (1 + ivaTextil) : 0)}/pz
+        </div>
+      )}
+      {esEscalonado && variantesItem.length > 0 && (
+        <SwatchPicker colores={variantesItem} idx={varIdx} onSelect={setVarIdx} label="Color específico" />
+      )}
+      {esEscalonado && variantesItem.length === 0 && (
+        <div style={{ marginTop: 8 }}>
+          <label className="cz-lbl">Color específico (opcional)</label>
+          <input className="cz-in" placeholder={`Ej. Rojo cereza, Azul marino… (se cotiza al precio de "${color ? color.nombre : ""}"). Registra variantes con foto en Insumos para elegirlas con un clic.`} value={colorEspecifico} onChange={(e) => setColorEspecifico(e.target.value)} />
+        </div>
+      )}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
+        <div><label className="cz-lbl">Género</label><select className="cz-in" value={genero} onChange={(e) => setGenero(e.target.value)}><option>Hombre</option><option>Mujer</option></select></div>
+        <div><label className="cz-lbl">Talla</label><select className="cz-in" value={talla} onChange={(e) => setTalla(e.target.value)}>{["S","M","L","XL"].map((t) => <option key={t}>{t}</option>)}</select></div>
+      </div>
+      <label className="cz-lbl" style={{ marginTop: 14 }}>Impresiones en esta prenda ({imps.length})</label>
+      {imps.map((imp) => { const [w, h] = medidaDe(imp); return (
+        <div className="imp" key={imp.id}>
+          <span style={{ flex: 1, fontWeight: 600 }}>{imp.custom ? "Personalizada" : imp.diseno}</span>
+          <span className="cz-m" style={{ color: "#7B8290" }}>{w}×{h}cm · {Math.ceil(w * h)}cm²</span>
+          {imps.length > 1 && <button onClick={() => setImps(imps.filter((x) => x.id !== imp.id))} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 16 }}>×</button>}
+        </div>
+      ); })}
+      <div style={{ border: "1.5px dashed #D8DBE0", borderRadius: 8, padding: 10, marginTop: 4 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <span className="cz-lbl" style={{ margin: 0 }}>+ Otra impresión</span>
+          <label style={{ fontSize: 11, display: "flex", gap: 4, alignItems: "center", cursor: "pointer" }}><input type="checkbox" checked={nCustom} onChange={(e) => setNCustom(e.target.checked)} /> personalizada</label>
+        </div>
+        {!nCustom ? <select className="cz-in" value={nd} onChange={(e) => setNd(e.target.value)}>{disenos.map((d) => <option key={d}>{d}</option>)}</select>
+          : <div style={{ display: "flex", gap: 8 }}><input className="cz-in" type="number" placeholder="ancho" value={nw} onChange={(e) => setNw(e.target.value)} /><input className="cz-in" type="number" placeholder="alto" value={nh} onChange={(e) => setNh(e.target.value)} /></div>}
+        <button className="cz-btn" style={{ width: "100%", marginTop: 8, padding: 8 }} onClick={() => setImps([...imps, { id: nid(), diseno: nd, custom: nCustom, w: nw, h: nh }])}>Añadir impresión a la prenda</button>
+      </div>
+      <label className="cz-lbl" style={{ marginTop: 12 }}>Empaque (marca lo que lleva esta partida)</label>
+      {materialesEmpaque.length === 0 ? (
+        <div style={{ fontSize: 11, color: "#7B8290" }}>No hay insumos de empaque dados de alta. Agrégalos en Insumos → 📦 Empaque.</div>
+      ) : (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {materialesEmpaque.map((e) => (
+            <label key={e.id} style={{ fontSize: 12, display: "flex", gap: 5, alignItems: "center", cursor: "pointer", border: "1.5px solid " + (empSel.includes(e.id) ? "#F4561D" : "#D8DBE0"), borderRadius: 8, padding: "6px 10px", background: empSel.includes(e.id) ? "#FFF4EE" : "#fff" }}>
+              <input type="checkbox" checked={empSel.includes(e.id)} onChange={() => toggleEmp(e.id)} /> {e.nombre} <span style={{ color: "#7B8290" }}>({fmt(e.precio)})</span>
+            </label>
+          ))}
+        </div>
+      )}
+      <label className="cz-lbl" style={{ marginTop: 12 }}>Diseño (manipulación)</label>
+      <div style={{ display: "flex", gap: 8 }}>
+        {[["proporcionado", "Lo trae el cliente"], ["sencillo", "Propio sencillo"], ["complejo", "Propio complejo"]].map(([k, t]) => (
+          <div key={k} className={"tierbox" + (tipoDiseno === k ? " on" : "")} onClick={() => setTipoDiseno(k)} style={{ fontSize: 12 }}>{t}</div>
+        ))}
+      </div>
+      {r.promo && <div style={{ fontSize: 12, color: r.promoUrge ? "#F4561D" : "#2EA84F", marginTop: 8 }}>{r.promo}</div>}
+      <PieForm costo={r.costo} desc={`${imps.length} impresión(es) · ${cant} pz`} onAdd={() => onAdd(r)} color={SERVICIOS.DTF.color} />
+    </>
+  );
+}
+
+/* ===================== FORM: DTF SUELTO (lotes compartidos, ej. con Josué) ===================== */
+function FormDTFSuelto({ onAdd, configProduccion }) {
+  const [nombreLote, setNombreLote] = useState("");
+  const [piezas, setPiezas] = useState([{ id: nid(), nombre: "", w: 30, h: 30, cant: 1 }]);
+  const precioMetro = Number(configProduccion.dtfSueltoPrecioMetro) || 0;
+  const anchoCm = Number(configProduccion.dtfSueltoAnchoCm) || 1;
+
+  const actualizarPieza = (id, campo, valor) => setPiezas((prev) => prev.map((p) => (p.id === id ? { ...p, [campo]: campo === "nombre" ? valor : Number(valor) } : p)));
+  const agregarPieza = () => setPiezas((prev) => [...prev, { id: nid(), nombre: "", w: 30, h: 30, cant: 1 }]);
+  const quitarPieza = (id) => setPiezas((prev) => prev.filter((p) => p.id !== id));
+
+  const r = useMemo(() => {
+    const areaTotal = piezas.reduce((s, p) => s + Math.ceil((Number(p.w) || 0) * (Number(p.h) || 0)) * (Number(p.cant) || 0), 0);
+    const metros = areaTotal / (anchoCm * 100);
+    const costo = metros * precioMetro;
+    const totalPiezas = piezas.reduce((s, p) => s + (Number(p.cant) || 0), 0);
+    const detalle = {
+      porPieza: [],
+      unicos: [{ label: `Impresión DTF suelta (${areaTotal.toLocaleString("es-MX")}cm² · ${metros.toFixed(2)}m · ${fmt(precioMetro)}/m)`, valor: costo }],
+    };
+    return {
+      costo,
+      cant: totalPiezas || 1,
+      desc: `DTF suelto${nombreLote ? " · " + nombreLote : ""} · ${totalPiezas} pieza${totalPiezas === 1 ? "" : "s"} · ${metros.toFixed(2)}m`,
+      detalle,
+      areaTotal,
+      metros,
+      totalPiezas,
+    };
+  }, [piezas, nombreLote, precioMetro, anchoCm]);
+
+  return (
+    <>
+      <div style={{ fontSize: 11, color: "#7B8290", marginBottom: 8 }}>Para cuando juntas diseños con alguien más (ej. Josué) en una sola impresión de DTF, sin prenda ni planchado — solo el costo de la impresión.</div>
+      <label className="cz-lbl">Nombre del lote (opcional)</label>
+      <input className="cz-in" placeholder='Ej. "Lote con Josué 30/jul"' value={nombreLote} onChange={(e) => setNombreLote(e.target.value)} />
+      <div style={{ fontSize: 11, color: "#7B8290", marginTop: 8 }}>Tarifa: <b>{fmt(precioMetro)}/metro</b> · rollo de <b>{anchoCm}cm</b> de ancho (edítalo en Insumos → Config de producción)</div>
+      <label className="cz-lbl" style={{ marginTop: 12 }}>Diseños en este lote ({piezas.length})</label>
+      {piezas.map((p) => (
+        <div key={p.id} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6, flexWrap: "wrap" }}>
+          <input className="cz-in" style={{ flex: 2, minWidth: 100 }} placeholder="Nombre (opcional)" value={p.nombre} onChange={(e) => actualizarPieza(p.id, "nombre", e.target.value)} />
+          <input className="cz-in" style={{ width: 60 }} type="number" title="Ancho cm" value={p.w} onChange={(e) => actualizarPieza(p.id, "w", e.target.value)} />
+          <span style={{ fontSize: 11, color: "#7B8290" }}>×</span>
+          <input className="cz-in" style={{ width: 60 }} type="number" title="Alto cm" value={p.h} onChange={(e) => actualizarPieza(p.id, "h", e.target.value)} />
+          <input className="cz-in" style={{ width: 55 }} type="number" title="Cantidad" value={p.cant} onChange={(e) => actualizarPieza(p.id, "cant", e.target.value)} />
+          {piezas.length > 1 && <button onClick={() => quitarPieza(p.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 16 }}>×</button>}
+        </div>
+      ))}
+      <button className="cz-btn" style={{ marginTop: 4 }} onClick={agregarPieza}>+ Agregar diseño</button>
+      <div style={{ fontSize: 12, color: "#7B8290", marginTop: 10 }}>
+        Área total: <b>{r.areaTotal.toLocaleString("es-MX")}cm²</b> · Metros lineales necesarios: <b>{r.metros.toFixed(2)}m</b> · {r.totalPiezas} pieza{r.totalPiezas === 1 ? "" : "s"}
+      </div>
+      <PieForm costo={r.costo} desc={r.desc} onAdd={() => onAdd(r)} color={SERVICIOS.DTFSUELTO.color} />
+    </>
+  );
+}
+
+/* ===================== FORM: DTF UV (objetos) ===================== */
+function FormUV({ onAdd, materialesUV, configProduccion }) {
+  const primero = materialesUV[0] || { id: 0, w: 10, h: 10, precio: 0 };
+  const [objId, setObjId] = useState(primero.id);
+  const [w, setW] = useState(primero.w);
+  const [h, setH] = useState(primero.h);
+  const [sus, setSus] = useState(primero.precio);
+  const [cant, setCant] = useState(1);
+  const [colorIdx, setColorIdx] = useState(0);
+  const cambiarObj = (id) => {
+    const o = materialesUV.find((m) => m.id === Number(id));
+    if (!o) return;
+    setObjId(o.id); setW(o.w); setH(o.h); setSus(o.precio); setColorIdx(0);
+  };
+  const objActual = materialesUV.find((m) => m.id === objId) || primero;
+  const variantesObj = objActual.variantes || [];
+  const r = useMemo(() => {
+    const UV_CM2 = configProduccion.uvPrecioMetro / (configProduccion.uvAnchoCm * 100);
+    const area = Math.ceil(Number(w) * Number(h));
+    const costo = (Number(sus) + area * UV_CM2) * cant;
+    const obj = materialesUV.find((m) => m.id === objId) || {};
+    const objName = obj.nombre || "Objeto";
+    const vSel = (obj.variantes || [])[colorIdx] || null;
+    return { costo, cant, desc: `${objName}${vSel ? " · " + vSel.nombre : ""} · UV ${w}×${h}cm ×${cant}` };
+  }, [objId, colorIdx, w, h, sus, cant, materialesUV, configProduccion]);
+  return (
+    <>
+      <label className="cz-lbl">Objeto a decorar</label>
+      <select className="cz-in" value={objId} onChange={(e) => cambiarObj(e.target.value)}>{materialesUV.map((o) => <option key={o.id} value={o.id}>{o.nombre}</option>)}</select>
+      <SwatchPicker colores={variantesObj} idx={colorIdx} onSelect={setColorIdx} />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginTop: 10 }}>
+        <div><label className="cz-lbl">Ancho cm</label><input className="cz-in" type="number" value={w} onChange={(e) => setW(e.target.value)} /></div>
+        <div><label className="cz-lbl">Alto cm</label><input className="cz-in" type="number" value={h} onChange={(e) => setH(e.target.value)} /></div>
+        <div><label className="cz-lbl">Sustrato $</label><input className="cz-in" type="number" value={sus} onChange={(e) => setSus(e.target.value)} /></div>
+        <div><label className="cz-lbl">Cantidad</label><input className="cz-in" type="number" value={cant} onChange={(e) => setCant(Number(e.target.value))} /></div>
+      </div>
+      <div style={{ fontSize: 12, color: "#7B8290", marginTop: 8 }}>Área "full wrap" precargada por objeto · editable. Film UV: ${(configProduccion.uvPrecioMetro / (configProduccion.uvAnchoCm * 100)).toFixed(3)}/cm².</div>
+      <PieForm costo={r.costo} desc={r.desc} onAdd={() => onAdd(r)} color={SERVICIOS.UV.color} />
+    </>
+  );
+}
+
+/* ===================== FORM: SUBLIMACIÓN (flexible) ===================== */
+function FormSubli({ onAdd, materialesSublimado, configProduccion }) {
+  const primero = materialesSublimado[0] || { id: 0, w: 10, h: 10, ancho: 2.5, continuo: false, precio: 0 };
+  const [prodId, setProdId] = useState(primero.id);
+  const [w, setW] = useState(primero.w || 10), [h, setH] = useState(primero.h || 10);
+  const [ancho, setAncho] = useState(primero.ancho || 2.5);
+  const [cant, setCant] = useState(primero.continuo ? 10 : 12);
+  const [sus, setSus] = useState(primero.precio);
+  const [colorIdx, setColorIdx] = useState(0);
+  const cambiar = (id) => {
+    const d = materialesSublimado.find((m) => m.id === Number(id));
+    if (!d) return;
+    setProdId(d.id); setW(d.w || 10); setH(d.h || 10); setAncho(d.ancho || 2.5); setSus(d.precio); setCant(d.continuo ? 10 : 12); setColorIdx(0);
+  };
+  const r = useMemo(() => {
+    const prod = materialesSublimado.find((m) => m.id === prodId) || primero;
+    const continuo = prod.continuo;
+    const areaUnit = continuo ? Number(ancho) * 100 : Number(w) * Number(h);
+    const areaTot = areaUnit * cant;
+    const costoImp = (areaTot / configProduccion.subliArea) * configProduccion.subliMetro;
+    const costo = Number(sus) * cant + costoImp;
+    const u = continuo ? `${cant}m × ${ancho}cm` : `${w}×${h}cm ×${cant}`;
+    const vSel = (prod.variantes || [])[colorIdx] || null;
+    return { costo, cant, desc: `${prod.nombre || ""}${vSel ? " · " + vSel.nombre : ""} · ${u}` };
+  }, [prodId, colorIdx, w, h, ancho, cant, sus, materialesSublimado, configProduccion]);
+  const prodActual = materialesSublimado.find((m) => m.id === prodId) || primero;
+  const continuo = prodActual.continuo;
+  const variantesProd = prodActual.variantes || [];
+  return (
+    <>
+      <label className="cz-lbl">Producto</label>
+      <select className="cz-in" value={prodId} onChange={(e) => cambiar(e.target.value)}>{materialesSublimado.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select>
+      <SwatchPicker colores={variantesProd} idx={colorIdx} onSelect={setColorIdx} />
+      {continuo ? (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 10 }}>
+          <div><label className="cz-lbl">Metros</label><input className="cz-in" type="number" value={cant} onChange={(e) => setCant(Number(e.target.value))} /></div>
+          <div><label className="cz-lbl">Ancho cinta cm</label><input className="cz-in" type="number" value={ancho} onChange={(e) => setAncho(e.target.value)} /></div>
+          <div><label className="cz-lbl">$ listón / m</label><input className="cz-in" type="number" value={sus} onChange={(e) => setSus(e.target.value)} /></div>
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginTop: 10 }}>
+          <div><label className="cz-lbl">Cantidad</label><input className="cz-in" type="number" value={cant} onChange={(e) => setCant(Number(e.target.value))} /></div>
+          <div><label className="cz-lbl">Ancho cm</label><input className="cz-in" type="number" value={w} onChange={(e) => setW(e.target.value)} /></div>
+          <div><label className="cz-lbl">Alto cm</label><input className="cz-in" type="number" value={h} onChange={(e) => setH(e.target.value)} /></div>
+          <div><label className="cz-lbl">Sustrato $</label><input className="cz-in" type="number" value={sus} onChange={(e) => setSus(e.target.value)} /></div>
+        </div>
+      )}
+      <div style={{ fontSize: 12, color: "#7B8290", marginTop: 8 }}>Impresión proporcional a tu hoja de sublimación (ver Insumos → Producción). El listón calcula el transfer que gastas por metro.</div>
+      <PieForm costo={r.costo} desc={r.desc} onAdd={() => onAdd(r)} color={SERVICIOS.SUBLI.color} />
+    </>
+  );
+}
+
+/* ===================== FORM: LÁSER ===================== */
+function FormLaser({ onAdd, materialesLaser, costosPorHora, tarifaHr }) {
+  const [matIdx, setMatIdx] = useState(Math.min(4, materialesLaser.length - 1)), [cant, setCant] = useState(1), [minMaquina, setMinMaquina] = useState(8);
+  const [disenoPropio, setDisenoPropio] = useState(false), [minDiseno, setMinDiseno] = useState(10);
+  const [colorIdx, setColorIdx] = useState(0);
+  const cambiarMat = (i) => { setMatIdx(i); setColorIdx(0); };
+  const matActual = materialesLaser[matIdx] || materialesLaser[0] || { nombre: "", precio: 0, variantes: [] };
+  const variantesMat = matActual.variantes || [];
+  const r = useMemo(() => {
+    const mat = materialesLaser[matIdx] || materialesLaser[0] || { nombre: "", precio: 0 };
+    const costoMaquinaHr = costosPorHora.generalPorHora + costosPorHora.cncPorHora;
+    const costo = mat.precio * cant + (Number(minMaquina) / 60) * costoMaquinaHr * cant + (disenoPropio ? (Number(minDiseno) / 60) * tarifaHr : 0);
+    const vSel = (mat.variantes || [])[colorIdx] || null;
+    return { costo, cant, desc: `${mat.nombre}${vSel ? " · " + vSel.nombre : ""} ×${cant}${disenoPropio ? " (diseño propio)" : ""}` };
+  }, [matIdx, colorIdx, cant, minMaquina, disenoPropio, minDiseno, materialesLaser, costosPorHora, tarifaHr]);
+  return (
+    <>
+      <label className="cz-lbl">Material</label>
+      <select className="cz-in" value={matIdx} onChange={(e) => cambiarMat(Number(e.target.value))}>{materialesLaser.map((m, i) => <option key={m.id} value={i}>{m.nombre} — {fmt(m.precio)}</option>)}</select>
+      <SwatchPicker colores={variantesMat} idx={colorIdx} onSelect={setColorIdx} />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
+        <div><label className="cz-lbl">Cantidad</label><input className="cz-in" type="number" value={cant} onChange={(e) => setCant(Number(e.target.value))} /></div>
+        <div><label className="cz-lbl">Min máquina</label><input className="cz-in" type="number" value={minMaquina} onChange={(e) => setMinMaquina(e.target.value)} /></div>
+      </div>
+      <label style={{ fontSize: 13, display: "flex", gap: 6, alignItems: "center", marginTop: 12, cursor: "pointer" }}><input type="checkbox" checked={disenoPropio} onChange={(e) => setDisenoPropio(e.target.checked)} /> El diseño lo hago yo (+ mi tiempo)</label>
+      {disenoPropio && <div style={{ marginTop: 8 }}><label className="cz-lbl">Min de diseño</label><input className="cz-in" type="number" value={minDiseno} onChange={(e) => setMinDiseno(e.target.value)} /></div>}
+      <div style={{ fontSize: 11, color: "#7B8290", marginTop: 8 }}>Incluye luz/renta/CNC prorrateados: {fmt(costosPorHora.generalPorHora + costosPorHora.cncPorHora)}/hora de máquina.</div>
+      <PieForm costo={r.costo} desc={`Láser ×${cant}`} onAdd={() => onAdd(r)} color={SERVICIOS.LASER.color} />
+    </>
+  );
+}
+
+/* ===================== FORM: CORTADORES DE GALLETA (precio fijo) ===================== */
+function FormCortadores({ onAdd, cortadores }) {
+  const [idx, setIdx] = useState(Math.min(2, cortadores.length - 1)), [cant, setCant] = useState(3), [conSello, setConSello] = useState(true);
+  const r = useMemo(() => {
+    const c = cortadores[idx] || cortadores[0] || { rango: "", base: 0, descMin: null, descPrecio: null };
+    let unit = c.base;
+    if (c.descMin && cant >= c.descMin) unit = c.descPrecio;
+    if (!conSello) unit = unit * 0.6;
+    let promo = null;
+    if (c.descMin) {
+      if (cant < c.descMin) {
+        const faltan = c.descMin - cant;
+        let precioProm = c.descPrecio;
+        if (!conSello) precioProm = precioProm * 0.6;
+        promo = `🎁 Agrega ${faltan} pieza${faltan > 1 ? "s" : ""} más y cada una te sale en ${fmt(precioProm)} (llevando ${c.descMin})`;
+      } else {
+        promo = `✅ Ya tienes el mejor precio por volumen: ${fmt(unit)} c/u`;
+      }
+    }
+    return { esFijo: true, precioFijo: unit * cant, cant, desc: `Cortador ${c.rango} ${conSello ? "+sello" : "(solo)"} ×${cant}`, promo };
+  }, [idx, cant, conSello, cortadores]);
+  return (
+    <>
+      <label className="cz-lbl">Tamaño</label>
+      <select className="cz-in" value={idx} onChange={(e) => setIdx(Number(e.target.value))}>{cortadores.map((c, i) => <option key={c.id} value={i}>{c.rango} — {fmt(c.base)}{c.descMin ? ` (${c.descMin}+ → ${fmt(c.descPrecio)})` : ""}</option>)}</select>
+      <div style={{ marginTop: 10 }}><label className="cz-lbl">Cantidad</label><input className="cz-in" type="number" value={cant} onChange={(e) => setCant(Number(e.target.value))} /></div>
+      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+        <div className={"tierbox" + (conSello ? " on" : "")} onClick={() => setConSello(true)} style={{ fontSize: 12 }}>Cortador + sello<br /><span className="cz-m" style={{ fontSize: 11, color: "#7B8290" }}>100%</span></div>
+        <div className={"tierbox" + (!conSello ? " on" : "")} onClick={() => setConSello(false)} style={{ fontSize: 12 }}>Solo cortador<br /><span className="cz-m" style={{ fontSize: 11, color: "#7B8290" }}>60%</span></div>
+      </div>
+      <div style={{ fontSize: 11, color: "#7B8290", marginTop: 8 }}>🎨 El diseño siempre está incluido, nunca se cobra aparte.</div>
+      {r.promo && <div style={{ fontSize: 12, color: "#2EA84F", marginTop: 8 }}>{r.promo}</div>}
+      <PieForm costo={r.precioFijo} desc={r.desc} onAdd={() => onAdd(r)} color={SERVICIOS.TRESD.color} fijo />
+    </>
+  );
+}
+
+/* ===================== FORM: PINES (precio fijo por cantidad) ===================== */
+function FormPines({ onAdd, pines }) {
+  const [cant, setCant] = useState(20);
+  const ordenados = useMemo(() => [...pines].sort((a, b) => a.min - b.min), [pines]);
+  const r = useMemo(() => {
+    const cantNum = Number(cant) || 0;
+    let tier = ordenados[0] || { precioPz: 0, min: 1 };
+    ordenados.forEach((t) => { if (cantNum >= t.min) tier = t; });
+    const unit = tier.precioPz;
+    const idxActual = ordenados.indexOf(tier);
+    const siguiente = ordenados[idxActual + 1];
+    let promo = null;
+    if (siguiente && cantNum < siguiente.min) {
+      const faltan = siguiente.min - cantNum;
+      promo = `🎁 Agrega ${faltan} pin${faltan > 1 ? "es" : ""} más y cada uno te sale en ${fmt(siguiente.precioPz)} (llevando ${siguiente.min})`;
+    } else if (!siguiente && ordenados.length) {
+      promo = `✅ Ya tienes el mejor precio por volumen: ${fmt(unit)} c/u`;
+    }
+    return { esFijo: true, precioFijo: unit * cantNum, cant: cantNum, desc: `Pines metálicos ×${cantNum}`, promo };
+  }, [cant, ordenados]);
+  return (
+    <>
+      <label className="cz-lbl">Cantidad de pines</label>
+      <input className="cz-in" type="number" value={cant} onChange={(e) => setCant(e.target.value)} />
+      <div style={{ fontSize: 11, color: "#7B8290", marginTop: 10, display: "flex", flexDirection: "column", gap: 2 }}>
+        {ordenados.map((t) => <div key={t.id}>{t.rango}: {fmt(t.precioPz)} c/u</div>)}
+      </div>
+      <div style={{ fontSize: 11, color: "#7B8290", marginTop: 8 }}>🎨 Diseño incluido, sin costo extra.</div>
+      {r.promo && <div style={{ fontSize: 12, color: "#2EA84F", marginTop: 8 }}>{r.promo}</div>}
+      <PieForm costo={r.precioFijo} desc={r.desc} onAdd={() => onAdd(r)} color={SERVICIOS.PINES.color} fijo />
+    </>
+  );
+}
+
+/* ===================== FORM: TOTEBAGS (costo escalonado por cantidad, margen según tipo de cliente) ===================== */
+function FormTotebags({ onAdd, totebags }) {
+  const [cant, setCant] = useState(10);
+  const [color, setColor] = useState("Negra");
+  const ordenados = useMemo(() => [...totebags].sort((a, b) => a.min - b.min), [totebags]);
+  const r = useMemo(() => {
+    const cantNum = Number(cant) || 0;
+    let tier = ordenados[0] || { costoPz: 0, min: 1 };
+    ordenados.forEach((t) => { if (cantNum >= t.min) tier = t; });
+    const unit = tier.costoPz;
+    const idxActual = ordenados.indexOf(tier);
+    const siguiente = ordenados[idxActual + 1];
+    let promo = null;
+    if (siguiente && cantNum < siguiente.min) {
+      const faltan = siguiente.min - cantNum;
+      promo = `🎁 Agrega ${faltan} totebag${faltan > 1 ? "s" : ""} más y baja el costo a ${fmt(siguiente.costoPz)} c/u (llevando ${siguiente.min})`;
+    } else if (!siguiente && ordenados.length) {
+      promo = `✅ Ya tienes el mejor costo por volumen: ${fmt(unit)} c/u`;
+    }
+    const detalle = { porPieza: [{ label: `Totebag ${color} + 1 diseño DTF (costo escalonado)`, valor: unit }], unicos: [] };
+    return { costo: unit * cantNum, cant: cantNum, desc: `Totebag ${color} (DTF incl.) ×${cantNum}`, promo, detalle };
+  }, [cant, color, ordenados]);
+  return (
+    <>
+      <label className="cz-lbl">Color</label>
+      <div style={{ display: "flex", gap: 8 }}>
+        <div className={"tierbox" + (color === "Negra" ? " on" : "")} onClick={() => setColor("Negra")} style={{ fontSize: 12 }}>Negra</div>
+        <div className={"tierbox" + (color === "Café" ? " on" : "")} onClick={() => setColor("Café")} style={{ fontSize: 12 }}>Café</div>
+      </div>
+      <label className="cz-lbl" style={{ marginTop: 10 }}>Cantidad</label>
+      <input className="cz-in" type="number" value={cant} onChange={(e) => setCant(e.target.value)} />
+      <div style={{ fontSize: 11, color: "#7B8290", marginTop: 10, display: "flex", flexDirection: "column", gap: 2 }}>
+        {ordenados.map((t) => <div key={t.id}>{t.rango}: {fmt(t.costoPz)} c/u (costo)</div>)}
+      </div>
+      <div style={{ fontSize: 11, color: "#7B8290", marginTop: 8 }}>👜 Costo ya incluye la bolsa + 1 diseño DTF (área máx. 35×36cm). El precio de venta se calcula abajo según el tipo de cliente.</div>
+      {r.promo && <div style={{ fontSize: 12, color: "#2EA84F", marginTop: 8 }}>{r.promo}</div>}
+      <PieForm costo={r.costo} desc={r.desc} onAdd={() => onAdd(r)} color={SERVICIOS.TOTE.color} />
+    </>
+  );
+}
+
+/* ===================== FORM: CATÁLOGO OTROS (Gorras / Termos) ===================== */
+function FormCatalogoOtro({ onAdd, items, color }) {
+  const [itemId, setItemId] = useState((items[0] && items[0].id) || "");
+  const [colorIdx, setColorIdx] = useState(0);
+  const [cant, setCant] = useState(1);
+  const [soloFav, setSoloFav] = useState(false);
+
+  const hayFavoritos = useMemo(() => items.some((i) => i.favorito), [items]);
+  const lista = useMemo(() => (soloFav ? items.filter((i) => i.favorito) : items), [items, soloFav]);
+
+  useEffect(() => {
+    if (lista.length && !lista.some((i) => i.id === itemId)) { setItemId(lista[0].id); setColorIdx(0); }
+  }, [lista]);
+
+  const item = items.find((i) => i.id === itemId) || items[0] || { nombre: "", precio: 0, colores: [] };
+  const colores = item.colores || [];
+  const colorSel = colores[colorIdx] || null;
+
+  const cambiarItem = (id) => { setItemId(id); setColorIdx(0); };
+
+  const cantNum = Number(cant) || 0;
+  const costoUnit = Number(item.precio) || 0;
+  const desc = `${item.nombre}${colorSel ? " · " + colorSel.nombre : ""} ×${cantNum}`;
+  const r = { costo: costoUnit * cantNum, cant: cantNum, desc, detalle: { porPieza: [{ label: item.nombre, valor: costoUnit }], unicos: [] } };
+
+  if (!items || items.length === 0) {
+    return <div style={{ color: "#9AA0AE", fontSize: 13 }}>Aún no hay modelos en este catálogo. Agrégalos en la pestaña Insumos → "Otros productos Óptima".</div>;
+  }
+
+  return (
+    <>
+      {hayFavoritos && (
+        <label style={{ fontSize: 12, display: "flex", gap: 6, alignItems: "center", cursor: "pointer", marginBottom: 8 }}>
+          <input type="checkbox" checked={soloFav} onChange={(e) => setSoloFav(e.target.checked)} /> ⭐ Solo favoritos
+        </label>
+      )}
+      <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+        {item.imagen
+          ? <img src={item.imagen} style={{ width: 42, height: 42, objectFit: "cover", borderRadius: 6, border: "1px solid #D8DBE0" }} />
+          : <div style={{ width: 42, height: 42, borderRadius: 6, border: "1px dashed #D8DBE0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: "#C7CBD2" }}>📷</div>}
+        <div style={{ flex: 1 }}>
+          <label className="cz-lbl">Modelo</label>
+          <select className="cz-in" value={itemId} onChange={(e) => cambiarItem(e.target.value)}>
+            {lista.map((i) => <option key={i.id} value={i.id}>{(i.favorito ? "⭐ " : "") + i.nombre} — {fmt(i.precio)}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {colores.length > 0 ? (
+        <SwatchPicker colores={colores} idx={colorIdx} onSelect={setColorIdx} />
+      ) : (
+        <div style={{ fontSize: 11, color: "#9AA0AE", marginTop: 8 }}>Este modelo no tiene variantes de color registradas (opcional — agrégalas en Insumos).</div>
+      )}
+
+      <label className="cz-lbl" style={{ marginTop: 10 }}>Cantidad</label>
+      <input className="cz-in" type="number" value={cant} onChange={(e) => setCant(e.target.value)} />
+
+      <div style={{ fontSize: 11, color: "#7B8290", marginTop: 8 }}>Costo mayoreo: {fmt(costoUnit)} c/u (mismo costo en todos los colores). El precio de venta se calcula abajo según el tipo de cliente.</div>
+
+      <PieForm costo={r.costo} desc={r.desc} onAdd={() => onAdd(r)} color={color} />
+    </>
+  );
+}
+
+/* ===================== FORM: IMPRESIÓN 3D ===================== */
+function FormImpresion3D({ onAdd, filamentos, costosPorHora, tarifaHr }) {
+  const primero = filamentos[0] || { id: 0, nombre: "", precio: 0 };
+  const [filId, setFilId] = useState(primero.id);
+  const [gramos, setGramos] = useState(50);
+  const [horas, setHoras] = useState(2);
+  const [cant, setCant] = useState(1);
+  const [postProceso, setPostProceso] = useState("ninguno");
+  const r = useMemo(() => {
+    const fil = filamentos.find((f) => f.id === filId) || primero;
+    const costoFilamento = (Number(gramos) / 1000) * fil.precio;
+    const costoMaquinaHr = costosPorHora.generalPorHora + costosPorHora.impresora3dPorHora;
+    const costoMaquina = Number(horas) * costoMaquinaHr;
+    const costoPost = (POST_PROCESO_3D[postProceso].min / 60) * tarifaHr;
+    const costoPorPieza = costoFilamento + costoMaquina + costoPost;
+    const cantNum = Number(cant) || 1;
+    return { costo: costoPorPieza * cantNum, cant: cantNum, desc: `${fil.nombre} · ${gramos}g · ${horas}h ×${cantNum}${postProceso !== "ninguno" ? " + acabado" : ""}` };
+  }, [filId, gramos, horas, cant, postProceso, filamentos, costosPorHora, tarifaHr]);
+  return (
+    <>
+      <label className="cz-lbl">Filamento</label>
+      <select className="cz-in" value={filId} onChange={(e) => setFilId(Number(e.target.value))}>{filamentos.map((f) => <option key={f.id} value={f.id}>{f.nombre} — {fmt(f.precio)}/kg</option>)}</select>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 10 }}>
+        <div><label className="cz-lbl">Gramos (pieza)</label><input className="cz-in" type="number" value={gramos} onChange={(e) => setGramos(e.target.value)} /></div>
+        <div><label className="cz-lbl">Horas de impresión</label><input className="cz-in" type="number" value={horas} onChange={(e) => setHoras(e.target.value)} /></div>
+        <div><label className="cz-lbl">Cantidad</label><input className="cz-in" type="number" value={cant} onChange={(e) => setCant(Number(e.target.value))} /></div>
+      </div>
+      <label className="cz-lbl" style={{ marginTop: 12 }}>Post-procesado</label>
+      <div style={{ display: "flex", gap: 8 }}>
+        {Object.entries(POST_PROCESO_3D).map(([k, v]) => (
+          <div key={k} className={"tierbox" + (postProceso === k ? " on" : "")} onClick={() => setPostProceso(k)} style={{ fontSize: 12 }}>{v.label}</div>
+        ))}
+      </div>
+      <div style={{ fontSize: 11, color: "#7B8290", marginTop: 8 }}>Incluye luz/renta/impresora prorrateados: {fmt(costosPorHora.generalPorHora + costosPorHora.impresora3dPorHora)}/hora de impresión.</div>
+      <PieForm costo={r.costo} desc={r.desc} onAdd={() => onAdd(r)} color={SERVICIOS.IMP3D.color} />
+    </>
+  );
+}
+
+/* ===================== FORM: STUDIO LAB (productos armados por nodos) ===================== */
+function FormLab({ onAdd, productosLab, tarifaHr }) {
+  const primero = productosLab[0] || null;
+  const [prodId, setProdId] = useState(primero ? primero.id : null);
+  const [colorIdx, setColorIdx] = useState(0);
+  const [cant, setCant] = useState(1);
+  const [minManoObra, setMinManoObra] = useState(0);
+  const cambiarProd = (id) => { setProdId(id); setColorIdx(0); };
+  const prodActual = productosLab.find((p) => p.id === prodId) || primero || { variantes: [] };
+  const variantes = prodActual.variantes || [];
+  const colorSel = variantes[colorIdx] || null;
+  const r = useMemo(() => {
+    const prod = productosLab.find((p) => p.id === prodId) || primero;
+    if (!prod) return { costo: 0, cant: 1, desc: "" };
+    const cantNum = Number(cant) || 1;
+    const costoManoObra = (Number(minManoObra) / 60) * tarifaHr;
+    const costoPorPieza = prod.costoNeto + costoManoObra;
+    const vSel = (prod.variantes || [])[colorIdx] || null;
+    const detalle = { porPieza: [{ label: `${prod.nombre} (costo neto Studio Lab)`, valor: prod.costoNeto }, ...(costoManoObra > 0 ? [{ label: `Mano de obra (${minManoObra} min)`, valor: costoManoObra }] : [])], unicos: [] };
+    return { costo: costoPorPieza * cantNum, cant: cantNum, desc: `${prod.nombre}${vSel ? " · " + vSel.nombre : ""} ×${cantNum}`, detalle };
+  }, [prodId, colorIdx, cant, minManoObra, productosLab, tarifaHr]);
+
+  if (productosLab.length === 0) {
+    return <div style={{ fontSize: 13, color: "#7B8290" }}>Aún no tienes productos guardados en 🧪 Studio Lab. Ve a esa pestaña y arma tu primer producto por componentes.</div>;
+  }
+  return (
+    <>
+      <label className="cz-lbl">Producto (Studio Lab)</label>
+      <select className="cz-in" value={prodId || ""} onChange={(e) => cambiarProd(e.target.value)}>
+        {productosLab.map((p) => <option key={p.id} value={p.id}>{p.nombre} — costo neto {fmt(p.costoNeto)}</option>)}
+      </select>
+      <SwatchPicker colores={variantes} idx={colorIdx} onSelect={setColorIdx} />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
+        <div><label className="cz-lbl">Cantidad</label><input className="cz-in" type="number" value={cant} onChange={(e) => setCant(e.target.value)} /></div>
+        <div><label className="cz-lbl">Mano de obra (min/pza)</label><input className="cz-in" type="number" value={minManoObra} onChange={(e) => setMinManoObra(e.target.value)} /></div>
+      </div>
+      <div style={{ fontSize: 11, color: "#7B8290", marginTop: 8 }}>Tarifa de mano de obra: {fmt(tarifaHr)}/hora (editable en Insumos → Mano de obra).</div>
+      <PieForm costo={r.costo} desc={r.desc} onAdd={() => onAdd(r)} color={SERVICIOS.LAB.color} />
+    </>
+  );
+}
+
+/* ===================== VISTA COTIZAR ===================== */
+function VistaCotizar({ mults, modoMargen, clientes, onGuardarHistorial, insumos }) {
+  const [svc, setSvc] = useState("DTF");
+  const [tier, setTier] = useState(Object.keys(mults)[0] || "Cliente final");
+  const [refPedido, setRefPedido] = useState("");
+  const [clienteSel, setClienteSel] = useState("");
+  const [nombrePartida, setNombrePartida] = useState("");
+  const [partidas, setPartidas] = useState([]);
+  const [guardadoOk, setGuardadoOk] = useState(false);
+  const [vistaTicket, setVistaTicket] = useState("cliente");
+  const [envio, setEnvio] = useState(0);
+
+  const add = (p) => { setPartidas((prev) => [...prev, { ...p, id: nid(), servicio: svc, nombre: nombrePartida.trim() }]); setNombrePartida(""); };
+  const editarPrecio = (id, valor) => setPartidas((prev) => prev.map((p) => (p.id === id ? { ...p, precioManual: valor } : p)));
+  const editarCosto = (id, valor) => setPartidas((prev) => prev.map((p) => (p.id === id ? { ...p, costoManual: valor } : p)));
+  const forms = {
+    DTF: <FormDTF onAdd={add} materialesDTF={insumos.materiales.dtf} materialesEmpaque={insumos.materiales.empaque} configProduccion={insumos.configProduccion} tarifaHr={insumos.manoObra.tarifaHr} />,
+    DTFSUELTO: <FormDTFSuelto onAdd={add} configProduccion={insumos.configProduccion} />,
+    UV: <FormUV onAdd={add} materialesUV={insumos.materiales.uv} configProduccion={insumos.configProduccion} />,
+    SUBLI: <FormSubli onAdd={add} materialesSublimado={insumos.materiales.sublimado} configProduccion={insumos.configProduccion} />,
+    LASER: <FormLaser onAdd={add} materialesLaser={insumos.materiales.laser} costosPorHora={insumos.costosPorHora} tarifaHr={insumos.manoObra.tarifaHr} />,
+    TRESD: <FormCortadores onAdd={add} cortadores={insumos.preciosFijos.cortadores} />,
+    PINES: <FormPines onAdd={add} pines={insumos.preciosFijos.pines} />,
+    TOTE: <FormTotebags onAdd={add} totebags={insumos.preciosFijos.totebags} />,
+    IMP3D: <FormImpresion3D onAdd={add} filamentos={insumos.materiales.filamento3d} costosPorHora={insumos.costosPorHora} tarifaHr={insumos.manoObra.tarifaHr} />,
+    LAB: <FormLab onAdd={add} productosLab={insumos.productosLab} tarifaHr={insumos.manoObra.tarifaHr} />,
+    GORRAS: <FormCatalogoOtro onAdd={add} items={insumos.catalogoOtros.gorras} color={SERVICIOS.GORRAS.color} />,
+    TERMOS: <FormCatalogoOtro onAdd={add} items={insumos.catalogoOtros.termos} color={SERVICIOS.TERMOS.color} />,
+  };
+
+  const total = partidas.reduce((s, p) => s + valorPartida(p, tier, mults, modoMargen), 0) + Number(envio || 0);
+
+  const seleccionarCliente = (id) => {
+    setClienteSel(id);
+    const c = clientes.find((c) => String(c.id) === id);
+    if (c) {
+      setRefPedido(c.nombre);
+      if (mults[c.tipoCliente] !== undefined) setTier(c.tipoCliente);
+    }
+  };
+
+  const handleWhatsApp = () => {
+    const texto = generarTextoTicket(partidas, tier, mults, modoMargen, refPedido, envio);
+    window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, "_blank");
+  };
+
+  const handleGuardar = () => {
+    const texto = generarTextoTicket(partidas, tier, mults, modoMargen, refPedido, envio);
+    onGuardarHistorial({ id: nid(), fecha: new Date().toLocaleString("es-MX"), refPedido, tier, total, envio, texto, partidas });
+    setGuardadoOk(true);
+    setTimeout(() => setGuardadoOk(false), 2000);
+  };
+
+  const handleImprimir = () => {
+    const texto = generarTextoTicket(partidas, tier, mults, modoMargen, refPedido, envio).replace(/\*/g, "");
+    const w = window.open("", "_blank", "width=380,height=640");
+    if (w) {
+      w.document.write(`<pre style="font-family:'IBM Plex Mono',monospace;font-size:12px;white-space:pre-wrap;width:58mm;padding:8px;margin:0;">${texto}</pre>`);
+      w.document.close();
+      w.focus();
+      w.print();
+    }
+  };
+
+  const handleImprimirInterno = () => {
+    const texto = generarTextoTicketInterno(partidas, tier, mults, modoMargen, refPedido, envio);
+    const w = window.open("", "_blank", "width=520,height=720");
+    if (w) {
+      w.document.write(`<pre style="font-family:'IBM Plex Mono',monospace;font-size:12px;white-space:pre-wrap;max-width:480px;padding:16px;margin:0;">${texto}</pre>`);
+      w.document.close();
+      w.focus();
+      w.print();
+    }
+  };
+
+  return (
+    <div className="cz-grid" style={{ display: "grid", gridTemplateColumns: "1.1fr .9fr", gap: 16, alignItems: "start" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {clientes.length > 0 && (
+          <div className="cz-card">
+            <label className="cz-lbl">Cliente (opcional)</label>
+            <select className="cz-in" value={clienteSel} onChange={(e) => seleccionarCliente(e.target.value)}>
+              <option value="">Sin cliente</option>
+              {clientes.map((c) => <option key={c.id} value={c.id}>{EMOJI_TIER[c.tipoCliente] || ""} {c.nombre}</option>)}
+            </select>
+          </div>
+        )}
+        <div className="cz-card">
+          <label className="cz-lbl">Cliente / referencia del pedido (sale en el ticket de envío)</label>
+          <input className="cz-in" placeholder="Ej. Caro — Evento XV Sofía" value={refPedido} onChange={(e) => setRefPedido(e.target.value)} />
+        </div>
+        <div className="cz-card">
+          <label className="cz-lbl">Agregar partida — servicio</label>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {Object.entries(SERVICIOS).map(([k, s]) => (
+              <button key={k} className={"svc" + (svc === k ? " on" : "")} style={svc === k ? { background: s.color } : {}} onClick={() => setSvc(k)}><span style={{ fontSize: 18 }}>{s.icono}</span>{s.nombre}</button>
+            ))}
+          </div>
+          <label className="cz-lbl" style={{ marginTop: 12 }}>Nombre/etiqueta de esta partida (opcional)</label>
+          <input className="cz-in" placeholder="Ej. Playera de Juan" value={nombrePartida} onChange={(e) => setNombrePartida(e.target.value)} />
+        </div>
+        <div className="cz-card" key={svc}>{forms[svc]}</div>
+        <div className="cz-card">
+          <label className="cz-lbl">Tipo de cliente (aplica a toda la cotización)</label>
+          <div style={{ display: "flex", gap: 8 }}>
+            {Object.keys(mults).map((t) => (
+              <div key={t} className={"tierbox" + (tier === t ? " on" : "")} onClick={() => setTier(t)}>
+                <div className="cz-d" style={{ fontSize: 13, fontWeight: 700 }}>{t}</div><div className="cz-m" style={{ fontSize: 11, color: "#7B8290" }}>{Math.round(mults[t] * 100)}%</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="cz-card">
+          <label className="cz-lbl">🚚 Envío (opcional — costo real, sin margen)</label>
+          <input className="cz-in" type="number" value={envio} onChange={(e) => setEnvio(Number(e.target.value) || 0)} placeholder="0" />
+          <div style={{ fontSize: 11, color: "#7B8290", marginTop: 4 }}>Se suma tal cual al total (no se le aplica % de ganancia) y sí se incluye en el anticipo del 50%.</div>
+        </div>
+      </div>
+      <div style={{ position: "sticky", top: 12 }}>
+        <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+          <button className="cz-btn" style={{ flex: 1, ...(vistaTicket === "cliente" ? { background: "#14161D" } : { background: "#fff", color: "#14161D", border: "1.5px solid #D8DBE0" }) }} onClick={() => setVistaTicket("cliente")}>🎫 Cliente</button>
+          <button className="cz-btn" style={{ flex: 1, ...(vistaTicket === "interno" ? { background: "#14161D" } : { background: "#fff", color: "#14161D", border: "1.5px solid #D8DBE0" }) }} onClick={() => setVistaTicket("interno")}>🔧 Interno</button>
+        </div>
+        {vistaTicket === "cliente"
+          ? <TicketCarrito partidas={partidas} tier={tier} mults={mults} modoMargen={modoMargen} refPedido={refPedido} envio={envio} onRemove={(id) => setPartidas(partidas.filter((p) => p.id !== id))} onEditPrice={editarPrecio} />
+          : <TicketInterno partidas={partidas} tier={tier} mults={mults} modoMargen={modoMargen} refPedido={refPedido} envio={envio} onRemove={(id) => setPartidas(partidas.filter((p) => p.id !== id))} onEditCost={editarCosto} />}
+        {partidas.length > 0 && vistaTicket === "cliente" && (<>
+          <button className="cz-btn" style={{ width: "100%", marginTop: 10, background: "#25D366" }} onClick={handleWhatsApp}>📲 Enviar por WhatsApp</button>
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <button className="cz-btn" style={{ flex: 1 }} onClick={handleImprimir}>🖨 Ticket 58mm</button>
+            <button className="cz-btn org" style={{ flex: 1 }} onClick={handleGuardar}>{guardadoOk ? "✅ Guardado" : "💾 Guardar"}</button>
+          </div>
+        </>)}
+        {partidas.length > 0 && vistaTicket === "interno" && (<>
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <button className="cz-btn" style={{ flex: 1 }} onClick={handleImprimirInterno}>🖨 Imprimir interno</button>
+            <button className="cz-btn org" style={{ flex: 1 }} onClick={handleGuardar}>{guardadoOk ? "✅ Guardado" : "💾 Guardar"}</button>
+          </div>
+        </>)}
+      </div>
+    </div>
+  );
+}
+
+function ValorEditable({ valor, onEdit, onReset, manual, titulo }) {
+  const [editando, setEditando] = useState(false);
+  const [val, setVal] = useState(valor);
+  useEffect(() => { if (!editando) setVal(valor); }, [valor, editando]);
+  const guardar = () => {
+    const n = Number(val);
+    if (!isNaN(n) && n >= 0) onEdit(n);
+    setEditando(false);
+  };
+  if (editando) {
+    return (
+      <input className="cz-in" style={{ width: 76, padding: "3px 6px", fontSize: 12 }} type="number" value={val} autoFocus
+        onChange={(e) => setVal(e.target.value)}
+        onFocus={(e) => e.target.select()}
+        onBlur={guardar}
+        onKeyDown={(e) => { if (e.key === "Enter") guardar(); if (e.key === "Escape") setEditando(false); }} />
+    );
+  }
+  return (
+    <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
+      <span onClick={() => setEditando(true)} title={titulo || "Click para editar"} style={{ cursor: "pointer", borderBottom: "1px dashed #C7CBD2" }}>{fmt(valor)}</span>
+      {manual && <button onClick={onReset} title="Restaurar valor calculado" style={{ border: "none", background: "none", color: "#7B8290", cursor: "pointer", fontSize: 12, padding: 0 }}>↺</button>}
+    </span>
+  );
+}
+
+function TicketCarrito({ partidas, tier, mults, modoMargen, refPedido, envio = 0, onRemove, onEditPrice }) {
+  const pv = (p) => valorPartida(p, tier, mults, modoMargen);
+  const total = partidas.reduce((s, p) => s + pv(p), 0) + Number(envio || 0);
+  const totalCon = (t) => partidas.reduce((s, p) => s + valorPartida(p, t, mults, modoMargen), 0) + Number(envio || 0);
+  if (partidas.length === 0) return <div className="ticket"><div style={{ textAlign: "center", color: "#9AA0AE", padding: "30px 10px", fontSize: 13 }}>Agrega partidas y se irán sumando aquí.<br /><br />Ej: vaso + DTF UV full, un listón de 10m, y unas playeras — todo en una cotización.</div></div>;
+  return (
+    <div className="ticket">
+      <div style={{ textAlign: "center", fontWeight: 600, fontSize: 14 }}>EL MERCHENARIO</div>
+      {refPedido && <div className="refbox">{refPedido}</div>}
+      <div style={{ textAlign: "center", fontSize: 10.5, color: "#7B8290" }}>COTIZACIÓN · {new Date().toLocaleDateString("es-MX")}</div>
+      <hr className="sep" />
+      {partidas.map((p) => (
+        <div key={p.id} style={{ marginBottom: 5 }}>
+          <div className="trow">
+            <span style={{ display: "flex", gap: 5, alignItems: "center" }}><span>{SERVICIOS[p.servicio].icono}</span><span style={{ maxWidth: 165, fontWeight: p.nombre ? 600 : 400 }}>{p.nombre || p.desc}</span></span>
+            <span style={{ whiteSpace: "nowrap", display: "flex", gap: 6, alignItems: "center" }}>
+              <ValorEditable valor={pv(p)} manual={p.precioManual != null} titulo="Click para editar precio" onEdit={(n) => onEditPrice(p.id, n)} onReset={() => onEditPrice(p.id, null)} />
+              <button onClick={() => onRemove(p.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer" }}>×</button>
+            </span>
+          </div>
+          {p.nombre && <div style={{ fontSize: 10.5, color: "#9AA0AE", paddingLeft: 20 }}>{p.desc}</div>}
+          {p.precioManual != null && <div style={{ fontSize: 9.5, color: "#F4561D", paddingLeft: 20 }}>precio ajustado manualmente</div>}
+        </div>
+      ))}
+      {Number(envio) > 0 && (
+        <div className="trow"><span>🚚 Envío</span><span>{fmt(Number(envio))}</span></div>
+      )}
+      <hr className="sep" />
+      <div className="trow" style={{ fontWeight: 600, fontSize: 15, background: "#FFF4EE", margin: "0 -6px", padding: "5px 6px", borderRadius: 4 }}><span>TOTAL ({tier})</span><span>{fmt(total)}</span></div>
+      <div style={{ marginTop: 6 }}>{Object.keys(mults).filter((t) => t !== tier).map((t) => (<div className="trow" key={t} style={{ color: "#9AA0AE", fontSize: 11 }}><span>{t}</span><span>{fmt(totalCon(t))}</span></div>))}</div>
+      <hr className="sep" />
+      <div className="trow" style={{ fontWeight: 600, color: "#F4561D" }}><span>ANTICIPO 50%</span><span>{fmt(total * 0.5)}</span></div>
+      <div style={{ textAlign: "center", fontSize: 9.5, color: "#7B8290", marginTop: 8 }}>Para iniciar producción se requiere el 50% de anticipo.</div>
+      <div style={{ textAlign: "center", fontSize: 9, color: "#C7CBD2", marginTop: 10 }}>[ aquí irían tus redes + QR a Linktree ]</div>
+    </div>
+  );
+}
+
+function TicketInterno({ partidas, tier, mults, modoMargen, refPedido, envio = 0, onRemove, onEditCost }) {
+  const pv = (p) => valorPartida(p, tier, mults, modoMargen);
+  const ce = (p) => costoEfectivo(p);
+  const totalCosto = partidas.reduce((s, p) => s + ce(p), 0) + Number(envio || 0);
+  const totalPrecio = partidas.reduce((s, p) => s + pv(p), 0) + Number(envio || 0);
+  const totalMargen = totalPrecio - totalCosto;
+  const totalPiezas = partidas.reduce((s, p) => s + (Number(p.cant) || 0), 0);
+  if (partidas.length === 0) return <div className="ticket"><div style={{ textAlign: "center", color: "#9AA0AE", padding: "30px 10px", fontSize: 13 }}>Agrega partidas y verás aquí el desglose de costo, precio y margen de cada una.</div></div>;
+  return (
+    <div className="ticket">
+      <div style={{ textAlign: "center", fontWeight: 600, fontSize: 14 }}>TICKET INTERNO</div>
+      {refPedido && <div className="refbox">{refPedido}</div>}
+      <div style={{ textAlign: "center", fontSize: 10.5, color: "#7B8290" }}>USO INTERNO · NO MOSTRAR AL CLIENTE · {new Date().toLocaleDateString("es-MX")}</div>
+      <hr className="sep" />
+      {partidas.map((p) => {
+        const costo = ce(p);
+        const precio = pv(p);
+        const margen = precio - costo;
+        const margenPct = costo > 0 ? (margen / costo) * 100 : 0;
+        return (
+          <div key={p.id} style={{ marginBottom: 8 }}>
+            <div className="trow">
+              <span style={{ display: "flex", gap: 5, alignItems: "center" }}><span>{SERVICIOS[p.servicio].icono}</span><span style={{ maxWidth: 165, fontWeight: p.nombre ? 600 : 400 }}>{p.nombre || p.desc}</span></span>
+              <button onClick={() => onRemove(p.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer" }}>×</button>
+            </div>
+            <div style={{ fontSize: 10.5, color: "#9AA0AE", paddingLeft: 20 }}>{p.desc} · {p.cant} pz</div>
+            {p.detalle && (
+              <div style={{ paddingLeft: 20, marginTop: 3, fontSize: 11, color: "#555B68" }}>
+                {p.detalle.porPieza.map((d, i) => (
+                  <div key={i} className="trow" style={{ padding: 0 }}><span>{d.label} (x{p.cant})</span><span>{fmt(d.valor)}/pz</span></div>
+                ))}
+                {p.detalle.unicos.map((d, i) => (
+                  <div key={i} className="trow" style={{ padding: 0 }}><span>{d.label} (único)</span><span>{fmt(d.valor)}</span></div>
+                ))}
+              </div>
+            )}
+            <div className="trow" style={{ paddingLeft: 20, marginTop: 3 }}>
+              <span>Costo total</span>
+              <ValorEditable valor={costo} manual={p.costoManual != null} titulo="Click para editar el costo total" onEdit={(n) => onEditCost(p.id, n)} onReset={() => onEditCost(p.id, null)} />
+            </div>
+            {p.costoManual != null && <div style={{ fontSize: 9.5, color: "#F4561D", paddingLeft: 20 }}>costo ajustado manualmente</div>}
+            <div className="trow" style={{ paddingLeft: 20 }}><span>Precio venta ({tier})</span><span>{fmt(precio)}</span></div>
+            <div className="trow" style={{ paddingLeft: 20, color: "#2EA84F", fontWeight: 600 }}><span>Margen</span><span>{fmt(margen)} ({margenPct.toFixed(0)}%)</span></div>
+            <div className="trow" style={{ paddingLeft: 20, color: "#2EA84F" }}><span>Ganancia promedio</span><span>{fmt(p.cant > 0 ? margen / p.cant : 0)}/pz</span></div>
+          </div>
+        );
+      })}
+      {Number(envio) > 0 && (
+        <div className="trow"><span>🚚 Envío (costo real, sin margen)</span><span>{fmt(Number(envio))}</span></div>
+      )}
+      <hr className="sep" />
+      <div className="trow" style={{ fontWeight: 600 }}><span>TOTAL COSTO</span><span>{fmt(totalCosto)}</span></div>
+      <div className="trow" style={{ fontWeight: 600 }}><span>TOTAL PRECIO ({tier})</span><span>{fmt(totalPrecio)}</span></div>
+      <div className="trow" style={{ fontWeight: 600, fontSize: 15, background: "#EAFBEF", margin: "0 -6px", padding: "5px 6px", borderRadius: 4, color: "#1D7A3C" }}><span>MARGEN TOTAL</span><span>{fmt(totalMargen)} ({totalCosto > 0 ? ((totalMargen / totalCosto) * 100).toFixed(0) : 0}%)</span></div>
+      <div className="trow" style={{ fontWeight: 600, color: "#1D7A3C" }}><span>GANANCIA PROMEDIO / PIEZA</span><span>{fmt(totalPiezas > 0 ? totalMargen / totalPiezas : 0)}</span></div>
+      <div style={{ textAlign: "center", fontSize: 9.5, color: "#7B8290", marginTop: 8 }}>Este ticket es solo para uso interno/producción. Usa el ticket "Cliente" para enviar o imprimir hacia el cliente.</div>
+    </div>
+  );
+}
+
+/* ===================== VISTA COTIZACIÓN INVERSA ===================== */
+function VistaInversa({ mults, modoMargen }) {
+  const [precioRef, setPrecioRef] = useState("");
+  const [modoPrecio, setModoPrecio] = useState("total");
+  const [cantidadRef, setCantidadRef] = useState(1);
+  const [notaRef, setNotaRef] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  const r = useMemo(() => {
+    const precioNum = Number(precioRef) || 0;
+    const cantNum = Number(cantidadRef) || 1;
+    const precioPorPieza = modoPrecio === "pieza" ? precioNum : precioNum / cantNum;
+    const filas = Object.keys(mults).map((t) => {
+      const pct = mults[t];
+      const costoMax = modoMargen === "venta" ? precioPorPieza * (1 - pct) : precioPorPieza / (1 + pct);
+      const ganancia = precioPorPieza - costoMax;
+      return { tier: t, costoMax, ganancia, pct };
+    });
+    return { precioPorPieza, filas, cantNum };
+  }, [precioRef, modoPrecio, cantidadRef, mults, modoMargen]);
+
+  const textoResumen = () => {
+    let t = `🔄 *COTIZACIÓN INVERSA*\n`;
+    if (notaRef) t += `📎 Referencia: ${notaRef}\n`;
+    t += `💵 Precio visto: ${fmt(r.precioPorPieza)} por pieza`;
+    t += modoPrecio === "total" ? ` (total ${fmt(Number(precioRef) || 0)} ÷ ${r.cantNum} pz)\n` : ` (precio directo por pieza)\n`;
+    t += `— — — — — — — — —\n`;
+    r.filas.forEach((f) => {
+      t += `${EMOJI_TIER[f.tier] || ""} ${f.tier}: costo máx ${fmt(f.costoMax)}/pz (ganancia ${fmt(f.ganancia)}/pz)\n`;
+    });
+    t += `— — — — — — — — —\n`;
+    t += `_Si tu costo real por pieza es menor a estos montos, puedes igualar o mejorar este precio con ganancia._`;
+    return t;
+  };
+
+  const copiar = () => {
+    navigator.clipboard.writeText(textoResumen());
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div style={{ maxWidth: 620, display: "flex", flexDirection: "column", gap: 14 }}>
+      <div className="cz-card">
+        <span className="cz-d" style={{ fontSize: 18, fontWeight: 700, textTransform: "uppercase" }}>Cotización inversa</span>
+        <div style={{ fontSize: 12, color: "#7B8290", marginTop: 6 }}>Encontraste una publicación parecida a lo que vas a cotizar y quieres saber cuánto te podría costar cada pieza para igualar ese precio y aún ganar.</div>
+      </div>
+      <div className="cz-card">
+        <label className="cz-lbl">¿Qué es lo que viste? (opcional, solo referencia)</label>
+        <input className="cz-in" placeholder="Ej. Cortador de galleta 8cm en Facebook Marketplace" value={notaRef} onChange={(e) => setNotaRef(e.target.value)} />
+      </div>
+      <div className="cz-card">
+        <label className="cz-lbl">¿El precio que viste es total o por pieza?</label>
+        <div style={{ display: "flex", gap: 8 }}>
+          <div className={"tierbox" + (modoPrecio === "total" ? " on" : "")} onClick={() => setModoPrecio("total")}>Precio total del pedido</div>
+          <div className={"tierbox" + (modoPrecio === "pieza" ? " on" : "")} onClick={() => setModoPrecio("pieza")}>Precio por pieza</div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: modoPrecio === "total" ? "1fr 1fr" : "1fr", gap: 8, marginTop: 10 }}>
+          <div>
+            <label className="cz-lbl">{modoPrecio === "total" ? "Precio total visto" : "Precio por pieza visto"}</label>
+            <input className="cz-in" type="number" value={precioRef} onChange={(e) => setPrecioRef(e.target.value)} placeholder="$0.00" />
+          </div>
+          {modoPrecio === "total" && (
+            <div>
+              <label className="cz-lbl">Cantidad de piezas</label>
+              <input className="cz-in" type="number" value={cantidadRef} onChange={(e) => setCantidadRef(e.target.value)} />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {precioRef && (
+        <div className="ticket">
+          <div style={{ textAlign: "center", fontWeight: 600, fontSize: 14 }}>COTIZACIÓN INVERSA</div>
+          <div style={{ textAlign: "center", fontSize: 10.5, color: "#7B8290" }}>Precio por pieza de referencia: {fmt(r.precioPorPieza)}</div>
+          <hr className="sep" />
+          {r.filas.map((f) => (
+            <div key={f.tier} className="trow" style={{ marginBottom: 4 }}>
+              <span>{EMOJI_TIER[f.tier]} {f.tier} ({Math.round(f.pct * 100)}%)</span>
+              <span className="cz-m">{fmt(f.costoMax)}/pz</span>
+            </div>
+          ))}
+          <hr className="sep" />
+          <div style={{ fontSize: 11, color: "#7B8290" }}>Ese es el costo máximo por pieza (material + tiempo + diseño) que puedes tener para igualar ese precio y quedarte con el margen de cada tier.</div>
+        </div>
+      )}
+
+      {precioRef && (
+        <button className="cz-btn org" onClick={copiar}>{copied ? "✅ Copiado" : "📋 Copiar resumen"}</button>
+      )}
+    </div>
+  );
+}
+
+/* ===================== VISTA CLIENTES ===================== */
+function VistaClientes({ clientes, onAgregar, onEliminar }) {
+  const [nombre, setNombre] = useState("");
+  const [telefono, setTelefono] = useState("");
+  const [email, setEmail] = useState("");
+  const [notas, setNotas] = useState("");
+  const [tipoCliente, setTipoCliente] = useState("Cliente final");
+
+  const agregar = () => {
+    if (!nombre || !telefono) { alert("Nombre y teléfono son obligatorios"); return; }
+    onAgregar({ id: nid(), nombre, telefono, email, notas, tipoCliente, fechaRegistro: new Date().toLocaleDateString("es-MX") });
+    setNombre(""); setTelefono(""); setEmail(""); setNotas("");
+  };
+
+  return (
+    <div style={{ maxWidth: 720, display: "flex", flexDirection: "column", gap: 14 }}>
+      <div className="cz-card">
+        <span className="cz-d" style={{ fontSize: 18, fontWeight: 700, textTransform: "uppercase" }}>Nuevo cliente</span>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
+          <input className="cz-in" placeholder="Nombre completo *" value={nombre} onChange={(e) => setNombre(e.target.value)} />
+          <input className="cz-in" placeholder="Teléfono *" value={telefono} onChange={(e) => setTelefono(e.target.value)} />
+          <input className="cz-in" placeholder="Email (opcional)" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <select className="cz-in" value={tipoCliente} onChange={(e) => setTipoCliente(e.target.value)}>
+            {Object.keys(TIERS).map((t) => <option key={t} value={t}>{EMOJI_TIER[t]} {t}</option>)}
+          </select>
+        </div>
+        <input className="cz-in" style={{ marginTop: 8 }} placeholder="Notas (opcional)" value={notas} onChange={(e) => setNotas(e.target.value)} />
+        <button className="cz-btn org" style={{ width: "100%", marginTop: 10 }} onClick={agregar}>+ Agregar cliente</button>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {clientes.length === 0 && <div className="cz-card" style={{ textAlign: "center", color: "#9AA0AE" }}>No hay clientes registrados aún.</div>}
+        {clientes.map((c) => (
+          <div className="cz-card" key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div>
+              <div style={{ fontWeight: 700 }}>{EMOJI_TIER[c.tipoCliente]} {c.nombre} <span style={{ fontWeight: 400, fontSize: 11, color: "#7B8290" }}>· {c.tipoCliente}</span></div>
+              <div style={{ fontSize: 12, color: "#7B8290", marginTop: 4 }}>📱 {c.telefono}{c.email ? ` · 📧 ${c.email}` : ""}</div>
+              {c.notas && <div style={{ fontSize: 12, color: "#7B8290" }}>📝 {c.notas}</div>}
+            </div>
+            <button onClick={() => onEliminar(c.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 18 }}>×</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ===================== VISTA STUDIO LAB (constructor de productos por nodos) ===================== */
+function VistaLab({ productosLab, onEliminar, onAgregarColor, onQuitarColor }) {
+  const [detalle, setDetalle] = useState(null);
+
+  return (
+    <div style={{ maxWidth: 1060, display: "flex", flexDirection: "column", gap: 14 }}>
+      <div className="cz-card" style={{ padding: 0, overflow: "hidden" }}>
+        <div style={{ padding: "14px 16px 0" }}>
+          <span className="cz-d" style={{ fontSize: 20, fontWeight: 700, textTransform: "uppercase" }}>🧪 Studio Lab — Constructor de productos</span>
+          <div style={{ fontSize: 12, color: "#7B8290", marginTop: 4, marginBottom: 10 }}>Conecta insumos (nodos) a un producto final para comparar qué te conviene comprar. Al guardar, el producto queda disponible abajo y en la pestaña Cotizar.</div>
+        </div>
+        <iframe src="studio-lab.html" title="Studio Lab" style={{ width: "100%", height: 900, border: "none", display: "block" }} />
+      </div>
+
+      <div className="cz-card">
+        <span className="cz-d" style={{ fontSize: 18, fontWeight: 700, textTransform: "uppercase" }}>Productos guardados ({productosLab.length})</span>
+        <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+          {productosLab.length === 0 && <div style={{ color: "#9AA0AE", fontSize: 13 }}>Aún no has guardado ningún producto. Arma uno arriba y dale "Guardar Producto Final".</div>}
+          {productosLab.map((p) => (
+            <div key={p.id}>
+              <div className="insumo-row" style={{ cursor: "pointer" }} onClick={() => setDetalle(detalle === p.id ? null : p.id)}>
+                <span style={{ flex: 2, fontWeight: 600 }}>{p.nombre}</span>
+                <span style={{ flex: 1, fontSize: 12, color: "#7B8290" }}>{p.nodos.length} componente{p.nodos.length === 1 ? "" : "s"}</span>
+                <span style={{ flex: 1, fontWeight: 600 }}>{fmt(p.costoNeto)}</span>
+                <span className="insumo-mod">Mod: {p.mod}</span>
+                <button onClick={(e) => { e.stopPropagation(); onEliminar(p.id); }} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 16 }}>×</button>
+              </div>
+              {detalle === p.id && (
+                <div style={{ border: "1.5px solid #EEF0F2", borderTop: "none", borderRadius: "0 0 8px 8px", padding: 10, fontSize: 12, color: "#7B8290" }}>
+                  {p.nodos.map((n) => (
+                    <div key={n.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "4px 0" }}>
+                      <span>{n.nombre}</span>
+                      {n.link ? <a href={n.link} target="_blank" rel="noreferrer" style={{ color: "#F4561D" }}>Ver link ↗</a> : <span>—</span>}
+                    </div>
+                  ))}
+                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px dashed #D8DBE0" }}>
+                    <div style={{ fontWeight: 600, color: "#5B6270", marginBottom: 2 }}>Variantes de color (opcional, mismo costo)</div>
+                    <ColorVariantes colores={p.variantes || []} onAgregar={(c) => onAgregarColor(p.id, c)} onQuitar={(cid) => onQuitarColor(p.id, cid)} />
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ===================== VISTA HISTORIAL ===================== */
+function VistaHistorial({ historial, onEliminar, onLimpiar }) {
+  const [abierto, setAbierto] = useState(null);
+  return (
+    <div style={{ maxWidth: 720, display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span className="cz-d" style={{ fontSize: 20, fontWeight: 700, textTransform: "uppercase" }}>Historial de cotizaciones</span>
+        {historial.length > 0 && <button onClick={onLimpiar} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>Limpiar todo</button>}
+      </div>
+      {historial.length === 0 && <div className="cz-card" style={{ textAlign: "center", color: "#9AA0AE" }}>Aún no has guardado ninguna cotización.</div>}
+      {historial.map((h) => (
+        <div className="cz-card" key={h.id}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+            <div>
+              <div style={{ fontWeight: 700 }}>{h.refPedido || "Sin referencia"} <span style={{ fontWeight: 400, fontSize: 11, color: "#7B8290" }}>· {h.tier}</span></div>
+              <div style={{ fontSize: 11, color: "#7B8290" }}>{h.fecha}</div>
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <span className="cz-m" style={{ fontWeight: 700 }}>{fmt(h.total)}</span>
+              <button className="cz-btn" style={{ padding: "6px 10px" }} onClick={() => setAbierto(abierto === h.id ? null : h.id)}>{abierto === h.id ? "Ocultar" : "Ver"}</button>
+              <button onClick={() => onEliminar(h.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 18 }}>×</button>
+            </div>
+          </div>
+          {abierto === h.id && <pre style={{ marginTop: 10, background: "#F6F7F9", padding: 10, borderRadius: 8, fontSize: 12, whiteSpace: "pre-wrap" }}>{h.texto}</pre>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ===================== FAVORITO + IMAGEN (reutilizable en Insumos) ===================== */
+function FavImg({ favorito, imagen, onToggleFav, onSubirImagen, onQuitarImagen, size }) {
+  const s = size || 28;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+      <button onClick={onToggleFav} title="Marcar/quitar favorito" style={{ border: "none", background: "none", cursor: "pointer", fontSize: 16, color: favorito ? "#F4B400" : "#D8DBE0", lineHeight: 1 }}>{favorito ? "★" : "☆"}</button>
+      <label style={{ cursor: "pointer" }} title="Subir imagen">
+        {imagen
+          ? <img src={imagen} style={{ width: s, height: s, objectFit: "cover", borderRadius: 5, border: "1px solid #D8DBE0", display: "block" }} />
+          : <span style={{ width: s, height: s, display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed #D8DBE0", borderRadius: 5, fontSize: 12, color: "#9AA0AE" }}>📷</span>}
+        <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => onSubirImagen(e.target.files[0])} />
+      </label>
+      {imagen && onQuitarImagen && <button onClick={onQuitarImagen} title="Quitar imagen" style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 12 }}>×</button>}
+    </div>
+  );
+}
+
+function CalcLote({ unidad, onAplicar }) {
+  const [open, setOpen] = useState(false);
+  const [piezas, setPiezas] = useState("");
+  const [total, setTotal] = useState("");
+  const resultado = Number(piezas) > 0 && Number(total) >= 0 ? Number(total) / Number(piezas) : null;
+  const cerrar = () => { setOpen(false); setPiezas(""); setTotal(""); };
+  if (!open) return <button onClick={() => setOpen(true)} title="Calcular costo unitario a partir de un lote comprado" style={{ border: "none", background: "none", color: "#F4561D", cursor: "pointer", fontSize: 11, whiteSpace: "nowrap", padding: 0 }}>🧮 Por lote</button>;
+  return (
+    <span style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap", background: "#FFF4EE", border: "1px dashed #F4A26155", borderRadius: 6, padding: "4px 6px" }}>
+      <input className="cz-in" style={{ width: 62, padding: "4px 6px", fontSize: 11 }} type="number" placeholder={"pz"} autoFocus value={piezas} onChange={(e) => setPiezas(e.target.value)} />
+      <span style={{ fontSize: 11, color: "#7B8290" }}>por $</span>
+      <input className="cz-in" style={{ width: 72, padding: "4px 6px", fontSize: 11 }} type="number" placeholder="total" value={total} onChange={(e) => setTotal(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && resultado != null) { onAplicar(resultado); cerrar(); } if (e.key === "Escape") cerrar(); }} />
+      {resultado != null && <span style={{ fontSize: 11, color: "#2EA84F", fontWeight: 600 }}>= {fmt(resultado)}/{unidad || "u"}</span>}
+      <button className="cz-btn org" style={{ padding: "4px 8px", fontSize: 11 }} disabled={resultado == null} onClick={() => { onAplicar(resultado); cerrar(); }}>Aplicar</button>
+      <button onClick={cerrar} style={{ border: "none", background: "none", color: "#7B8290", cursor: "pointer", fontSize: 11 }}>Cancelar</button>
+    </span>
+  );
+}
+
+function ColorVariantes({ colores, onAgregar, onQuitar }) {
+  const [open, setOpen] = useState(false);
+  const [nombre, setNombre] = useState("");
+  const [hex, setHex] = useState("#F4561D");
+  const [imagen, setImagen] = useState("");
+
+  const subirImagen = (file) => {
+    if (!file) return;
+    redimensionarImagen(file, 80, (dataUrl) => setImagen(dataUrl));
+  };
+
+  const cerrar = () => { setOpen(false); setNombre(""); setHex("#F4561D"); setImagen(""); };
+
+  const agregar = () => {
+    if (!nombre.trim()) { alert('Ponle un nombre al color (ej. "Azul marino")'); return; }
+    onAgregar({ id: nid(), nombre: nombre.trim(), hex, imagen });
+    cerrar();
+  };
+
+  return (
+    <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}>
+      {colores.map((c) => (
+        <span key={c.id} title={c.nombre} style={{ display: "inline-flex", alignItems: "center", gap: 3, background: "#F5F6F8", borderRadius: 20, padding: "2px 6px 2px 2px" }}>
+          {c.imagen
+            ? <img src={c.imagen} style={{ width: 16, height: 16, borderRadius: "50%", objectFit: "cover" }} />
+            : <span style={{ width: 16, height: 16, borderRadius: "50%", background: c.hex || "#ccc", display: "inline-block", border: "1px solid #D8DBE0" }} />}
+          <span style={{ fontSize: 10, color: "#5B6270" }}>{c.nombre}</span>
+          <button onClick={() => onQuitar(c.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 12, lineHeight: 1, padding: 0 }}>×</button>
+        </span>
+      ))}
+      {!open && <button onClick={() => setOpen(true)} style={{ border: "1px dashed #D8DBE0", background: "none", borderRadius: 20, padding: "2px 8px", fontSize: 10, color: "#7B8290", cursor: "pointer" }}>+ color</button>}
+      {open && (
+        <span style={{ display: "flex", gap: 4, alignItems: "center", background: "#FFF4EE", border: "1px dashed #F4A26155", borderRadius: 6, padding: "4px 6px" }}>
+          <input className="cz-in" style={{ width: 92, padding: "3px 6px", fontSize: 11 }} placeholder="Ej. Azul marino" value={nombre} onChange={(e) => setNombre(e.target.value)} autoFocus />
+          <input type="color" value={hex} onChange={(e) => setHex(e.target.value)} title="Color aproximado" style={{ width: 24, height: 24, border: "none", padding: 0, cursor: "pointer", background: "none" }} />
+          <label style={{ cursor: "pointer", fontSize: 14 }} title="Foto (opcional)">
+            {imagen ? <img src={imagen} style={{ width: 20, height: 20, borderRadius: "50%", objectFit: "cover" }} /> : "📷"}
+            <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => subirImagen(e.target.files[0])} />
+          </label>
+          <button className="cz-btn org" style={{ padding: "3px 8px", fontSize: 11 }} onClick={agregar}>Agregar</button>
+          <button onClick={cerrar} style={{ border: "none", background: "none", color: "#7B8290", cursor: "pointer", fontSize: 11 }}>Cancelar</button>
+        </span>
+      )}
+    </div>
+  );
+}
+
+/* ===================== VISTA INSUMOS ===================== */
+function VistaInsumos({ materiales, setMateriales, preciosFijos, setPreciosFijos, configProduccion, setConfigProduccion, costosOperativos, setCostosOperativos, costoMaquinas, setCostoMaquinas, manoObra, setManoObra, costosPorHora, catalogoOtros, setCatalogoOtros }) {
+  const [categoriaActiva, setCategoriaActiva] = useState("laser");
+  const [importText, setImportText] = useState("");
+  const [importMsg, setImportMsg] = useState("");
+  const [busqueda, setBusqueda] = useState("");
+  const CATEGORIAS = [
+    ["laser", "🔥 Láser"], ["dtf", "👕 DTF"], ["sublimado", "☕ Sublimado"], ["uv", "✨ DTF UV"], ["filamento3d", "🧵 Filamento 3D"], ["empaque", "📦 Empaque"],
+  ];
+
+  const actualizarMaterial = (cat, id, campo, valor) => {
+    setMateriales((prev) => ({ ...prev, [cat]: prev[cat].map((m) => (m.id === id ? { ...m, [campo]: campo === "nombre" ? valor : Number(valor), mod: hoy() } : m)) }));
+  };
+  const eliminarMaterial = (cat, id) => {
+    setMateriales((prev) => ({ ...prev, [cat]: prev[cat].filter((m) => m.id !== id) }));
+  };
+  const agregarMaterial = (cat) => {
+    const nombre = prompt("Nombre del nuevo insumo:");
+    if (!nombre) return;
+    const extra = cat === "uv" || cat === "sublimado" ? { w: 10, h: 10 } : {};
+    setMateriales((prev) => ({ ...prev, [cat]: [...prev[cat], { id: nid(), nombre, precio: 0, unidad: "pieza", ...extra, mod: hoy() }] }));
+  };
+  const actualizarTierColor = (id, colorIdx, campo, valor) => {
+    setMateriales((prev) => ({ ...prev, dtf: prev.dtf.map((m) => (m.id === id ? { ...m, colores: m.colores.map((c, i) => (i === colorIdx ? { ...c, [campo]: campo === "nombre" ? valor : Number(valor) } : c)), mod: hoy() } : m)) }));
+  };
+  const importarCatalogo = () => {
+    try {
+      const arr = JSON.parse(importText);
+      if (!Array.isArray(arr)) throw new Error("debe ser un arreglo JSON");
+      setMateriales((prev) => {
+        const existentes = prev.dtf.filter((m) => !arr.some((n) => n.id === m.id));
+        const nuevos = arr.map((n) => ({ ...n, mod: hoy() }));
+        return { ...prev, dtf: [...existentes, ...nuevos] };
+      });
+      setImportMsg(`✅ Importados/actualizados ${arr.length} artículo(s).`);
+      setImportText("");
+    } catch (e) {
+      setImportMsg("❌ JSON inválido: " + e.message);
+    }
+  };
+  const exportarCatalogo = () => {
+    navigator.clipboard.writeText(JSON.stringify(materiales.dtf, null, 2));
+    setImportMsg("📋 Catálogo copiado al portapapeles.");
+  };
+  const actualizarOtro = (sub, id, valor) => {
+    setCatalogoOtros((prev) => ({ ...prev, [sub]: prev[sub].map((o) => (o.id === id ? { ...o, precio: Number(valor), mod: hoy() } : o)) }));
+  };
+  const toggleFavorito = (cat, id) => {
+    setMateriales((prev) => ({ ...prev, [cat]: prev[cat].map((m) => (m.id === id ? { ...m, favorito: !m.favorito, mod: hoy() } : m)) }));
+  };
+  const subirImagen = (cat, id, file) => {
+    if (!file) return;
+    redimensionarImagen(file, 240, (dataUrl) => {
+      setMateriales((prev) => ({ ...prev, [cat]: prev[cat].map((m) => (m.id === id ? { ...m, imagen: dataUrl, mod: hoy() } : m)) }));
+    });
+  };
+  const quitarImagen = (cat, id) => {
+    setMateriales((prev) => ({ ...prev, [cat]: prev[cat].map((m) => (m.id === id ? { ...m, imagen: "" } : m)) }));
+  };
+  const agregarColorMaterial = (cat, id, color) => {
+    setMateriales((prev) => ({ ...prev, [cat]: prev[cat].map((m) => (m.id === id ? { ...m, variantes: [...(m.variantes || []), color], mod: hoy() } : m)) }));
+  };
+  const quitarColorMaterial = (cat, id, colorId) => {
+    setMateriales((prev) => ({ ...prev, [cat]: prev[cat].map((m) => (m.id === id ? { ...m, variantes: (m.variantes || []).filter((c) => c.id !== colorId), mod: hoy() } : m)) }));
+  };
+  const toggleFavoritoOtro = (sub, id) => {
+    setCatalogoOtros((prev) => ({ ...prev, [sub]: prev[sub].map((o) => (o.id === id ? { ...o, favorito: !o.favorito, mod: hoy() } : o)) }));
+  };
+  const subirImagenOtro = (sub, id, file) => {
+    if (!file) return;
+    redimensionarImagen(file, 160, (dataUrl) => {
+      setCatalogoOtros((prev) => ({ ...prev, [sub]: prev[sub].map((o) => (o.id === id ? { ...o, imagen: dataUrl, mod: hoy() } : o)) }));
+    });
+  };
+  const agregarColorOtro = (sub, id, color) => {
+    setCatalogoOtros((prev) => ({ ...prev, [sub]: prev[sub].map((o) => (o.id === id ? { ...o, colores: [...(o.colores || []), color], mod: hoy() } : o)) }));
+  };
+  const quitarColorOtro = (sub, id, colorId) => {
+    setCatalogoOtros((prev) => ({ ...prev, [sub]: prev[sub].map((o) => (o.id === id ? { ...o, colores: (o.colores || []).filter((c) => c.id !== colorId), mod: hoy() } : o)) }));
+  };
+
+  const actualizarCortador = (id, campo, valor) => {
+    setPreciosFijos((prev) => ({ ...prev, cortadores: prev.cortadores.map((c) => (c.id === id ? { ...c, [campo]: campo === "rango" ? valor : (valor === "" ? null : Number(valor)), mod: hoy() } : c)) }));
+  };
+  const actualizarPin = (id, campo, valor) => {
+    setPreciosFijos((prev) => ({ ...prev, pines: prev.pines.map((p) => (p.id === id ? { ...p, [campo]: campo === "rango" ? valor : Number(valor), mod: hoy() } : p)) }));
+  };
+  const actualizarTote = (id, campo, valor) => {
+    setPreciosFijos((prev) => ({ ...prev, totebags: prev.totebags.map((t) => (t.id === id ? { ...t, [campo]: campo === "rango" ? valor : Number(valor), mod: hoy() } : t)) }));
+  };
+
+  const editarProduccion = (campo, valor) => setConfigProduccion((prev) => ({ ...prev, [campo]: Number(valor), mod: hoy() }));
+  const editarOperativos = (campo, valor) => setCostosOperativos((prev) => ({ ...prev, [campo]: Number(valor), mod: hoy() }));
+  const editarMaquinas = (campo, valor) => setCostoMaquinas((prev) => ({ ...prev, [campo]: Number(valor), mod: hoy() }));
+  const editarManoObra = (campo, valor) => setManoObra((prev) => ({ ...prev, [campo]: Number(valor), mod: hoy() }));
+
+  const totalOperativoMensual = costosOperativos.renta + costosOperativos.luz + costosOperativos.agua + costosOperativos.internet + costosOperativos.gasolina;
+
+  return (
+    <div style={{ maxWidth: 860, display: "flex", flexDirection: "column", gap: 14 }}>
+      <div className="cz-card">
+        <span className="cz-d" style={{ fontSize: 20, fontWeight: 700, textTransform: "uppercase" }}>Materiales</span>
+        <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+          {CATEGORIAS.map(([k, t]) => (
+            <button key={k} className={"svc" + (categoriaActiva === k ? " on" : "")} style={categoriaActiva === k ? { background: "#14161D" } : {}} onClick={() => setCategoriaActiva(k)}>{t}</button>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10 }}>
+          <input className="cz-in" style={{ flex: 1 }} placeholder="🔎 Buscar por nombre…" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
+          {busqueda && <button className="cz-btn" onClick={() => setBusqueda("")}>Limpiar</button>}
+        </div>
+        <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+          {categoriaActiva === "dtf" ? (
+            Object.entries(
+              materiales.dtf
+                .filter((m) => m.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+                .reduce((g, m) => { const cat = m.categoria || "Otros"; (g[cat] = g[cat] || []).push(m); return g; }, {})
+            ).map(([cat, items]) => (
+              <div key={cat}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#7B8290", textTransform: "uppercase", letterSpacing: ".05em", margin: "6px 0" }}>{cat}</div>
+                {items.map((m) => m.tipo === "escalonado" ? (
+                  <div key={m.id} style={{ border: "1.5px solid #EEF0F2", borderRadius: 8, padding: 8, marginBottom: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <FavImg favorito={m.favorito} imagen={m.imagen} onToggleFav={() => toggleFavorito("dtf", m.id)} onSubirImagen={(f) => subirImagen("dtf", m.id, f)} onQuitarImagen={() => quitarImagen("dtf", m.id)} />
+                      <input className="cz-in" style={{ flex: 1, fontWeight: 600 }} value={m.nombre} onChange={(e) => actualizarMaterial("dtf", m.id, "nombre", e.target.value)} />
+                      <span className="insumo-mod">Mod: {m.mod}</span>
+                      <button onClick={() => eliminarMaterial("dtf", m.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 16 }}>×</button>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr 1fr", gap: 6, marginTop: 6 }}>
+                      <div></div><div style={{ fontSize: 10, color: "#7B8290" }}>12–71pz</div><div style={{ fontSize: 10, color: "#7B8290" }}>72–503pz</div><div style={{ fontSize: 10, color: "#7B8290" }}>504+pz</div>
+                      {m.colores.map((c, ci) => (
+                        <React.Fragment key={ci}>
+                          <input className="cz-in" style={{ fontSize: 12, padding: "5px 6px" }} value={c.nombre} onChange={(e) => actualizarTierColor(m.id, ci, "nombre", e.target.value)} />
+                          <input className="cz-in" style={{ fontSize: 12, padding: "5px 6px" }} type="number" value={c.t1} onChange={(e) => actualizarTierColor(m.id, ci, "t1", e.target.value)} />
+                          <input className="cz-in" style={{ fontSize: 12, padding: "5px 6px" }} type="number" value={c.t2} onChange={(e) => actualizarTierColor(m.id, ci, "t2", e.target.value)} />
+                          <input className="cz-in" style={{ fontSize: 12, padding: "5px 6px" }} type="number" value={c.t3} onChange={(e) => actualizarTierColor(m.id, ci, "t3", e.target.value)} />
+                        </React.Fragment>
+                      ))}
+                    </div>
+                    <ColorVariantes colores={m.variantes || []} onAgregar={(c) => agregarColorMaterial("dtf", m.id, c)} onQuitar={(cid) => quitarColorMaterial("dtf", m.id, cid)} />
+                  </div>
+                ) : (
+                  <div key={m.id} style={{ border: "1.5px solid #EEF0F2", borderRadius: 8, padding: 8, marginBottom: 8 }}>
+                    <div className="insumo-row" style={{ border: "none", padding: 0 }}>
+                      <FavImg favorito={m.favorito} imagen={m.imagen} onToggleFav={() => toggleFavorito("dtf", m.id)} onSubirImagen={(f) => subirImagen("dtf", m.id, f)} onQuitarImagen={() => quitarImagen("dtf", m.id)} />
+                      <input className="cz-in" style={{ flex: 2, minWidth: 140 }} value={m.nombre} onChange={(e) => actualizarMaterial("dtf", m.id, "nombre", e.target.value)} />
+                      <input className="cz-in" style={{ flex: 1, minWidth: 80 }} type="number" value={m.precio} onChange={(e) => actualizarMaterial("dtf", m.id, "precio", e.target.value)} />
+                      <CalcLote unidad={m.unidad} onAplicar={(v) => actualizarMaterial("dtf", m.id, "precio", v)} />
+                      <span className="insumo-mod">Mod: {m.mod}</span>
+                      <button onClick={() => eliminarMaterial("dtf", m.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 16 }}>×</button>
+                    </div>
+                    <ColorVariantes colores={m.variantes || []} onAgregar={(c) => agregarColorMaterial("dtf", m.id, c)} onQuitar={(cid) => quitarColorMaterial("dtf", m.id, cid)} />
+                  </div>
+                ))}
+              </div>
+            ))
+          ) : (
+            materiales[categoriaActiva].filter((m) => m.nombre.toLowerCase().includes(busqueda.toLowerCase())).map((m) => (
+              <div key={m.id} style={{ border: "1.5px solid #EEF0F2", borderRadius: 8, padding: 8, marginBottom: 8 }}>
+                <div className="insumo-row" style={{ border: "none", padding: 0 }}>
+                  <FavImg favorito={m.favorito} imagen={m.imagen} onToggleFav={() => toggleFavorito(categoriaActiva, m.id)} onSubirImagen={(f) => subirImagen(categoriaActiva, m.id, f)} onQuitarImagen={() => quitarImagen(categoriaActiva, m.id)} />
+                  <input className="cz-in" style={{ flex: 2, minWidth: 140 }} value={m.nombre} onChange={(e) => actualizarMaterial(categoriaActiva, m.id, "nombre", e.target.value)} />
+                  <input className="cz-in" style={{ flex: 1, minWidth: 80 }} type="number" value={m.precio} onChange={(e) => actualizarMaterial(categoriaActiva, m.id, "precio", e.target.value)} />
+                  {m.w !== undefined && <input className="cz-in" style={{ width: 60 }} type="number" title="Ancho cm" value={m.w} onChange={(e) => actualizarMaterial(categoriaActiva, m.id, "w", e.target.value)} />}
+                  {m.h !== undefined && <input className="cz-in" style={{ width: 60 }} type="number" title="Alto cm" value={m.h} onChange={(e) => actualizarMaterial(categoriaActiva, m.id, "h", e.target.value)} />}
+                  <CalcLote unidad={m.unidad} onAplicar={(v) => actualizarMaterial(categoriaActiva, m.id, "precio", v)} />
+                  <span className="insumo-mod">Mod: {m.mod}</span>
+                  <button onClick={() => eliminarMaterial(categoriaActiva, m.id)} style={{ border: "none", background: "none", color: "#C0392B", cursor: "pointer", fontSize: 16 }}>×</button>
+                </div>
+                <ColorVariantes colores={m.variantes || []} onAgregar={(c) => agregarColorMaterial(categoriaActiva, m.id, c)} onQuitar={(cid) => quitarColorMaterial(categoriaActiva, m.id, cid)} />
+              </div>
+            ))
+          )}
+        </div>
+        <button className="cz-btn" style={{ marginTop: 10 }} onClick={() => agregarMaterial(categoriaActiva)}>+ Agregar insumo</button>
+        {categoriaActiva === "dtf" && (
+          <div style={{ marginTop: 14, borderTop: "1px dashed #D8DBE0", paddingTop: 12 }}>
+            <label className="cz-lbl">Importar catálogo (JSON) — pega aquí lo que te dé Claude al leer un PDF de precios nuevo</label>
+            <textarea className="cz-in" style={{ minHeight: 70, fontFamily: "'IBM Plex Mono',monospace", fontSize: 11 }} value={importText} onChange={(e) => setImportText(e.target.value)} placeholder='[{"id":"32702","tipo":"escalonado","categoria":"Playeras Caballero","nombre":"32702 Prime...","colores":[{"nombre":"Blanco","t1":33,"t2":32.34,"t3":31.35}]}]' />
+            <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+              <button className="cz-btn org" onClick={importarCatalogo}>Importar / actualizar</button>
+              <button className="cz-btn" onClick={exportarCatalogo}>Exportar catálogo actual</button>
+            </div>
+            {importMsg && <div style={{ fontSize: 12, marginTop: 6 }}>{importMsg}</div>}
+            <div style={{ fontSize: 11, color: "#7B8290", marginTop: 6 }}>Los precios se guardan "sin IVA" tal como los da el proveedor — el IVA se aplica automático al cotizar (ver "IVA textil" en Config de producción).</div>
+          </div>
+        )}
+      </div>
+
+      <div className="cz-card">
+        <span className="cz-d" style={{ fontSize: 18, fontWeight: 700, textTransform: "uppercase" }}>Precios fijos — Cortadores de galleta</span>
+        <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+          {preciosFijos.cortadores.map((c) => (
+            <div key={c.id} className="insumo-row">
+              <input className="cz-in" style={{ flex: 1, minWidth: 90 }} value={c.rango} onChange={(e) => actualizarCortador(c.id, "rango", e.target.value)} />
+              <div style={{ flex: 1, minWidth: 90 }}><label className="cz-lbl" style={{ margin: 0 }}>Precio +sello</label><input className="cz-in" type="number" value={c.base} onChange={(e) => actualizarCortador(c.id, "base", e.target.value)} /></div>
+              <div style={{ flex: 1, minWidth: 90 }}><label className="cz-lbl" style={{ margin: 0 }}>Desde (pz)</label><input className="cz-in" type="number" value={c.descMin === null ? "" : c.descMin} onChange={(e) => actualizarCortador(c.id, "descMin", e.target.value)} /></div>
+              <div style={{ flex: 1, minWidth: 90 }}><label className="cz-lbl" style={{ margin: 0 }}>Precio volumen</label><input className="cz-in" type="number" value={c.descPrecio === null ? "" : c.descPrecio} onChange={(e) => actualizarCortador(c.id, "descPrecio", e.target.value)} /></div>
+              <span className="insumo-mod">Mod: {c.mod}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="cz-card">
+        <span className="cz-d" style={{ fontSize: 18, fontWeight: 700, textTransform: "uppercase" }}>Precios fijos — Pines</span>
+        <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+          {preciosFijos.pines.map((p) => (
+            <div key={p.id} className="insumo-row">
+              <input className="cz-in" style={{ flex: 1, minWidth: 90 }} value={p.rango} onChange={(e) => actualizarPin(p.id, "rango", e.target.value)} />
+              <div style={{ flex: 1, minWidth: 90 }}><label className="cz-lbl" style={{ margin: 0 }}>Desde (pz)</label><input className="cz-in" type="number" value={p.min} onChange={(e) => actualizarPin(p.id, "min", e.target.value)} /></div>
+              <div style={{ flex: 1, minWidth: 90 }}><label className="cz-lbl" style={{ margin: 0 }}>Precio c/u</label><input className="cz-in" type="number" value={p.precioPz} onChange={(e) => actualizarPin(p.id, "precioPz", e.target.value)} /></div>
+              <CalcLote unidad="pieza" onAplicar={(v) => actualizarPin(p.id, "precioPz", v)} />
+              <span className="insumo-mod">Mod: {p.mod}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="cz-card">
+        <span className="cz-d" style={{ fontSize: 18, fontWeight: 700, textTransform: "uppercase" }}>Precios fijos — Totebags</span>
+        <div style={{ fontSize: 11, color: "#7B8290", marginTop: 4 }}>Costo por volumen (bolsa + 1 diseño DTF máx. 35×36cm). El precio de venta lo calcula el cotizador automático según el tipo de cliente (igual que el resto del catálogo).</div>
+        <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+          {preciosFijos.totebags.map((t) => (
+            <div key={t.id} className="insumo-row">
+              <input className="cz-in" style={{ flex: 1, minWidth: 90 }} value={t.rango} onChange={(e) => actualizarTote(t.id, "rango", e.target.value)} />
+              <div style={{ flex: 1, minWidth: 90 }}><label className="cz-lbl" style={{ margin: 0 }}>Desde (pz)</label><input className="cz-in" type="number" value={t.min} onChange={(e) => actualizarTote(t.id, "min", e.target.value)} /></div>
+              <div style={{ flex: 1, minWidth: 90 }}><label className="cz-lbl" style={{ margin: 0 }}>Costo c/u</label><input className="cz-in" type="number" value={t.costoPz} onChange={(e) => actualizarTote(t.id, "costoPz", e.target.value)} /></div>
+              <span className="insumo-mod">Mod: {t.mod}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="cz-card">
+        <span className="cz-d" style={{ fontSize: 18, fontWeight: 700, textTransform: "uppercase" }}>Config de producción</span>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 10 }}>
+          <div><label className="cz-lbl">DTF $/metro</label><input className="cz-in" type="number" value={configProduccion.dtfPrecioMetro} onChange={(e) => editarProduccion("dtfPrecioMetro", e.target.value)} /></div>
+          <div><label className="cz-lbl">DTF ancho rollo (cm)</label><input className="cz-in" type="number" value={configProduccion.dtfAnchoCm} onChange={(e) => editarProduccion("dtfAnchoCm", e.target.value)} /></div>
+          <div><label className="cz-lbl">Tiempo planchado (min)</label><input className="cz-in" type="number" value={configProduccion.tiempoPlanchadoMin} onChange={(e) => editarProduccion("tiempoPlanchadoMin", e.target.value)} /></div>
+          <div><label className="cz-lbl">DTF Suelto $/metro (lotes compartidos)</label><input className="cz-in" type="number" value={configProduccion.dtfSueltoPrecioMetro} onChange={(e) => editarProduccion("dtfSueltoPrecioMetro", e.target.value)} /></div>
+          <div><label className="cz-lbl">DTF Suelto ancho rollo (cm)</label><input className="cz-in" type="number" value={configProduccion.dtfSueltoAnchoCm} onChange={(e) => editarProduccion("dtfSueltoAnchoCm", e.target.value)} /></div>
+          <div><label className="cz-lbl">DTF UV film $/metro</label><input className="cz-in" type="number" value={configProduccion.uvPrecioMetro} onChange={(e) => editarProduccion("uvPrecioMetro", e.target.value)} /></div>
+          <div><label className="cz-lbl">DTF UV ancho rollo (cm)</label><input className="cz-in" type="number" value={configProduccion.uvAnchoCm} onChange={(e) => editarProduccion("uvAnchoCm", e.target.value)} /></div>
+          <div><label className="cz-lbl">Diseño/revisión DTF ($, único x pedido)</label><input className="cz-in" type="number" value={configProduccion.manipProporc} onChange={(e) => editarProduccion("manipProporc", e.target.value)} /></div>
+          <div><label className="cz-lbl">Manipulación DTF ($/pieza)</label><input className="cz-in" type="number" value={configProduccion.manipPzaDTF} onChange={(e) => editarProduccion("manipPzaDTF", e.target.value)} /></div>
+          <div><label className="cz-lbl">Hoja sublimación $/metro</label><input className="cz-in" type="number" value={configProduccion.subliMetro} onChange={(e) => editarProduccion("subliMetro", e.target.value)} /></div>
+          <div><label className="cz-lbl">Área hoja sublimación (cm²)</label><input className="cz-in" type="number" value={configProduccion.subliArea} onChange={(e) => editarProduccion("subliArea", e.target.value)} /></div>
+          <div></div>
+          <div><label className="cz-lbl">Diseño sencillo (min)</label><input className="cz-in" type="number" value={configProduccion.disenoSencilloMin} onChange={(e) => editarProduccion("disenoSencilloMin", e.target.value)} /></div>
+          <div><label className="cz-lbl">Diseño complejo (min)</label><input className="cz-in" type="number" value={configProduccion.disenoComplejoMin} onChange={(e) => editarProduccion("disenoComplejoMin", e.target.value)} /></div>
+          <div><label className="cz-lbl">IVA textil (catálogo Óptima)</label><input className="cz-in" type="number" step="0.01" value={configProduccion.ivaTextil} onChange={(e) => editarProduccion("ivaTextil", e.target.value)} /></div>
+        </div>
+        <div className="insumo-mod" style={{ marginTop: 8 }}>Mod: {configProduccion.mod}</div>
+      </div>
+
+      <div className="cz-card">
+        <span className="cz-d" style={{ fontSize: 18, fontWeight: 700, textTransform: "uppercase" }}>Otros productos Óptima (Gorras y Termos)</span>
+        <div style={{ fontSize: 11, color: "#7B8290", marginTop: 4 }}>Costo de mayoreo, sin IVA — mismo costo en todos los colores. Ya están conectados a Cotizar (pestañas 🧢 Gorras / 🥤 Termos), el margen se aplica automático según el tipo de cliente. Agrega variantes de color con un circulito o una foto para poder elegir cuál cotizar.</div>
+        {["gorras", "termos"].map((sub) => (
+          <div key={sub} style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#7B8290", textTransform: "uppercase", letterSpacing: ".05em" }}>{sub}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 6, marginTop: 6 }}>
+              {catalogoOtros[sub].map((o) => (
+                <div key={o.id} style={{ border: "1px solid #EEF0F2", borderRadius: 8, padding: 8, fontSize: 12 }}>
+                  <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap" }}>
+                    <FavImg favorito={o.favorito} imagen={o.imagen} size={22} onToggleFav={() => toggleFavoritoOtro(sub, o.id)} onSubirImagen={(f) => subirImagenOtro(sub, o.id, f)} />
+                    <span style={{ flex: 1 }}>{o.nombre}</span>
+                    <input className="cz-in" style={{ width: 66, padding: "4px 6px", fontSize: 12 }} type="number" value={o.precio} onChange={(e) => actualizarOtro(sub, o.id, e.target.value)} />
+                    <CalcLote unidad="pieza" onAplicar={(v) => actualizarOtro(sub, o.id, v)} />
+                  </div>
+                  <ColorVariantes colores={o.colores || []} onAgregar={(c) => agregarColorOtro(sub, o.id, c)} onQuitar={(cid) => quitarColorOtro(sub, o.id, cid)} />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="cz-card">
+        <span className="cz-d" style={{ fontSize: 18, fontWeight: 700, textTransform: "uppercase" }}>Costos operativos generales (mensual)</span>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 8, marginTop: 10 }}>
+          <div><label className="cz-lbl">Renta</label><input className="cz-in" type="number" value={costosOperativos.renta} onChange={(e) => editarOperativos("renta", e.target.value)} /></div>
+          <div><label className="cz-lbl">Luz</label><input className="cz-in" type="number" value={costosOperativos.luz} onChange={(e) => editarOperativos("luz", e.target.value)} /></div>
+          <div><label className="cz-lbl">Agua</label><input className="cz-in" type="number" value={costosOperativos.agua} onChange={(e) => editarOperativos("agua", e.target.value)} /></div>
+          <div><label className="cz-lbl">Internet</label><input className="cz-in" type="number" value={costosOperativos.internet} onChange={(e) => editarOperativos("internet", e.target.value)} /></div>
+          <div><label className="cz-lbl">Gasolina</label><input className="cz-in" type="number" value={costosOperativos.gasolina} onChange={(e) => editarOperativos("gasolina", e.target.value)} /></div>
+        </div>
+        <div style={{ fontSize: 12, color: "#7B8290", marginTop: 10 }}>Total mensual: <b>{fmt(totalOperativoMensual)}</b> · Costo por hora (÷{HOURS_PER_MONTH}h): <b>{fmt(costosPorHora.generalPorHora)}</b></div>
+        <div className="insumo-mod" style={{ marginTop: 4 }}>Mod: {costosOperativos.mod}</div>
+      </div>
+
+      <div className="cz-card">
+        <span className="cz-d" style={{ fontSize: 18, fontWeight: 700, textTransform: "uppercase" }}>Costo por máquina (mensual)</span>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
+          <div><label className="cz-lbl">CNC / Láser</label><input className="cz-in" type="number" value={costoMaquinas.cnc} onChange={(e) => editarMaquinas("cnc", e.target.value)} /></div>
+          <div><label className="cz-lbl">Impresora 3D (amortizada)</label><input className="cz-in" type="number" value={costoMaquinas.impresora3d} onChange={(e) => editarMaquinas("impresora3d", e.target.value)} /></div>
+        </div>
+        <div style={{ fontSize: 12, color: "#7B8290", marginTop: 10 }}>CNC/Láser por hora: <b>{fmt(costosPorHora.cncPorHora)}</b> · Impresora 3D por hora: <b>{fmt(costosPorHora.impresora3dPorHora)}</b></div>
+        <div className="insumo-mod" style={{ marginTop: 4 }}>Mod: {costoMaquinas.mod}</div>
+      </div>
+
+      <div className="cz-card">
+        <span className="cz-d" style={{ fontSize: 18, fontWeight: 700, textTransform: "uppercase" }}>Mano de obra</span>
+        <div style={{ maxWidth: 220, marginTop: 10 }}>
+          <label className="cz-lbl">Tarifa por hora ($)</label>
+          <input className="cz-in" type="number" value={manoObra.tarifaHr} onChange={(e) => editarManoObra("tarifaHr", e.target.value)} />
+        </div>
+        <div className="insumo-mod" style={{ marginTop: 8 }}>Mod: {manoObra.mod}</div>
+      </div>
+    </div>
+  );
+}
+
+/* ===================== CONFIG ===================== */
+function VistaConfig({ mults, setMults, modoMargen, setModoMargen }) {
+  return (
+    <div style={{ maxWidth: 540, display: "flex", flexDirection: "column", gap: 14 }}>
+      <div className="cz-card">
+        <span className="cz-d" style={{ fontSize: 18, fontWeight: 700, textTransform: "uppercase" }}>Tipo de margen</span>
+        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+          <div className={"tierbox" + (modoMargen === "markup" ? " on" : "")} onClick={() => setModoMargen("markup")}><b>Markup sobre costo</b><div className="cz-m" style={{ fontSize: 11, color: "#7B8290" }}>costo × (1+%)</div></div>
+          <div className={"tierbox" + (modoMargen === "venta" ? " on" : "")} onClick={() => setModoMargen("venta")}><b>Margen sobre venta</b><div className="cz-m" style={{ fontSize: 11, color: "#7B8290" }}>costo ÷ (1−%)</div></div>
+        </div>
+      </div>
+      <div className="cz-card">
+        <span className="cz-d" style={{ fontSize: 18, fontWeight: 700, textTransform: "uppercase" }}>Ganancia por tier</span>
+        {Object.keys(mults).map((t) => (
+          <div key={t} style={{ marginTop: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 14, fontWeight: 600 }}>{t}</span><span className="cz-m" style={{ fontWeight: 600 }}>{Math.round(mults[t] * 100)}%</span></div>
+            <input type="range" min="0" max="1" step="0.01" value={mults[t]} style={{ width: "100%", accentColor: "#F4561D" }} onChange={(e) => setMults({ ...mults, [t]: Number(e.target.value) })} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ===================== APP ===================== */
+function App() {
+  const [tab, setTab] = useState("cotizar");
+  const [mults, setMults] = useState(() => {
+    const cargado = loadLS("cz_mults", { ...TIERS });
+    if (cargado["Sin margen"] === undefined) cargado["Sin margen"] = 0;
+    return cargado;
+  });
+  const [modoMargen, setModoMargen] = useState(() => loadLS("cz_modoMargen", "markup"));
+  const [clientes, setClientes] = useState(() => loadLS("cz_clientes", []));
+  const [historial, setHistorial] = useState(() => loadLS("cz_historial", []));
+  const [materiales, setMateriales] = useState(() => {
+    const cargado = loadLS("cz_materiales", DEFAULT_MATERIALES);
+    if (!cargado.dtf || !cargado.dtf.some((m) => m.tipo === "escalonado")) cargado.dtf = DEFAULT_MATERIALES.dtf;
+    if (!cargado.empaque) cargado.empaque = DEFAULT_MATERIALES.empaque;
+    if (cargado.dtf.some((m) => m.id === "tote-negra" || m.id === "tote-cafe")) cargado.dtf = cargado.dtf.filter((m) => m.id !== "tote-negra" && m.id !== "tote-cafe");
+    return cargado;
+  });
+  const [preciosFijos, setPreciosFijos] = useState(() => {
+    const cargado = { ...DEFAULT_PRECIOS_FIJOS, ...loadLS("cz_preciosFijos", DEFAULT_PRECIOS_FIJOS) };
+    if (cargado.totebags && cargado.totebags.some((t) => t.precioPz !== undefined)) {
+      cargado.totebags = cargado.totebags.map((t) => {
+        if (t.precioPz === undefined) return t;
+        const { precioPz, ...resto } = t;
+        return { ...resto, costoPz: Math.round((precioPz / 1.65) * 100) / 100 };
+      });
+    }
+    return cargado;
+  });
+  const [configProduccion, setConfigProduccion] = useState(() => ({ ...DEFAULT_CONFIG_PRODUCCION, ...loadLS("cz_configProduccion", DEFAULT_CONFIG_PRODUCCION) }));
+  const [costosOperativos, setCostosOperativos] = useState(() => loadLS("cz_costosOperativos", DEFAULT_COSTOS_OPERATIVOS));
+  const [costoMaquinas, setCostoMaquinas] = useState(() => loadLS("cz_costoMaquinas", DEFAULT_COSTO_MAQUINAS));
+  const [manoObra, setManoObra] = useState(() => loadLS("cz_manoObra", DEFAULT_MANO_OBRA));
+  const [catalogoOtros, setCatalogoOtros] = useState(() => loadLS("cz_catalogoOtros", DEFAULT_CATALOGO_OTROS));
+  const [productosLab, setProductosLab] = useState(() => loadLS("cz_productosLab", []));
+
+  useEffect(() => saveLS("cz_catalogoOtros", catalogoOtros), [catalogoOtros]);
+  useEffect(() => saveLS("cz_productosLab", productosLab), [productosLab]);
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === "cz_productosLab") setProductosLab(loadLS("cz_productosLab", []));
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+  useEffect(() => {
+    if (tab === "lab") setProductosLab(loadLS("cz_productosLab", []));
+  }, [tab]);
+  useEffect(() => saveLS("cz_mults", mults), [mults]);
+  useEffect(() => saveLS("cz_modoMargen", modoMargen), [modoMargen]);
+  useEffect(() => saveLS("cz_clientes", clientes), [clientes]);
+  useEffect(() => saveLS("cz_historial", historial), [historial]);
+  useEffect(() => saveLS("cz_materiales", materiales), [materiales]);
+  useEffect(() => saveLS("cz_preciosFijos", preciosFijos), [preciosFijos]);
+  useEffect(() => saveLS("cz_configProduccion", configProduccion), [configProduccion]);
+  useEffect(() => saveLS("cz_costosOperativos", costosOperativos), [costosOperativos]);
+  useEffect(() => saveLS("cz_costoMaquinas", costoMaquinas), [costoMaquinas]);
+  useEffect(() => saveLS("cz_manoObra", manoObra), [manoObra]);
+
+  const costosPorHora = useMemo(() => {
+    const generalMensual = costosOperativos.renta + costosOperativos.luz + costosOperativos.agua + costosOperativos.internet + costosOperativos.gasolina;
+    return {
+      generalPorHora: generalMensual / HOURS_PER_MONTH,
+      cncPorHora: costoMaquinas.cnc / HOURS_PER_MONTH,
+      impresora3dPorHora: costoMaquinas.impresora3d / HOURS_PER_MONTH,
+    };
+  }, [costosOperativos, costoMaquinas]);
+
+  const insumos = { materiales, preciosFijos, configProduccion, costosPorHora, manoObra, productosLab, catalogoOtros };
+
+  const eliminarProductoLab = (id) => { if (confirm("¿Eliminar este producto de Studio Lab?")) setProductosLab((prev) => prev.filter((p) => p.id !== id)); };
+  const agregarColorProductoLab = (id, color) => setProductosLab((prev) => prev.map((p) => (p.id === id ? { ...p, variantes: [...(p.variantes || []), color] } : p)));
+  const quitarColorProductoLab = (id, colorId) => setProductosLab((prev) => prev.map((p) => (p.id === id ? { ...p, variantes: (p.variantes || []).filter((c) => c.id !== colorId) } : p)));
+
+  const agregarHistorial = (entry) => setHistorial((prev) => [entry, ...prev]);
+  const eliminarHistorial = (id) => setHistorial((prev) => prev.filter((h) => h.id !== id));
+  const limpiarHistorial = () => { if (confirm("¿Eliminar todo el historial?")) setHistorial([]); };
+
+  const agregarCliente = (c) => setClientes((prev) => [...prev, c]);
+  const eliminarCliente = (id) => { if (confirm("¿Eliminar este cliente?")) setClientes((prev) => prev.filter((c) => c.id !== id)); };
+
+  const tabs = [
+    ["cotizar", "⚡ Cotizar"],
+    ["inversa", "🔄 Inversa"],
+    ["clientes", "👥 Clientes"],
+    ["lab", "🧪 Studio Lab"],
+    ["historial", "🕐 Historial"],
+    ["insumos", "📦 Insumos"],
+    ["config", "⚙ Config"],
+  ];
+
+  return (
+    <div className="cz">
+      <style>{css}</style>
+      <div className="cz-nav">
+        <span className="cz-d" style={{ fontSize: 19, fontWeight: 700, color: "#fff", padding: "0 10px 0 4px", whiteSpace: "nowrap" }}>MRCH<span style={{ color: "#F4561D" }}>·</span>COTIZA</span>
+        {tabs.map(([k, t]) => <button key={k} className={"cz-tab" + (tab === k ? " on" : "")} onClick={() => setTab(k)}>{t}</button>)}
+        <a className="cz-extra" href="/">🏠 Inicio</a>
+        <a className="cz-extra" href="herreria.html">🔧 Herrería</a>
+        <a className="cz-extra" href="/comparar.html">📊 Comparar</a>
+      </div>
+      <div style={{ maxWidth: 1060, margin: "0 auto", padding: 16 }}>
+        {tab === "cotizar" && <VistaCotizar mults={mults} modoMargen={modoMargen} clientes={clientes} onGuardarHistorial={agregarHistorial} insumos={insumos} />}
+        {tab === "inversa" && <VistaInversa mults={mults} modoMargen={modoMargen} />}
+        {tab === "clientes" && <VistaClientes clientes={clientes} onAgregar={agregarCliente} onEliminar={eliminarCliente} />}
+        {tab === "lab" && <VistaLab productosLab={productosLab} onEliminar={eliminarProductoLab} onAgregarColor={agregarColorProductoLab} onQuitarColor={quitarColorProductoLab} />}
+        {tab === "historial" && <VistaHistorial historial={historial} onEliminar={eliminarHistorial} onLimpiar={limpiarHistorial} />}
+        {tab === "insumos" && (
+          <VistaInsumos
+            materiales={materiales} setMateriales={setMateriales}
+            preciosFijos={preciosFijos} setPreciosFijos={setPreciosFijos}
+            configProduccion={configProduccion} setConfigProduccion={setConfigProduccion}
+            costosOperativos={costosOperativos} setCostosOperativos={setCostosOperativos}
+            costoMaquinas={costoMaquinas} setCostoMaquinas={setCostoMaquinas}
+            manoObra={manoObra} setManoObra={setManoObra}
+            costosPorHora={costosPorHora}
+            catalogoOtros={catalogoOtros} setCatalogoOtros={setCatalogoOtros}
+          />
+        )}
+        {tab === "config" && <VistaConfig mults={mults} setMults={setMults} modoMargen={modoMargen} setModoMargen={setModoMargen} />}
+      </div>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App />);
+</script>
+<script>
+(function () {
+  var code = document.getElementById("app-source").textContent;
+  var output = Babel.transform(code, { presets: [["react", { runtime: "classic" }]] }).code;
+  var script = document.createElement("script");
+  script.textContent = output;
+  document.body.appendChild(script);
+})();
+</script>
+</body>
+</html>
