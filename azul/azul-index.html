@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Corichi Fiore — Cotizador</title>
+<meta name="description" content="Cotizador de ramos y figuras de limpiapipas">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #F2F7FB; color: #0F2431; padding: 0 0 40px; }
+  a { color: inherit; }
+  .topbar { background: #0369A1; color: #fff; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; position: sticky; top: 0; z-index: 10; }
+  .topbar .brand { font-size: 1.2em; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .topbar .back { font-size: 12px; color: #BAE6FD; text-decoration: none; border: 1px solid rgba(255,255,255,0.3); border-radius: 20px; padding: 6px 12px; }
+  .topbar .back:hover { color: #fff; border-color: #fff; }
+  .tabs { max-width: 920px; margin: 16px auto 0; padding: 0 20px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .tab-btn { border: none; background: #fff; color: #0369A1; font-size: 13px; font-weight: 700; padding: 9px 16px; border-radius: 20px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .tab-btn.on { background: #0369A1; color: #fff; }
+  .wrap { max-width: 920px; margin: 16px auto 0; padding: 0 20px; display: flex; flex-direction: column; gap: 14px; }
+  .card { background: #fff; border-radius: 12px; padding: 18px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
+  .card h2 { font-size: 1.05em; margin-bottom: 12px; color: #0F2431; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 120px; }
+  .field.small { flex: 0 0 90px; min-width: 90px; }
+  .field.color { flex: 0 0 60px; min-width: 60px; }
+  .field label { font-size: 11px; font-weight: 700; color: #7B8290; text-transform: uppercase; letter-spacing: .03em; }
+  .field input[type=text], .field input[type=number] { border: 1px solid #D8DBE0; border-radius: 8px; padding: 9px 10px; font-size: 14px; font-family: inherit; }
+  .field input[type=text]:focus, .field input[type=number]:focus { outline: none; border-color: #0369A1; }
+  .field select { border: 1px solid #D8DBE0; border-radius: 8px; padding: 9px 10px; font-size: 14px; font-family: inherit; background: #fff; }
+  .field input[type=color] { width: 44px; height: 38px; border: 1px solid #D8DBE0; border-radius: 8px; padding: 2px; cursor: pointer; background: #fff; }
+  .btn { border: none; border-radius: 8px; padding: 10px 18px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+  .btn-primary { background: #0369A1; color: #fff; }
+  .btn-primary:hover { background: #075985; }
+  .btn-ghost { background: #EFF6FB; color: #0369A1; }
+  .btn-ghost:hover { background: #DCEEFB; }
+  .btn-danger { background: none; color: #C0392B; padding: 6px 8px; font-size: 15px; }
+  .btn-green { background: #16A34A; color: #fff; }
+  .btn-green:hover { background: #128238; }
+  .objeto-item, .partida-item, .hist-item { padding: 12px; border: 1.5px solid #EEF3F8; border-radius: 10px; margin-bottom: 8px; }
+  .objeto-item-head, .partida-head { display: flex; align-items: center; gap: 10px; }
+  .swatch { width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.15); }
+  .swatch.sm { width: 14px; height: 14px; }
+  .oi-name { flex: 1; font-weight: 600; font-size: 14px; min-width: 0; }
+  .oi-sub { font-size: 12px; color: #7B8290; }
+  .empty { text-align: center; color: #9AA0AE; padding: 36px 20px; font-size: 13px; }
+  .empty .icon { font-size: 32px; margin-bottom: 8px; display: block; }
+  .resumen-chip { display: inline-flex; align-items: center; gap: 6px; background: #F2F7FB; border-radius: 20px; padding: 6px 12px; font-size: 13px; font-weight: 700; margin: 3px 5px 3px 0; }
+  .resumen-total { font-size: 1.4em; font-weight: 700; color: #0369A1; }
+  .tip { background: #EFF6FB; border-left: 4px solid #0369A1; padding: 10px 12px; border-radius: 4px; font-size: 12px; color: #0F2431; }
+  .actions-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .color-chip { display: inline-flex; align-items: center; gap: 6px; background: #F8FAFC; border: 1px solid #E5EBF1; border-radius: 20px; padding: 5px 6px 5px 10px; font-size: 12px; font-weight: 600; margin: 3px 6px 3px 0; }
+  .color-chip button { border: none; background: none; color: #C0392B; cursor: pointer; font-size: 13px; padding: 0 2px; }
+  .color-list { margin: 8px 0; }
+  .subtle-box { background: #FAFCFE; border: 1px dashed #D8DBE0; border-radius: 10px; padding: 10px; margin-top: 8px; }
+  .hist-item { cursor: pointer; }
+  .hist-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .hist-body { display: none; margin-top: 10px; border-top: 1px solid #EEF3F8; padding-top: 10px; }
+  .hist-item.open .hist-body { display: block; }
+  select.op-objeto { flex: 2; min-width: 160px; }
+  @media (max-width: 640px) {
+    .row { flex-direction: column; align-items: stretch; }
+    .field.small, .field.color { flex: 1; }
+  }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">🌸 Corichi Fiore</div>
+    <div style="display:flex;gap:8px;">
+      <a class="back" href="/">🏠 Inicio</a>
+      <a class="back" href="/comparar.html">📊 Comparar</a>
+    </div>
+  </div>
+  <div class="tabs" id="tabs"></div>
+  <div class="wrap">
+    <div class="tip" id="tip"></div>
+  </div>
+  <div id="content"></div>
+
+<script>
+  const LS_OBJETOS = 'cf_objetos';
+  const LS_HISTORIAL = 'cf_historial';
+  const LS_TICKET = 'cf_ticket';
+
+  let objetos = [];
+  let historial = [];
+  let ticket = { cliente: '', partidas: [] };
+  let idCounter = 0;
+  let tab = 'cotizar';
+
+  // Borrador del formulario "nuevo objeto" (se mantiene entre renders)
+  let draftObjeto = { nombre: '', colores: [] };
+  let draftColor = { nombre: '', hex: '#DC2626', cantidad: 1 };
+
+  const nid = () => 'id' + (idCounter++) + '_' + Date.now();
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function guardarObjetos() { try { localStorage.setItem(LS_OBJETOS, JSON.stringify({ objetos, idCounter })); } catch (e) {} }
+  function guardarHistorial() { try { localStorage.setItem(LS_HISTORIAL, JSON.stringify(historial)); } catch (e) {} }
+  function guardarTicket() { try { localStorage.setItem(LS_TICKET, JSON.stringify(ticket)); } catch (e) {} }
+
+  // Migra objetos guardados con el formato viejo (un solo color) al formato nuevo (varios colores)
+  function migrarObjeto(o) {
+    if (Array.isArray(o.colores)) return o;
+    return {
+      id: o.id,
+      nombre: o.nombre,
+      colores: [{ id: nid(), nombre: o.colorNombre || 'Color', hex: o.colorHex || '#DC2626', limpiapipas: o.limpiapipas || 1 }],
+    };
+  }
+
+  // Migra partidas guardadas con el formato viejo (un solo color) al formato nuevo (varios colores)
+  function migrarPartida(p) {
+    if (Array.isArray(p.colores)) return p;
+    return {
+      id: p.id,
+      objetoId: p.objetoId,
+      nombre: p.nombre,
+      cantidad: p.cantidad,
+      colores: [{ colorNombre: p.colorNombre, colorHex: p.colorHex, limpiapipasUnit: p.limpiapipasUnit }],
+    };
+  }
+
+  function cargar() {
+    try {
+      const raw = localStorage.getItem(LS_OBJETOS);
+      if (raw) {
+        const data = JSON.parse(raw);
+        objetos = (Array.isArray(data.objetos) ? data.objetos : []).map(migrarObjeto);
+        idCounter = data.idCounter || 0;
+      }
+    } catch (e) {}
+    try {
+      const raw = localStorage.getItem(LS_HISTORIAL);
+      if (raw) {
+        historial = (JSON.parse(raw) || []).map((h) => ({ ...h, partidas: (h.partidas || []).map(migrarPartida) }));
+      }
+    } catch (e) {}
+    try {
+      const raw = localStorage.getItem(LS_TICKET);
+      if (raw) {
+        const t = JSON.parse(raw) || { cliente: '', partidas: [] };
+        t.partidas = (t.partidas || []).map(migrarPartida);
+        ticket = t;
+      }
+    } catch (e) {}
+  }
+
+  // Semilla de ejemplo si no hay nada guardado aún (una flor bicolor, como ejemplo)
+  function semilla() {
+    if (objetos.length > 0) return;
+    objetos = [
+      {
+        id: nid(),
+        nombre: 'Flor',
+        colores: [
+          { id: nid(), nombre: 'Rojo', hex: '#DC2626', limpiapipas: 1 },
+          { id: nid(), nombre: 'Amarillo', hex: '#EAB308', limpiapipas: 1 },
+        ],
+      },
+      { id: nid(), nombre: 'Hoja', colores: [{ id: nid(), nombre: 'Verde', hex: '#16A34A', limpiapipas: 1 }] },
+      { id: nid(), nombre: 'Tallo', colores: [{ id: nid(), nombre: 'Verde', hex: '#16A34A', limpiapipas: 1 }] },
+    ];
+    guardarObjetos();
+  }
+
+  const TIPS = {
+    objetos: '💡 Da de alta cada pieza que arma Azul (flor, hoja, tallo, etc.) con su color y cuántos limpiapipas lleva. Si una pieza usa varios colores (ej. una flor bicolor), agrégalos todos — cada uno con su propia cantidad.',
+    cotizar: '💡 Arma el pedido eligiendo objetos y cantidades. Abajo verás el total de limpiapipas que se necesitan, agrupado por color.',
+    historial: '💡 Aquí quedan guardadas las cotizaciones anteriores para consultarlas cuando quieras.',
+  };
+
+  function setTab(t) {
+    tab = t;
+    render();
+  }
+
+  function renderTabs() {
+    const el = document.getElementById('tabs');
+    el.innerHTML = '';
+    [['objetos', '🧩 Objetos'], ['cotizar', '🧾 Cotizar'], ['historial', '🕐 Historial']].forEach(([k, label]) => {
+      const b = document.createElement('button');
+      b.className = 'tab-btn' + (tab === k ? ' on' : '');
+      b.textContent = label;
+      b.onclick = () => setTab(k);
+      el.appendChild(b);
+    });
+    document.getElementById('tip').textContent = TIPS[tab] || '';
+  }
+
+  // ---------------- OBJETOS ----------------
+  function renderColorDraftForm(onAdd) {
+    const box = document.createElement('div');
+    box.className = 'subtle-box';
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = `
+      <div class="field color"><label>Color</label><input type="color" id="dc-hex"></div>
+      <div class="field"><label>Nombre del color</label><input type="text" id="dc-nombre" placeholder="Ej. Rojo cereza"></div>
+      <div class="field small"><label>Limpiapipas</label><input type="number" id="dc-cant" min="1" step="1"></div>
+    `;
+    box.appendChild(row);
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-ghost';
+    btn.style.marginTop = '10px';
+    btn.textContent = '+ Agregar color a este objeto';
+    btn.onclick = () => {
+      const nombre = document.getElementById('dc-nombre').value.trim();
+      const hex = document.getElementById('dc-hex').value;
+      const cant = parseFloat(document.getElementById('dc-cant').value);
+      if (!nombre) { alert('Ponle un nombre a ese color.'); return; }
+      if (!cant || cant <= 0) { alert('La cantidad de limpiapipas debe ser mayor a 0.'); return; }
+      onAdd({ id: nid(), nombre, hex, limpiapipas: cant });
+      draftColor = { nombre: '', hex: '#DC2626', cantidad: 1 };
+    };
+    box.appendChild(btn);
+    // valores por defecto
+    setTimeout(() => {
+      const h = document.getElementById('dc-hex'); if (h) h.value = draftColor.hex || '#DC2626';
+      const c = document.getElementById('dc-cant'); if (c) c.value = '1';
+    }, 0);
+    return box;
+  }
+
+  function renderColorChips(colores, onRemove) {
+    const wrap = document.createElement('div');
+    wrap.className = 'color-list';
+    if (colores.length === 0) {
+      const p = document.createElement('div');
+      p.className = 'oi-sub';
+      p.textContent = 'Aún no agregas ningún color.';
+      wrap.appendChild(p);
+      return wrap;
+    }
+    colores.forEach((c) => {
+      const chip = document.createElement('span');
+      chip.className = 'color-chip';
+      const sw = document.createElement('span');
+      sw.className = 'swatch sm';
+      sw.style.background = c.hex;
+      chip.appendChild(sw);
+      const txt = document.createElement('span');
+      txt.textContent = c.nombre + ' · ' + c.limpiapipas + '/u';
+      chip.appendChild(txt);
+      if (onRemove) {
+        const x = document.createElement('button');
+        x.textContent = '✕';
+        x.onclick = () => onRemove(c.id);
+        chip.appendChild(x);
+      }
+      wrap.appendChild(chip);
+    });
+    return wrap;
+  }
+
+  function renderObjetos() {
+    const wrap = document.createElement('div');
+    wrap.className = 'wrap';
+
+    // --- Nuevo objeto ---
+    const form = document.createElement('div');
+    form.className = 'card';
+    form.innerHTML = '<h2>➕ Nuevo objeto</h2>';
+    const nombreField = document.createElement('div');
+    nombreField.className = 'field';
+    nombreField.innerHTML = '<label>Nombre del objeto</label>';
+    const nombreInput = document.createElement('input');
+    nombreInput.type = 'text';
+    nombreInput.placeholder = 'Ej. Flor, Hoja, Tallo';
+    nombreInput.value = draftObjeto.nombre;
+    nombreInput.oninput = (e) => { draftObjeto.nombre = e.target.value; };
+    nombreField.appendChild(nombreInput);
+    form.appendChild(nombreField);
+
+    const chipsTitle = document.createElement('div');
+    chipsTitle.className = 'oi-sub';
+    chipsTitle.style.marginTop = '10px';
+    chipsTitle.textContent = 'Colores de este objeto:';
+    form.appendChild(chipsTitle);
+    form.appendChild(renderColorChips(draftObjeto.colores, (colorId) => {
+      draftObjeto.colores = draftObjeto.colores.filter((c) => c.id !== colorId);
+      render();
+    }));
+    form.appendChild(renderColorDraftForm((nuevoColor) => {
+      draftObjeto.colores.push(nuevoColor);
+      render();
+    }));
+
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn btn-primary';
+    saveBtn.style.marginTop = '12px';
+    saveBtn.textContent = '💾 Guardar objeto';
+    saveBtn.onclick = () => {
+      if (!draftObjeto.nombre.trim()) { alert('Ponle un nombre al objeto.'); return; }
+      if (draftObjeto.colores.length === 0) { alert('Agrega al menos un color con su cantidad de limpiapipas.'); return; }
+      objetos.push({ id: nid(), nombre: draftObjeto.nombre.trim(), colores: draftObjeto.colores });
+      guardarObjetos();
+      draftObjeto = { nombre: '', colores: [] };
+      render();
+    };
+    form.appendChild(saveBtn);
+    wrap.appendChild(form);
+
+    // --- Lista de objetos ---
+    const listCard = document.createElement('div');
+    listCard.className = 'card';
+    listCard.innerHTML = '<h2>🧩 Objetos dados de alta</h2>';
+    if (objetos.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.innerHTML = '<span class="icon">🌷</span>Aún no hay objetos. Agrega el primero arriba.';
+      listCard.appendChild(empty);
+    } else {
+      objetos.forEach((o) => {
+        const item = document.createElement('div');
+        item.className = 'objeto-item';
+        const head = document.createElement('div');
+        head.className = 'objeto-item-head';
+        const name = document.createElement('div');
+        name.className = 'oi-name';
+        name.textContent = o.nombre;
+        head.appendChild(name);
+        const del = document.createElement('button');
+        del.className = 'btn btn-danger';
+        del.textContent = '🗑️';
+        del.onclick = () => {
+          if (!confirm('¿Eliminar "' + o.nombre + '"?')) return;
+          objetos = objetos.filter((x) => x.id !== o.id);
+          guardarObjetos();
+          render();
+        };
+        head.appendChild(del);
+        item.appendChild(head);
+        item.appendChild(renderColorChips(o.colores, (colorId) => {
+          if (o.colores.length <= 1) { alert('Un objeto necesita al menos un color.'); return; }
+          o.colores = o.colores.filter((c) => c.id !== colorId);
+          guardarObjetos();
+          render();
+        }));
+        item.appendChild(renderColorDraftForm((nuevoColor) => {
+          o.colores.push(nuevoColor);
+          guardarObjetos();
+          render();
+        }));
+        listCard.appendChild(item);
+      });
+    }
+    wrap.appendChild(listCard);
+    return wrap;
+  }
+
+  // ---------------- COTIZAR ----------------
+  function calcResumen(partidas) {
+    const porColor = {};
+    let total = 0;
+    partidas.forEach((p) => {
+      p.colores.forEach((c) => {
+        const sub = c.limpiapipasUnit * p.cantidad;
+        total += sub;
+        const key = c.colorNombre + '|' + c.colorHex;
+        if (!porColor[key]) porColor[key] = { colorNombre: c.colorNombre, colorHex: c.colorHex, total: 0 };
+        porColor[key].total += sub;
+      });
+    });
+    return { porColor: Object.values(porColor).sort((a, b) => b.total - a.total), total };
+  }
+
+  function renderCotizar() {
+    const wrap = document.createElement('div');
+    wrap.className = 'wrap';
+
+    const clienteCard = document.createElement('div');
+    clienteCard.className = 'card';
+    clienteCard.innerHTML = '<h2>👤 Cliente / referencia (opcional)</h2>';
+    const clienteInput = document.createElement('input');
+    clienteInput.type = 'text';
+    clienteInput.placeholder = 'Ej. Ramo para Ana, pedido del 12 de agosto...';
+    clienteInput.value = ticket.cliente || '';
+    clienteInput.style.width = '100%';
+    clienteInput.style.border = '1px solid #D8DBE0';
+    clienteInput.style.borderRadius = '8px';
+    clienteInput.style.padding = '9px 10px';
+    clienteInput.style.fontSize = '14px';
+    clienteInput.oninput = (e) => { ticket.cliente = e.target.value; guardarTicket(); };
+    clienteCard.appendChild(clienteInput);
+    wrap.appendChild(clienteCard);
+
+    const addCard = document.createElement('div');
+    addCard.className = 'card';
+    addCard.innerHTML = '<h2>➕ Agregar al pedido</h2>';
+    if (objetos.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.innerHTML = '<span class="icon">🧩</span>Primero da de alta objetos en la pestaña "Objetos".';
+      addCard.appendChild(empty);
+    } else {
+      const row = document.createElement('div');
+      row.className = 'row';
+      const selField = document.createElement('div');
+      selField.className = 'field';
+      selField.innerHTML = '<label>Objeto</label>';
+      const sel = document.createElement('select');
+      sel.className = 'op-objeto';
+      objetos.forEach((o) => {
+        const opt = document.createElement('option');
+        opt.value = o.id;
+        const label = o.colores.length === 1
+          ? o.nombre + ' (' + o.colores[0].nombre + ') · ' + o.colores[0].limpiapipas + '/u'
+          : o.nombre + ' · ' + o.colores.length + ' colores';
+        opt.textContent = label;
+        sel.appendChild(opt);
+      });
+      selField.appendChild(sel);
+      row.appendChild(selField);
+
+      const cantField = document.createElement('div');
+      cantField.className = 'field small';
+      cantField.innerHTML = '<label>Cantidad</label>';
+      const cantInput = document.createElement('input');
+      cantInput.type = 'number';
+      cantInput.min = '1';
+      cantInput.step = '1';
+      cantInput.value = '1';
+      cantField.appendChild(cantInput);
+      row.appendChild(cantField);
+
+      const btnField = document.createElement('div');
+      btnField.className = 'field';
+      btnField.style.flex = '0 0 auto';
+      btnField.innerHTML = '<label>&nbsp;</label>';
+      const addBtn = document.createElement('button');
+      addBtn.className = 'btn btn-primary';
+      addBtn.textContent = '➕ Agregar';
+      addBtn.onclick = () => {
+        const o = objetos.find((x) => x.id === sel.value);
+        const cant = parseFloat(cantInput.value);
+        if (!o) return;
+        if (!cant || cant <= 0) { alert('La cantidad debe ser mayor a 0.'); return; }
+        ticket.partidas.push({
+          id: nid(),
+          objetoId: o.id,
+          nombre: o.nombre,
+          cantidad: cant,
+          colores: o.colores.map((c) => ({ colorNombre: c.nombre, colorHex: c.hex, limpiapipasUnit: c.limpiapipas })),
+        });
+        guardarTicket();
+        render();
+      };
+      btnField.appendChild(addBtn);
+      row.appendChild(btnField);
+
+      addCard.appendChild(row);
+    }
+    wrap.appendChild(addCard);
+
+    const partidasCard = document.createElement('div');
+    partidasCard.className = 'card';
+    partidasCard.innerHTML = '<h2>📋 Pedido actual</h2>';
+    if (ticket.partidas.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.innerHTML = '<span class="icon">🎀</span>Aún no agregas nada al pedido.';
+      partidasCard.appendChild(empty);
+    } else {
+      ticket.partidas.forEach((p) => {
+        const item = document.createElement('div');
+        item.className = 'partida-item';
+        const head = document.createElement('div');
+        head.className = 'partida-head';
+        const name = document.createElement('div');
+        name.className = 'oi-name';
+        name.textContent = p.nombre + ' × ' + p.cantidad;
+        head.appendChild(name);
+        const del = document.createElement('button');
+        del.className = 'btn btn-danger';
+        del.textContent = '🗑️';
+        del.onclick = () => {
+          ticket.partidas = ticket.partidas.filter((x) => x.id !== p.id);
+          guardarTicket();
+          render();
+        };
+        head.appendChild(del);
+        item.appendChild(head);
+        const detalle = document.createElement('div');
+        detalle.style.marginTop = '6px';
+        p.colores.forEach((c) => {
+          const line = document.createElement('div');
+          line.className = 'oi-sub';
+          line.style.display = 'flex';
+          line.style.alignItems = 'center';
+          line.style.gap = '6px';
+          const sw = document.createElement('span');
+          sw.className = 'swatch sm';
+          sw.style.background = c.colorHex;
+          line.appendChild(sw);
+          const t = document.createElement('span');
+          t.textContent = c.colorNombre + ': ' + (c.limpiapipasUnit * p.cantidad) + ' limpiapipas';
+          line.appendChild(t);
+          detalle.appendChild(line);
+        });
+        item.appendChild(detalle);
+        partidasCard.appendChild(item);
+      });
+    }
+    wrap.appendChild(partidasCard);
+
+    const { porColor, total } = calcResumen(ticket.partidas);
+    const resumenCard = document.createElement('div');
+    resumenCard.className = 'card';
+    resumenCard.innerHTML = '<h2>🧵 Resumen de limpiapipas por color</h2>';
+    if (porColor.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.textContent = 'Agrega objetos al pedido para ver el resumen.';
+      resumenCard.appendChild(empty);
+    } else {
+      const chips = document.createElement('div');
+      porColor.forEach((c) => {
+        const chip = document.createElement('span');
+        chip.className = 'resumen-chip';
+        chip.innerHTML = '<span class="swatch sm" style="background:' + c.colorHex + '"></span>' + escapeHtml(c.colorNombre) + ': ' + c.total;
+        chips.appendChild(chip);
+      });
+      resumenCard.appendChild(chips);
+      const totalLine = document.createElement('div');
+      totalLine.style.marginTop = '14px';
+      totalLine.innerHTML = 'Total: <span class="resumen-total">' + total + ' limpiapipas</span>';
+      resumenCard.appendChild(totalLine);
+    }
+    wrap.appendChild(resumenCard);
+
+    const actions = document.createElement('div');
+    actions.className = 'card actions-row';
+
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn btn-green';
+    saveBtn.textContent = '💾 Guardar en historial';
+    saveBtn.onclick = () => {
+      if (ticket.partidas.length === 0) { alert('Agrega al menos un objeto antes de guardar.'); return; }
+      const { porColor, total } = calcResumen(ticket.partidas);
+      historial.unshift({
+        id: nid(),
+        fecha: new Date().toLocaleString('es-MX'),
+        cliente: ticket.cliente || '(sin referencia)',
+        partidas: ticket.partidas,
+        resumenColores: porColor,
+        totalLimpiapipas: total,
+      });
+      guardarHistorial();
+      ticket = { cliente: '', partidas: [] };
+      guardarTicket();
+      alert('Cotización guardada en el historial.');
+      setTab('historial');
+    };
+    actions.appendChild(saveBtn);
+
+    const clearBtn = document.createElement('button');
+    clearBtn.className = 'btn btn-ghost';
+    clearBtn.textContent = '🗑️ Nueva cotización';
+    clearBtn.onclick = () => {
+      if (ticket.partidas.length > 0 && !confirm('¿Vaciar el pedido actual?')) return;
+      ticket = { cliente: '', partidas: [] };
+      guardarTicket();
+      render();
+    };
+    actions.appendChild(clearBtn);
+
+    const waBtn = document.createElement('button');
+    waBtn.className = 'btn btn-primary';
+    waBtn.textContent = '📲 WhatsApp';
+    waBtn.onclick = () => {
+      if (ticket.partidas.length === 0) { alert('Agrega al menos un objeto antes de compartir.'); return; }
+      const { porColor, total } = calcResumen(ticket.partidas);
+      let msg = '🌸 *Corichi Fiore*\n';
+      if (ticket.cliente) msg += 'Referencia: ' + ticket.cliente + '\n';
+      msg += '\n*Pedido:*\n';
+      ticket.partidas.forEach((p) => {
+        msg += '• ' + p.nombre + ' × ' + p.cantidad + '\n';
+        p.colores.forEach((c) => { msg += '   - ' + c.colorNombre + ': ' + (c.limpiapipasUnit * p.cantidad) + '\n'; });
+      });
+      msg += '\n*Limpiapipas necesarios:*\n';
+      porColor.forEach((c) => { msg += '• ' + c.colorNombre + ': ' + c.total + '\n'; });
+      msg += '\nTotal: ' + total + ' limpiapipas';
+      window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+    };
+    actions.appendChild(waBtn);
+
+    wrap.appendChild(actions);
+
+    return wrap;
+  }
+
+  // ---------------- HISTORIAL ----------------
+  function renderHistorial() {
+    const wrap = document.createElement('div');
+    wrap.className = 'wrap';
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = '<h2>🕐 Cotizaciones guardadas</h2>';
+    if (historial.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.innerHTML = '<span class="icon">📭</span>Aún no hay cotizaciones guardadas.';
+      card.appendChild(empty);
+    } else {
+      historial.forEach((h) => {
+        const item = document.createElement('div');
+        item.className = 'hist-item';
+        const head = document.createElement('div');
+        head.className = 'hist-head';
+        head.innerHTML = '<div><strong>' + escapeHtml(h.cliente) + '</strong><div class="oi-sub">' + h.fecha + ' · ' + h.totalLimpiapipas + ' limpiapipas</div></div>';
+        const del = document.createElement('button');
+        del.className = 'btn btn-danger';
+        del.textContent = '🗑️';
+        del.onclick = (e) => {
+          e.stopPropagation();
+          if (!confirm('¿Eliminar esta cotización del historial?')) return;
+          historial = historial.filter((x) => x.id !== h.id);
+          guardarHistorial();
+          render();
+        };
+        head.appendChild(del);
+        item.appendChild(head);
+
+        const body = document.createElement('div');
+        body.className = 'hist-body';
+        let bodyHtml = '<div style="margin-bottom:8px;"><strong>Partidas:</strong></div>';
+        h.partidas.forEach((p) => {
+          bodyHtml += '<div class="oi-sub" style="margin-bottom:4px;"><strong style="color:#0F2431;">' + escapeHtml(p.nombre) + ' × ' + p.cantidad + '</strong></div>';
+          p.colores.forEach((c) => {
+            bodyHtml += '<div class="oi-sub">&nbsp;&nbsp;• ' + escapeHtml(c.colorNombre) + ': ' + (c.limpiapipasUnit * p.cantidad) + ' limpiapipas</div>';
+          });
+        });
+        bodyHtml += '<div style="margin-top:10px;"><strong>Por color:</strong></div>';
+        h.resumenColores.forEach((c) => {
+          bodyHtml += '<span class="resumen-chip"><span class="swatch sm" style="background:' + c.colorHex + '"></span>' + escapeHtml(c.colorNombre) + ': ' + c.total + '</span>';
+        });
+        body.innerHTML = bodyHtml;
+        item.appendChild(body);
+
+        item.addEventListener('click', () => item.classList.toggle('open'));
+        card.appendChild(item);
+      });
+    }
+    wrap.appendChild(card);
+    return wrap;
+  }
+
+  function render() {
+    renderTabs();
+    const content = document.getElementById('content');
+    content.innerHTML = '';
+    if (tab === 'objetos') content.appendChild(renderObjetos());
+    else if (tab === 'cotizar') content.appendChild(renderCotizar());
+    else content.appendChild(renderHistorial());
+  }
+
+  cargar();
+  semilla();
+  render();
+</script>
+</body>
+</html>
