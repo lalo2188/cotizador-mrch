@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Corichi Fiore — Cotizador</title>
+<meta name="description" content="Cotizador de ramos y figuras de limpiapipas">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #F2F7FB; color: #0F2431; padding: 0 0 40px; }
+  a { color: inherit; }
+  .topbar { background: #0369A1; color: #fff; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; position: sticky; top: 0; z-index: 10; }
+  .topbar .brand { font-size: 1.2em; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .topbar .back { font-size: 12px; color: #BAE6FD; text-decoration: none; border: 1px solid rgba(255,255,255,0.3); border-radius: 20px; padding: 6px 12px; }
+  .topbar .back:hover { color: #fff; border-color: #fff; }
+  .tabs { max-width: 960px; margin: 16px auto 0; padding: 0 20px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .tab-btn { border: none; background: #fff; color: #0369A1; font-size: 13px; font-weight: 700; padding: 9px 16px; border-radius: 20px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .tab-btn.on { background: #0369A1; color: #fff; }
+  .wrap { max-width: 960px; margin: 16px auto 0; padding: 0 20px; display: flex; flex-direction: column; gap: 14px; }
+  .card { background: #fff; border-radius: 12px; padding: 18px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
+  .card h2 { font-size: 1.05em; margin-bottom: 12px; color: #0F2431; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 120px; }
+  .field.small { flex: 0 0 90px; min-width: 90px; }
+  .field.color { flex: 0 0 60px; min-width: 60px; }
+  .field label { font-size: 11px; font-weight: 700; color: #7B8290; text-transform: uppercase; letter-spacing: .03em; }
+  .field input[type=text], .field input[type=number] { border: 1px solid #D8DBE0; border-radius: 8px; padding: 9px 10px; font-size: 14px; font-family: inherit; }
+  .field input[type=text]:focus, .field input[type=number]:focus { outline: none; border-color: #0369A1; }
+  .field input[type=color] { width: 44px; height: 38px; border: 1px solid #D8DBE0; border-radius: 8px; padding: 2px; cursor: pointer; background: #fff; }
+  .btn { border: none; border-radius: 8px; padding: 10px 18px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+  .btn-primary { background: #0369A1; color: #fff; }
+  .btn-primary:hover { background: #075985; }
+  .btn-ghost { background: #EFF6FB; color: #0369A1; }
+  .btn-ghost:hover { background: #DCEEFB; }
+  .btn-danger { background: none; color: #C0392B; padding: 6px 8px; font-size: 15px; }
+  .btn-green { background: #16A34A; color: #fff; }
+  .btn-green:hover { background: #128238; }
+  .objeto-item, .partida-item, .hist-item, .producto-item { padding: 12px; border: 1.5px solid #EEF3F8; border-radius: 10px; margin-bottom: 8px; }
+  .objeto-item-head, .partida-head, .producto-item-head { display: flex; align-items: center; gap: 10px; }
+  .swatch { width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.15); }
+  .swatch.sm { width: 14px; height: 14px; }
+  .oi-name { flex: 1; font-weight: 600; font-size: 14px; min-width: 0; }
+  .oi-sub { font-size: 12px; color: #7B8290; }
+  .empty { text-align: center; color: #9AA0AE; padding: 36px 20px; font-size: 13px; }
+  .empty .icon { font-size: 32px; margin-bottom: 8px; display: block; }
+  .resumen-chip { display: inline-flex; align-items: center; gap: 6px; background: #F2F7FB; border-radius: 20px; padding: 6px 12px; font-size: 13px; font-weight: 700; margin: 3px 5px 3px 0; }
+  .resumen-total { font-size: 1.4em; font-weight: 700; color: #0369A1; }
+  .tip { background: #EFF6FB; border-left: 4px solid #0369A1; padding: 10px 12px; border-radius: 4px; font-size: 12px; color: #0F2431; }
+  .actions-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .color-chip, .item-chip { display: inline-flex; align-items: center; gap: 6px; background: #F8FAFC; border: 1px solid #E5EBF1; border-radius: 20px; padding: 5px 6px 5px 10px; font-size: 12px; font-weight: 600; margin: 3px 6px 3px 0; }
+  .color-chip button, .item-chip button { border: none; background: none; color: #C0392B; cursor: pointer; font-size: 13px; padding: 0 2px; }
+  .color-list { margin: 8px 0; }
+  .subtle-box { background: #FAFCFE; border: 1px dashed #D8DBE0; border-radius: 10px; padding: 10px; margin-top: 8px; }
+  .hist-item { cursor: pointer; }
+  .hist-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .hist-body { display: none; margin-top: 10px; border-top: 1px solid #EEF3F8; padding-top: 10px; }
+  .hist-item.open .hist-body { display: block; }
+  .thumb { width: 44px; height: 44px; border-radius: 8px; flex-shrink: 0; background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; font-size: 18px; background-color: #F2F7FB; overflow: hidden; }
+  .thumb.big { width: 52px; height: 52px; border-radius: 10px; }
+  .mosaic { display: flex; flex-wrap: wrap; }
+  .mosaic > div { width: 50%; height: 50%; }
+  .picker-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .picker-card { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 84px; padding: 8px 6px; border-radius: 10px; border: 2px solid #E5EBF1; background: #fff; cursor: pointer; font-family: inherit; }
+  .picker-card.on { border-color: #0369A1; background: #EFF6FB; }
+  .picker-card .pc-label { font-size: 11px; font-weight: 700; text-align: center; line-height: 1.2; }
+  .picker-card .pc-sub { font-size: 9px; color: #7B8290; }
+  @media (max-width: 640px) {
+    .row { flex-direction: column; align-items: stretch; }
+    .field.small, .field.color { flex: 1; }
+  }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">🌸 Corichi Fiore</div>
+    <div style="display:flex;gap:8px;">
+      <a class="back" href="/">🏠 Inicio</a>
+      <a class="back" href="/comparar.html">📊 Comparar</a>
+    </div>
+  </div>
+  <div class="tabs" id="tabs"></div>
+  <div class="wrap">
+    <div class="tip" id="tip"></div>
+  </div>
+  <div id="content"></div>
+
+<script>
+  const LS_OBJETOS = 'cf_objetos';
+  const LS_PRODUCTOS = 'cf_productos';
+  const LS_HISTORIAL = 'cf_historial';
+  const LS_TICKET = 'cf_ticket';
+
+  let objetos = [];
+  let productos = [];
+  let historial = [];
+  let ticket = { cliente: '', partidas: [] };
+  let idCounter = 0;
+  let tab = 'cotizar';
+
+  // Borradores de formularios (se mantienen entre re-renders)
+  let draftObjeto = { nombre: '', foto: null, colores: [] };
+  let draftColor = { hex: '#DC2626' };
+  let draftProducto = { nombre: '', foto: null, items: [] };
+  let draftItemObjetoId = null;
+  let cantDraftItem = 1;
+  let selObjetoAgregar = null;
+  let cantAgregarObjeto = 1;
+  let selProductoAgregar = null;
+  let cantAgregarProducto = 1;
+
+  const nid = () => 'id' + (idCounter++) + '_' + Date.now();
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function redimensionarImagen(file, maxSize, cb) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        if (w > h) { if (w > maxSize) { h = Math.round(h * maxSize / w); w = maxSize; } }
+        else { if (h > maxSize) { w = Math.round(w * maxSize / h); h = maxSize; } }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        cb(canvas.toDataURL('image/jpeg', 0.75));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function guardarObjetos() { try { localStorage.setItem(LS_OBJETOS, JSON.stringify({ objetos, idCounter })); } catch (e) {} }
+  function guardarProductos() { try { localStorage.setItem(LS_PRODUCTOS, JSON.stringify({ productos, idCounter })); } catch (e) {} }
+  function guardarHistorial() { try { localStorage.setItem(LS_HISTORIAL, JSON.stringify(historial)); } catch (e) {} }
+  function guardarTicket() { try { localStorage.setItem(LS_TICKET, JSON.stringify(ticket)); } catch (e) {} }
+
+  // Migra objetos guardados con el formato viejo (un solo color) al formato nuevo (varios colores)
+  function migrarObjeto(o) {
+    if (Array.isArray(o.colores)) return o;
+    return {
+      id: o.id,
+      nombre: o.nombre,
+      foto: o.foto || null,
+      colores: [{ id: nid(), nombre: o.colorNombre || 'Color', hex: o.colorHex || '#DC2626', limpiapipas: o.limpiapipas || 1 }],
+    };
+  }
+
+  // Migra partidas guardadas con el formato viejo (un solo color, sin tipo) al formato nuevo
+  function migrarPartida(p) {
+    if (p.tipo === 'producto') return p;
+    if (Array.isArray(p.colores)) return { ...p, tipo: 'objeto' };
+    return {
+      id: p.id,
+      tipo: 'objeto',
+      objetoId: p.objetoId,
+      nombre: p.nombre,
+      cantidad: p.cantidad,
+      colores: [{ colorNombre: p.colorNombre, colorHex: p.colorHex, limpiapipasUnit: p.limpiapipasUnit }],
+    };
+  }
+
+  function cargar() {
+    try {
+      const raw = localStorage.getItem(LS_OBJETOS);
+      if (raw) {
+        const data = JSON.parse(raw);
+        objetos = (Array.isArray(data.objetos) ? data.objetos : []).map(migrarObjeto);
+        idCounter = Math.max(idCounter, data.idCounter || 0);
+      }
+    } catch (e) {}
+    try {
+      const raw = localStorage.getItem(LS_PRODUCTOS);
+      if (raw) {
+        const data = JSON.parse(raw);
+        productos = Array.isArray(data.productos) ? data.productos : [];
+        idCounter = Math.max(idCounter, data.idCounter || 0);
+      }
+    } catch (e) {}
+    try {
+      const raw = localStorage.getItem(LS_HISTORIAL);
+      if (raw) {
+        historial = (JSON.parse(raw) || []).map((h) => ({ ...h, partidas: (h.partidas || []).map(migrarPartida) }));
+      }
+    } catch (e) {}
+    try {
+      const raw = localStorage.getItem(LS_TICKET);
+      if (raw) {
+        const t = JSON.parse(raw) || { cliente: '', partidas: [] };
+        t.partidas = (t.partidas || []).map(migrarPartida);
+        ticket = t;
+      }
+    } catch (e) {}
+  }
+
+  // Semilla de ejemplo si no hay nada guardado aún (una flor bicolor, como ejemplo)
+  function semilla() {
+    if (objetos.length > 0) return;
+    objetos = [
+      {
+        id: nid(), nombre: 'Flor', foto: null,
+        colores: [
+          { id: nid(), nombre: 'Rojo', hex: '#DC2626', limpiapipas: 1 },
+          { id: nid(), nombre: 'Amarillo', hex: '#EAB308', limpiapipas: 1 },
+        ],
+      },
+      { id: nid(), nombre: 'Hoja', foto: null, colores: [{ id: nid(), nombre: 'Verde', hex: '#16A34A', limpiapipas: 1 }] },
+      { id: nid(), nombre: 'Tallo', foto: null, colores: [{ id: nid(), nombre: 'Verde', hex: '#16A34A', limpiapipas: 1 }] },
+    ];
+    guardarObjetos();
+  }
+
+  const TIPS = {
+    objetos: '💡 Da de alta cada pieza que arma Azul (flor, hoja, tallo, pistilo, etc.) con su color y cuántos limpiapipas lleva. Si una pieza usa varios colores, agrégalos todos. Puedes ponerle una foto para identificarla más fácil.',
+    productos: '💡 Arma "productos" completos (ej. Ramo cumpleañero) combinando varios objetos con su cantidad. Así, cuando te pidan lo mismo de siempre, lo agregas de un clic en Cotizar.',
+    cotizar: '💡 Agrega productos completos o objetos sueltos al pedido. Abajo verás el total de limpiapipas que se necesitan, agrupado por color.',
+    historial: '💡 Aquí quedan guardadas las cotizaciones anteriores para consultarlas cuando quieras.',
+  };
+
+  function setTab(t) {
+    tab = t;
+    render();
+  }
+
+  function renderTabs() {
+    const el = document.getElementById('tabs');
+    el.innerHTML = '';
+    [['objetos', '🧩 Objetos'], ['productos', '💐 Productos'], ['cotizar', '🧾 Cotizar'], ['historial', '🕐 Historial']].forEach(([k, label]) => {
+      const b = document.createElement('button');
+      b.className = 'tab-btn' + (tab === k ? ' on' : '');
+      b.textContent = label;
+      b.onclick = () => setTab(k);
+      el.appendChild(b);
+    });
+    document.getElementById('tip').textContent = TIPS[tab] || '';
+  }
+
+  // ---------------- Piezas reutilizables ----------------
+  function renderThumb(foto, fallbackColores, big) {
+    const t = document.createElement('div');
+    t.className = 'thumb' + (big ? ' big' : '');
+    if (foto) {
+      t.style.backgroundImage = 'url(' + foto + ')';
+    } else if (fallbackColores && fallbackColores.length) {
+      t.classList.add('mosaic');
+      fallbackColores.slice(0, 4).forEach((c) => {
+        const seg = document.createElement('div');
+        seg.style.background = c.hex || c.colorHex;
+        t.appendChild(seg);
+      });
+    } else {
+      t.textContent = '🌸';
+    }
+    return t;
+  }
+
+  function renderFotoPicker(currentFoto, onChange) {
+    const box = document.createElement('div');
+    box.style.display = 'flex';
+    box.style.alignItems = 'center';
+    box.style.gap = '10px';
+    box.style.marginTop = '10px';
+    box.appendChild(renderThumb(currentFoto, null, true));
+    const label = document.createElement('label');
+    label.className = 'btn btn-ghost';
+    label.style.cursor = 'pointer';
+    label.textContent = currentFoto ? 'Cambiar foto' : '📷 Agregar foto (opcional)';
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.style.display = 'none';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      redimensionarImagen(file, 260, (dataUrl) => onChange(dataUrl));
+    };
+    label.appendChild(input);
+    box.appendChild(label);
+    if (currentFoto) {
+      const rm = document.createElement('button');
+      rm.className = 'btn btn-danger';
+      rm.textContent = '✕';
+      rm.onclick = () => onChange(null);
+      box.appendChild(rm);
+    }
+    return box;
+  }
+
+  function renderColorDraftForm(onAdd) {
+    const box = document.createElement('div');
+    box.className = 'subtle-box';
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = `
+      <div class="field color"><label>Color</label><input type="color" id="dc-hex"></div>
+      <div class="field"><label>Nombre del color</label><input type="text" id="dc-nombre" placeholder="Ej. Rojo cereza"></div>
+      <div class="field small"><label>Limpiapipas</label><input type="number" id="dc-cant" min="1" step="1"></div>
+    `;
+    box.appendChild(row);
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-ghost';
+    btn.style.marginTop = '10px';
+    btn.textContent = '+ Agregar color a este objeto';
+    btn.onclick = () => {
+      const nombre = document.getElementById('dc-nombre').value.trim();
+      const hex = document.getElementById('dc-hex').value;
+      const cant = parseFloat(document.getElementById('dc-cant').value);
+      if (!nombre) { alert('Ponle un nombre a ese color.'); return; }
+      if (!cant || cant <= 0) { alert('La cantidad de limpiapipas debe ser mayor a 0.'); return; }
+      onAdd({ id: nid(), nombre, hex, limpiapipas: cant });
+    };
+    box.appendChild(btn);
+    setTimeout(() => {
+      const h = document.getElementById('dc-hex'); if (h) h.value = draftColor.hex || '#DC2626';
+      const c = document.getElementById('dc-cant'); if (c) c.value = '1';
+    }, 0);
+    return box;
+  }
+
+  function renderColorChips(colores, onRemove) {
+    const wrap = document.createElement('div');
+    wrap.className = 'color-list';
+    if (colores.length === 0) {
+      const p = document.createElement('div');
+      p.className = 'oi-sub';
+      p.textContent = 'Aún no agregas ningún color.';
+      wrap.appendChild(p);
+      return wrap;
+    }
+    colores.forEach((c) => {
+      const chip = document.createElement('span');
+      chip.className = 'color-chip';
+      const sw = document.createElement('span');
+      sw.className = 'swatch sm';
+      sw.style.background = c.hex;
+      chip.appendChild(sw);
+      const txt = document.createElement('span');
+      txt.textContent = c.nombre + ' · ' + c.limpiapipas + '/u';
+      chip.appendChild(txt);
+      if (onRemove) {
+        const x = document.createElement('button');
+        x.textContent = '✕';
+        x.onclick = () => onRemove(c.id);
+        chip.appendChild(x);
+      }
+      wrap.appendChild(chip);
+    });
+    return wrap;
+  }
+
+  // grid de tarjetas seleccionables (con foto o mosaico de colores) para elegir un objeto o producto
+  function renderPickerGrid(items, selectedId, onSelect) {
+    const grid = document.createElement('div');
+    grid.className = 'picker-grid';
+    items.forEach((it) => {
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'picker-card' + (it.id === selectedId ? ' on' : '');
+      card.onclick = () => onSelect(it.id);
+      card.appendChild(renderThumb(it.foto, it.colores, false));
+      const label = document.createElement('span');
+      label.className = 'pc-label';
+      label.textContent = it.nombre;
+      card.appendChild(label);
+      if (it.sub) {
+        const sub = document.createElement('span');
+        sub.className = 'pc-sub';
+        sub.textContent = it.sub;
+        card.appendChild(sub);
+      }
+      grid.appendChild(card);
+    });
+    return grid;
+  }
+
+  // ---------------- OBJETOS ----------------
+  function renderObjetos() {
+    const wrap = document.createElement('div');
+    wrap.className = 'wrap';
+
+    const form = document.createElement('div');
+    form.className = 'card';
+    form.innerHTML = '<h2>➕ Nuevo objeto</h2>';
+    const nombreField = document.createElement('div');
+    nombreField.className = 'field';
+    nombreField.innerHTML = '<label>Nombre del objeto</label>';
+    const nombreInput = document.createElement('input');
+    nombreInput.type = 'text';
+    nombreInput.placeholder = 'Ej. Flor, Hoja, Tallo, Pistilo';
+    nombreInput.value = draftObjeto.nombre;
+    nombreInput.oninput = (e) => { draftObjeto.nombre = e.target.value; };
+    nombreField.appendChild(nombreInput);
+    form.appendChild(nombreField);
+    form.appendChild(renderFotoPicker(draftObjeto.foto, (foto) => { draftObjeto.foto = foto; render(); }));
+
+    const chipsTitle = document.createElement('div');
+    chipsTitle.className = 'oi-sub';
+    chipsTitle.style.marginTop = '10px';
+    chipsTitle.textContent = 'Colores de este objeto:';
+    form.appendChild(chipsTitle);
+    form.appendChild(renderColorChips(draftObjeto.colores, (colorId) => {
+      draftObjeto.colores = draftObjeto.colores.filter((c) => c.id !== colorId);
+      render();
+    }));
+    form.appendChild(renderColorDraftForm((nuevoColor) => {
+      draftObjeto.colores.push(nuevoColor);
+      render();
+    }));
+
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn btn-primary';
+    saveBtn.style.marginTop = '12px';
+    saveBtn.textContent = '💾 Guardar objeto';
+    saveBtn.onclick = () => {
+      if (!draftObjeto.nombre.trim()) { alert('Ponle un nombre al objeto.'); return; }
+      if (draftObjeto.colores.length === 0) { alert('Agrega al menos un color con su cantidad de limpiapipas.'); return; }
+      objetos.push({ id: nid(), nombre: draftObjeto.nombre.trim(), foto: draftObjeto.foto, colores: draftObjeto.colores });
+      guardarObjetos();
+      draftObjeto = { nombre: '', foto: null, colores: [] };
+      render();
+    };
+    form.appendChild(saveBtn);
+    wrap.appendChild(form);
+
+    const listCard = document.createElement('div');
+    listCard.className = 'card';
+    listCard.innerHTML = '<h2>🧩 Objetos dados de alta</h2>';
+    if (objetos.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.innerHTML = '<span class="icon">🌷</span>Aún no hay objetos. Agrega el primero arriba.';
+      listCard.appendChild(empty);
+    } else {
+      objetos.forEach((o) => {
+        const item = document.createElement('div');
+        item.className = 'objeto-item';
+        const head = document.createElement('div');
+        head.className = 'objeto-item-head';
+        head.appendChild(renderThumb(o.foto, o.colores, false));
+        const name = document.createElement('div');
+        name.className = 'oi-name';
+        name.textContent = o.nombre;
+        head.appendChild(name);
+        const del = document.createElement('button');
+        del.className = 'btn btn-danger';
+        del.textContent = '🗑️';
+        del.onclick = () => {
+          if (!confirm('¿Eliminar "' + o.nombre + '"?')) return;
+          objetos = objetos.filter((x) => x.id !== o.id);
+          guardarObjetos();
+          render();
+        };
+        head.appendChild(del);
+        item.appendChild(head);
+        item.appendChild(renderFotoPicker(o.foto, (foto) => { o.foto = foto; guardarObjetos(); render(); }));
+        item.appendChild(renderColorChips(o.colores, (colorId) => {
+          if (o.colores.length <= 1) { alert('Un objeto necesita al menos un color.'); return; }
+          o.colores = o.colores.filter((c) => c.id !== colorId);
+          guardarObjetos();
+          render();
+        }));
+        item.appendChild(renderColorDraftForm((nuevoColor) => {
+          o.colores.push(nuevoColor);
+          guardarObjetos();
+          render();
+        }));
+        listCard.appendChild(item);
+      });
+    }
+    wrap.appendChild(listCard);
+    return wrap;
+  }
+
+  // ---------------- PRODUCTOS (recetas de objetos) ----------------
+  function renderItemChips(items, onRemove) {
+    const wrap = document.createElement('div');
+    wrap.className = 'color-list';
+    if (items.length === 0) {
+      const p = document.createElement('div');
+      p.className = 'oi-sub';
+      p.textContent = 'Aún no agregas ningún objeto a este producto.';
+      wrap.appendChild(p);
+      return wrap;
+    }
+    items.forEach((it) => {
+      const o = objetos.find((x) => x.id === it.objetoId);
+      const chip = document.createElement('span');
+      chip.className = 'item-chip';
+      const txt = document.createElement('span');
+      txt.textContent = (o ? o.nombre : '(objeto eliminado)') + ' × ' + it.cantidad;
+      chip.appendChild(txt);
+      if (onRemove) {
+        const x = document.createElement('button');
+        x.textContent = '✕';
+        x.onclick = () => onRemove(it.id);
+        chip.appendChild(x);
+      }
+      wrap.appendChild(chip);
+    });
+    return wrap;
+  }
+
+  function renderItemDraftForm(onAdd) {
+    const box = document.createElement('div');
+    box.className = 'subtle-box';
+    if (objetos.length === 0) {
+      box.innerHTML = '<div class="oi-sub">Primero da de alta objetos en la pestaña "Objetos".</div>';
+      return box;
+    }
+    const title = document.createElement('div');
+    title.className = 'oi-sub';
+    title.style.marginBottom = '6px';
+    title.textContent = 'Elige el objeto a agregar:';
+    box.appendChild(title);
+    if (!draftItemObjetoId) draftItemObjetoId = objetos[0].id;
+    box.appendChild(renderPickerGrid(objetos, draftItemObjetoId, (id) => { draftItemObjetoId = id; render(); }));
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.style.marginTop = '10px';
+    const cantField = document.createElement('div');
+    cantField.className = 'field small';
+    cantField.innerHTML = '<label>Cantidad</label>';
+    const cantInput = document.createElement('input');
+    cantInput.type = 'number';
+    cantInput.min = '1';
+    cantInput.step = '1';
+    cantInput.value = cantDraftItem;
+    cantInput.oninput = (e) => { cantDraftItem = e.target.value; };
+    cantField.appendChild(cantInput);
+    row.appendChild(cantField);
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-ghost';
+    btn.textContent = '+ Agregar objeto al producto';
+    btn.onclick = () => {
+      const cant = parseFloat(cantInput.value);
+      if (!cant || cant <= 0) { alert('La cantidad debe ser mayor a 0.'); return; }
+      onAdd({ id: nid(), objetoId: draftItemObjetoId, cantidad: cant });
+      cantDraftItem = 1;
+    };
+    row.appendChild(btn);
+    box.appendChild(row);
+    return box;
+  }
+
+  function renderProductos() {
+    const wrap = document.createElement('div');
+    wrap.className = 'wrap';
+
+    const form = document.createElement('div');
+    form.className = 'card';
+    form.innerHTML = '<h2>➕ Nuevo producto</h2>';
+    const nombreField = document.createElement('div');
+    nombreField.className = 'field';
+    nombreField.innerHTML = '<label>Nombre del producto</label>';
+    const nombreInput = document.createElement('input');
+    nombreInput.type = 'text';
+    nombreInput.placeholder = 'Ej. Ramo cumpleañero, Ramo de 12 flores...';
+    nombreInput.value = draftProducto.nombre;
+    nombreInput.oninput = (e) => { draftProducto.nombre = e.target.value; };
+    nombreField.appendChild(nombreInput);
+    form.appendChild(nombreField);
+    form.appendChild(renderFotoPicker(draftProducto.foto, (foto) => { draftProducto.foto = foto; render(); }));
+
+    const chipsTitle = document.createElement('div');
+    chipsTitle.className = 'oi-sub';
+    chipsTitle.style.marginTop = '10px';
+    chipsTitle.textContent = 'Objetos que lleva:';
+    form.appendChild(chipsTitle);
+    form.appendChild(renderItemChips(draftProducto.items, (itemId) => {
+      draftProducto.items = draftProducto.items.filter((i) => i.id !== itemId);
+      render();
+    }));
+    form.appendChild(renderItemDraftForm((nuevoItem) => {
+      draftProducto.items.push(nuevoItem);
+      render();
+    }));
+
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn btn-primary';
+    saveBtn.style.marginTop = '12px';
+    saveBtn.textContent = '💾 Guardar producto';
+    saveBtn.onclick = () => {
+      if (!draftProducto.nombre.trim()) { alert('Ponle un nombre al producto.'); return; }
+      if (draftProducto.items.length === 0) { alert('Agrega al menos un objeto.'); return; }
+      productos.push({ id: nid(), nombre: draftProducto.nombre.trim(), foto: draftProducto.foto, items: draftProducto.items });
+      guardarProductos();
+      draftProducto = { nombre: '', foto: null, items: [] };
+      draftItemObjetoId = null;
+      render();
+    };
+    form.appendChild(saveBtn);
+    wrap.appendChild(form);
+
+    const listCard = document.createElement('div');
+    listCard.className = 'card';
+    listCard.innerHTML = '<h2>💐 Productos dados de alta</h2>';
+    if (productos.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.innerHTML = '<span class="icon">💐</span>Aún no hay productos. Arma el primero arriba combinando objetos.';
+      listCard.appendChild(empty);
+    } else {
+      productos.forEach((p) => {
+        const item = document.createElement('div');
+        item.className = 'producto-item';
+        const head = document.createElement('div');
+        head.className = 'producto-item-head';
+        head.appendChild(renderThumb(p.foto, null, false));
+        const name = document.createElement('div');
+        name.className = 'oi-name';
+        name.textContent = p.nombre;
+        head.appendChild(name);
+        const del = document.createElement('button');
+        del.className = 'btn btn-danger';
+        del.textContent = '🗑️';
+        del.onclick = () => {
+          if (!confirm('¿Eliminar "' + p.nombre + '"?')) return;
+          productos = productos.filter((x) => x.id !== p.id);
+          guardarProductos();
+          render();
+        };
+        head.appendChild(del);
+        item.appendChild(head);
+        item.appendChild(renderFotoPicker(p.foto, (foto) => { p.foto = foto; guardarProductos(); render(); }));
+        item.appendChild(renderItemChips(p.items, (itemId) => {
+          if (p.items.length <= 1) { alert('Un producto necesita al menos un objeto.'); return; }
+          p.items = p.items.filter((i) => i.id !== itemId);
+          guardarProductos();
+          render();
+        }));
+        item.appendChild(renderItemDraftForm((nuevoItem) => {
+          p.items.push(nuevoItem);
+          guardarProductos();
+          render();
+        }));
+        listCard.appendChild(item);
+      });
+    }
+    wrap.appendChild(listCard);
+    return wrap;
+  }
+
+  // ---------------- COTIZAR ----------------
+  // Devuelve [{colorNombre, colorHex, total}] para UNA partida (objeto o producto)
+  function partidaColorTotals(p) {
+    const map = {};
+    const add = (colorNombre, colorHex, cant) => {
+      const key = colorNombre + '|' + colorHex;
+      if (!map[key]) map[key] = { colorNombre, colorHex, total: 0 };
+      map[key].total += cant;
+    };
+    if (p.tipo === 'producto') {
+      p.itemsDetalle.forEach((it) => {
+        it.colores.forEach((c) => add(c.colorNombre, c.colorHex, c.limpiapipasUnit * it.cantidadTotal));
+      });
+    } else {
+      p.colores.forEach((c) => add(c.colorNombre, c.colorHex, c.limpiapipasUnit * p.cantidad));
+    }
+    return Object.values(map);
+  }
+
+  function calcResumen(partidas) {
+    const porColor = {};
+    let total = 0;
+    partidas.forEach((p) => {
+      partidaColorTotals(p).forEach((c) => {
+        total += c.total;
+        const key = c.colorNombre + '|' + c.colorHex;
+        if (!porColor[key]) porColor[key] = { colorNombre: c.colorNombre, colorHex: c.colorHex, total: 0 };
+        porColor[key].total += c.total;
+      });
+    });
+    return { porColor: Object.values(porColor).sort((a, b) => b.total - a.total), total };
+  }
+
+  function renderCotizar() {
+    const wrap = document.createElement('div');
+    wrap.className = 'wrap';
+
+    const clienteCard = document.createElement('div');
+    clienteCard.className = 'card';
+    clienteCard.innerHTML = '<h2>👤 Cliente / referencia (opcional)</h2>';
+    const clienteInput = document.createElement('input');
+    clienteInput.type = 'text';
+    clienteInput.placeholder = 'Ej. Ramo para Ana, pedido del 12 de agosto...';
+    clienteInput.value = ticket.cliente || '';
+    clienteInput.style.width = '100%';
+    clienteInput.style.border = '1px solid #D8DBE0';
+    clienteInput.style.borderRadius = '8px';
+    clienteInput.style.padding = '9px 10px';
+    clienteInput.style.fontSize = '14px';
+    clienteInput.oninput = (e) => { ticket.cliente = e.target.value; guardarTicket(); };
+    clienteCard.appendChild(clienteInput);
+    wrap.appendChild(clienteCard);
+
+    // --- Agregar producto completo ---
+    if (productos.length > 0) {
+      const prodCard = document.createElement('div');
+      prodCard.className = 'card';
+      prodCard.innerHTML = '<h2>💐 Agregar producto completo</h2>';
+      if (!selProductoAgregar) selProductoAgregar = productos[0].id;
+      prodCard.appendChild(renderPickerGrid(productos, selProductoAgregar, (id) => { selProductoAgregar = id; render(); }));
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.style.marginTop = '10px';
+      const cantField = document.createElement('div');
+      cantField.className = 'field small';
+      cantField.innerHTML = '<label>Cantidad</label>';
+      const cantInput = document.createElement('input');
+      cantInput.type = 'number';
+      cantInput.min = '1';
+      cantInput.step = '1';
+      cantInput.value = cantAgregarProducto;
+      cantInput.oninput = (e) => { cantAgregarProducto = e.target.value; };
+      cantField.appendChild(cantInput);
+      row.appendChild(cantField);
+      const addBtn = document.createElement('button');
+      addBtn.className = 'btn btn-primary';
+      addBtn.textContent = '➕ Agregar producto';
+      addBtn.onclick = () => {
+        const prod = productos.find((x) => x.id === selProductoAgregar);
+        const cant = parseFloat(cantInput.value);
+        if (!prod) return;
+        if (!cant || cant <= 0) { alert('La cantidad debe ser mayor a 0.'); return; }
+        const itemsDetalle = prod.items.map((it) => {
+          const o = objetos.find((x) => x.id === it.objetoId);
+          return {
+            objetoId: it.objetoId,
+            objetoNombre: o ? o.nombre : '(objeto eliminado)',
+            cantidadUnit: it.cantidad,
+            cantidadTotal: it.cantidad * cant,
+            colores: o ? o.colores.map((c) => ({ colorNombre: c.nombre, colorHex: c.hex, limpiapipasUnit: c.limpiapipas })) : [],
+          };
+        });
+        ticket.partidas.push({ id: nid(), tipo: 'producto', productoId: prod.id, nombre: prod.nombre, foto: prod.foto, cantidad: cant, itemsDetalle });
+        guardarTicket();
+        cantAgregarProducto = 1;
+        render();
+      };
+      row.appendChild(addBtn);
+      prodCard.appendChild(row);
+      wrap.appendChild(prodCard);
+    }
+
+    // --- Agregar objeto individual ---
+    const addCard = document.createElement('div');
+    addCard.className = 'card';
+    addCard.innerHTML = '<h2>🧩 Agregar objeto individual</h2>';
+    if (objetos.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.innerHTML = '<span class="icon">🧩</span>Primero da de alta objetos en la pestaña "Objetos".';
+      addCard.appendChild(empty);
+    } else {
+      if (!selObjetoAgregar) selObjetoAgregar = objetos[0].id;
+      addCard.appendChild(renderPickerGrid(objetos, selObjetoAgregar, (id) => { selObjetoAgregar = id; render(); }));
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.style.marginTop = '10px';
+      const cantField = document.createElement('div');
+      cantField.className = 'field small';
+      cantField.innerHTML = '<label>Cantidad</label>';
+      const cantInput = document.createElement('input');
+      cantInput.type = 'number';
+      cantInput.min = '1';
+      cantInput.step = '1';
+      cantInput.value = cantAgregarObjeto;
+      cantInput.oninput = (e) => { cantAgregarObjeto = e.target.value; };
+      cantField.appendChild(cantInput);
+      row.appendChild(cantField);
+      const addBtn = document.createElement('button');
+      addBtn.className = 'btn btn-primary';
+      addBtn.textContent = '➕ Agregar';
+      addBtn.onclick = () => {
+        const o = objetos.find((x) => x.id === selObjetoAgregar);
+        const cant = parseFloat(cantInput.value);
+        if (!o) return;
+        if (!cant || cant <= 0) { alert('La cantidad debe ser mayor a 0.'); return; }
+        ticket.partidas.push({
+          id: nid(),
+          tipo: 'objeto',
+          objetoId: o.id,
+          nombre: o.nombre,
+          cantidad: cant,
+          colores: o.colores.map((c) => ({ colorNombre: c.nombre, colorHex: c.hex, limpiapipasUnit: c.limpiapipas })),
+        });
+        guardarTicket();
+        cantAgregarObjeto = 1;
+        render();
+      };
+      row.appendChild(addBtn);
+      addCard.appendChild(row);
+    }
+    wrap.appendChild(addCard);
+
+    // --- Pedido actual ---
+    const partidasCard = document.createElement('div');
+    partidasCard.className = 'card';
+    partidasCard.innerHTML = '<h2>📋 Pedido actual</h2>';
+    if (ticket.partidas.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.innerHTML = '<span class="icon">🎀</span>Aún no agregas nada al pedido.';
+      partidasCard.appendChild(empty);
+    } else {
+      ticket.partidas.forEach((p) => {
+        const item = document.createElement('div');
+        item.className = 'partida-item';
+        const head = document.createElement('div');
+        head.className = 'partida-head';
+        head.appendChild(renderThumb(p.tipo === 'producto' ? p.foto : null, p.tipo === 'objeto' ? p.colores.map((c) => ({ hex: c.colorHex })) : null, false));
+        const name = document.createElement('div');
+        name.className = 'oi-name';
+        name.textContent = p.nombre + ' × ' + p.cantidad + (p.tipo === 'producto' ? ' 💐' : '');
+        head.appendChild(name);
+        const del = document.createElement('button');
+        del.className = 'btn btn-danger';
+        del.textContent = '🗑️';
+        del.onclick = () => {
+          ticket.partidas = ticket.partidas.filter((x) => x.id !== p.id);
+          guardarTicket();
+          render();
+        };
+        head.appendChild(del);
+        item.appendChild(head);
+
+        const detalle = document.createElement('div');
+        detalle.style.marginTop = '6px';
+        if (p.tipo === 'producto') {
+          p.itemsDetalle.forEach((it) => {
+            const line = document.createElement('div');
+            line.className = 'oi-sub';
+            line.style.marginBottom = '2px';
+            let txt = it.objetoNombre + ' × ' + it.cantidadTotal;
+            if (it.colores.length) {
+              txt += ' (' + it.colores.map((c) => c.colorNombre + ': ' + (c.limpiapipasUnit * it.cantidadTotal)).join(', ') + ')';
+            }
+            line.textContent = '• ' + txt;
+            detalle.appendChild(line);
+          });
+        } else {
+          p.colores.forEach((c) => {
+            const line = document.createElement('div');
+            line.className = 'oi-sub';
+            line.style.display = 'flex';
+            line.style.alignItems = 'center';
+            line.style.gap = '6px';
+            const sw = document.createElement('span');
+            sw.className = 'swatch sm';
+            sw.style.background = c.colorHex;
+            line.appendChild(sw);
+            const t = document.createElement('span');
+            t.textContent = c.colorNombre + ': ' + (c.limpiapipasUnit * p.cantidad) + ' limpiapipas';
+            line.appendChild(t);
+            detalle.appendChild(line);
+          });
+        }
+        item.appendChild(detalle);
+        partidasCard.appendChild(item);
+      });
+    }
+    wrap.appendChild(partidasCard);
+
+    const { porColor, total } = calcResumen(ticket.partidas);
+    const resumenCard = document.createElement('div');
+    resumenCard.className = 'card';
+    resumenCard.innerHTML = '<h2>🧵 Resumen de limpiapipas por color</h2>';
+    if (porColor.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.textContent = 'Agrega objetos o productos al pedido para ver el resumen.';
+      resumenCard.appendChild(empty);
+    } else {
+      const chips = document.createElement('div');
+      porColor.forEach((c) => {
+        const chip = document.createElement('span');
+        chip.className = 'resumen-chip';
+        chip.innerHTML = '<span class="swatch sm" style="background:' + c.colorHex + '"></span>' + escapeHtml(c.colorNombre) + ': ' + c.total;
+        chips.appendChild(chip);
+      });
+      resumenCard.appendChild(chips);
+      const totalLine = document.createElement('div');
+      totalLine.style.marginTop = '14px';
+      totalLine.innerHTML = 'Total: <span class="resumen-total">' + total + ' limpiapipas</span>';
+      resumenCard.appendChild(totalLine);
+    }
+    wrap.appendChild(resumenCard);
+
+    const actions = document.createElement('div');
+    actions.className = 'card actions-row';
+
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn btn-green';
+    saveBtn.textContent = '💾 Guardar en historial';
+    saveBtn.onclick = () => {
+      if (ticket.partidas.length === 0) { alert('Agrega al menos un objeto o producto antes de guardar.'); return; }
+      const { porColor, total } = calcResumen(ticket.partidas);
+      historial.unshift({
+        id: nid(),
+        fecha: new Date().toLocaleString('es-MX'),
+        cliente: ticket.cliente || '(sin referencia)',
+        partidas: ticket.partidas,
+        resumenColores: porColor,
+        totalLimpiapipas: total,
+      });
+      guardarHistorial();
+      ticket = { cliente: '', partidas: [] };
+      guardarTicket();
+      alert('Cotización guardada en el historial.');
+      setTab('historial');
+    };
+    actions.appendChild(saveBtn);
+
+    const clearBtn = document.createElement('button');
+    clearBtn.className = 'btn btn-ghost';
+    clearBtn.textContent = '🗑️ Nueva cotización';
+    clearBtn.onclick = () => {
+      if (ticket.partidas.length > 0 && !confirm('¿Vaciar el pedido actual?')) return;
+      ticket = { cliente: '', partidas: [] };
+      guardarTicket();
+      render();
+    };
+    actions.appendChild(clearBtn);
+
+    const waBtn = document.createElement('button');
+    waBtn.className = 'btn btn-primary';
+    waBtn.textContent = '📲 WhatsApp';
+    waBtn.onclick = () => {
+      if (ticket.partidas.length === 0) { alert('Agrega al menos un objeto o producto antes de compartir.'); return; }
+      const { porColor, total } = calcResumen(ticket.partidas);
+      let msg = '🌸 *Corichi Fiore*\n';
+      if (ticket.cliente) msg += 'Referencia: ' + ticket.cliente + '\n';
+      msg += '\n*Pedido:*\n';
+      ticket.partidas.forEach((p) => {
+        msg += '• ' + p.nombre + ' × ' + p.cantidad + '\n';
+        if (p.tipo === 'producto') {
+          p.itemsDetalle.forEach((it) => {
+            msg += '   - ' + it.objetoNombre + ' × ' + it.cantidadTotal + '\n';
+          });
+        } else {
+          p.colores.forEach((c) => { msg += '   - ' + c.colorNombre + ': ' + (c.limpiapipasUnit * p.cantidad) + '\n'; });
+        }
+      });
+      msg += '\n*Limpiapipas necesarios:*\n';
+      porColor.forEach((c) => { msg += '• ' + c.colorNombre + ': ' + c.total + '\n'; });
+      msg += '\nTotal: ' + total + ' limpiapipas';
+      window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+    };
+    actions.appendChild(waBtn);
+
+    wrap.appendChild(actions);
+
+    return wrap;
+  }
+
+  // ---------------- HISTORIAL ----------------
+  function renderHistorial() {
+    const wrap = document.createElement('div');
+    wrap.className = 'wrap';
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = '<h2>🕐 Cotizaciones guardadas</h2>';
+    if (historial.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.innerHTML = '<span class="icon">📭</span>Aún no hay cotizaciones guardadas.';
+      card.appendChild(empty);
+    } else {
+      historial.forEach((h) => {
+        const item = document.createElement('div');
+        item.className = 'hist-item';
+        const head = document.createElement('div');
+        head.className = 'hist-head';
+        head.innerHTML = '<div><strong>' + escapeHtml(h.cliente) + '</strong><div class="oi-sub">' + h.fecha + ' · ' + h.totalLimpiapipas + ' limpiapipas</div></div>';
+        const del = document.createElement('button');
+        del.className = 'btn btn-danger';
+        del.textContent = '🗑️';
+        del.onclick = (e) => {
+          e.stopPropagation();
+          if (!confirm('¿Eliminar esta cotización del historial?')) return;
+          historial = historial.filter((x) => x.id !== h.id);
+          guardarHistorial();
+          render();
+        };
+        head.appendChild(del);
+        item.appendChild(head);
+
+        const body = document.createElement('div');
+        body.className = 'hist-body';
+        let bodyHtml = '<div style="margin-bottom:8px;"><strong>Partidas:</strong></div>';
+        h.partidas.forEach((p) => {
+          bodyHtml += '<div class="oi-sub" style="margin-bottom:4px;"><strong style="color:#0F2431;">' + escapeHtml(p.nombre) + ' × ' + p.cantidad + (p.tipo === 'producto' ? ' 💐' : '') + '</strong></div>';
+          if (p.tipo === 'producto') {
+            (p.itemsDetalle || []).forEach((it) => {
+              bodyHtml += '<div class="oi-sub">&nbsp;&nbsp;• ' + escapeHtml(it.objetoNombre) + ' × ' + it.cantidadTotal + '</div>';
+            });
+          } else {
+            (p.colores || []).forEach((c) => {
+              bodyHtml += '<div class="oi-sub">&nbsp;&nbsp;• ' + escapeHtml(c.colorNombre) + ': ' + (c.limpiapipasUnit * p.cantidad) + ' limpiapipas</div>';
+            });
+          }
+        });
+        bodyHtml += '<div style="margin-top:10px;"><strong>Por color:</strong></div>';
+        h.resumenColores.forEach((c) => {
+          bodyHtml += '<span class="resumen-chip"><span class="swatch sm" style="background:' + c.colorHex + '"></span>' + escapeHtml(c.colorNombre) + ': ' + c.total + '</span>';
+        });
+        body.innerHTML = bodyHtml;
+        item.appendChild(body);
+
+        item.addEventListener('click', () => item.classList.toggle('open'));
+        card.appendChild(item);
+      });
+    }
+    wrap.appendChild(card);
+    return wrap;
+  }
+
+  function render() {
+    renderTabs();
+    const content = document.getElementById('content');
+    content.innerHTML = '';
+    if (tab === 'objetos') content.appendChild(renderObjetos());
+    else if (tab === 'productos') content.appendChild(renderProductos());
+    else if (tab === 'cotizar') content.appendChild(renderCotizar());
+    else content.appendChild(renderHistorial());
+  }
+
+  cargar();
+  semilla();
+  render();
+</script>
+</body>
+</html>
