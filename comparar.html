@@ -12,10 +12,13 @@
   .header p { font-size: 13px; color: #7B8290; margin-top: 4px; max-width: 640px; }
   .wrap { max-width: 920px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
   .card { background: #fff; border-radius: 10px; padding: 16px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
-  .card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 12px; }
-  .prod-nombre { flex: 1; font-size: 16px; font-weight: 700; border: none; border-bottom: 2px solid #EEF0F2; padding: 4px 2px; outline: none; background: transparent; color: #14161D; }
+  .card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; cursor: pointer; user-select: none; }
+  .chevron { font-size: 11px; color: #9AA0AE; width: 12px; flex-shrink: 0; }
+  .prod-nombre { flex: 1; font-size: 16px; font-weight: 700; border: none; border-bottom: 2px solid #EEF0F2; padding: 4px 2px; outline: none; background: transparent; color: #14161D; cursor: text; }
   .prod-nombre:focus { border-color: #F4561D; }
+  .op-count { font-size: 11px; color: #9AA0AE; font-weight: 600; white-space: nowrap; }
   .del-prod { border: none; background: none; color: #C0392B; cursor: pointer; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .card.collapsed .card-head { margin-bottom: 0; }
   .opciones-head { display: flex; gap: 8px; padding: 0 8px; font-size: 10px; font-weight: 700; color: #9AA0AE; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
   .opciones-head .oh-nombre { flex: 1.4; }
   .opciones-head .oh-fields { flex: 2.6; display: flex; gap: 8px; }
@@ -139,9 +142,22 @@
       id: nid(),
       nombre: 'Producto ' + (productos.length + 1),
       opciones: [opcionVacia(), opcionVacia()],
+      colapsado: false,
     });
     guardar();
     render();
+  }
+
+  function toggleColapso(pid) {
+    const p = productos.find((p) => p.id === pid);
+    if (!p) return;
+    p.colapsado = !p.colapsado;
+    guardar();
+    const card = document.querySelector('.card[data-producto-id="' + pid + '"]');
+    if (!card) return;
+    card.classList.toggle('collapsed', p.colapsado);
+    card.querySelector('.card-body').style.display = p.colapsado ? 'none' : '';
+    card.querySelector('.chevron').textContent = p.colapsado ? '▸' : '▾';
   }
 
   function eliminarProducto(pid) {
@@ -203,19 +219,26 @@
 
   function crearTarjetaProducto(p) {
     const card = document.createElement('div');
-    card.className = 'card';
+    card.className = 'card' + (p.colapsado ? ' collapsed' : '');
     card.dataset.productoId = p.id;
     card.innerHTML =
       '<div class="card-head">' +
+      '<span class="chevron">' + (p.colapsado ? '▸' : '▾') + '</span>' +
       '<input class="prod-nombre" value="' + escapeAttr(p.nombre) + '" placeholder="Nombre del producto">' +
+      '<span class="op-count">' + p.opciones.length + ' opción' + (p.opciones.length === 1 ? '' : 'es') + '</span>' +
       '<button class="del-prod">Eliminar producto ×</button>' +
       '</div>' +
+      '<div class="card-body" style="display:' + (p.colapsado ? 'none' : '') + '">' +
       '<div class="opciones-head"><span class="oh-nombre">Opción</span><div class="oh-fields"><span>Cantidad</span><span class="oh-unidad">Unidad</span><span>Precio $</span></div><span class="oh-footer">Por unidad</span></div>' +
       '<div class="opciones"></div>' +
-      '<button class="add-op">+ Agregar otra opción</button>';
+      '<button class="add-op">+ Agregar otra opción</button>' +
+      '</div>';
 
-    card.querySelector('.prod-nombre').addEventListener('input', (e) => { p.nombre = e.target.value; guardar(); });
-    card.querySelector('.del-prod').addEventListener('click', () => eliminarProducto(p.id));
+    card.querySelector('.card-head').addEventListener('click', () => toggleColapso(p.id));
+    const inNombre = card.querySelector('.prod-nombre');
+    inNombre.addEventListener('click', (e) => e.stopPropagation());
+    inNombre.addEventListener('input', (e) => { p.nombre = e.target.value; guardar(); });
+    card.querySelector('.del-prod').addEventListener('click', (e) => { e.stopPropagation(); eliminarProducto(p.id); });
     card.querySelector('.add-op').addEventListener('click', () => agregarOpcion(p.id));
 
     const opcionesEl = card.querySelector('.opciones');
