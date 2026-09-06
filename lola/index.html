@@ -93,21 +93,14 @@
   .aviso.mal { background: #7F1D1D; }
   .aviso.ok { background: #14532D; }
 
-  /* -------------------------------------------------- vista previa del ticket */
-  .overlay {
-    position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 60;
-    display: flex; align-items: flex-end; justify-content: center;
+  /* -------------------------------------------------- ticket en vivo, a un lado */
+  .form-grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 16px; align-items: start; }
+  .ticket-panel { position: sticky; top: 76px; }
+  @media (max-width: 760px) {
+    .form-grid { grid-template-columns: 1fr; }
+    .ticket-panel { position: static; }
   }
-  .overlay[hidden] { display: none; }
-  .ticket-modal {
-    background: #1B1E28; width: 100%; max-width: 420px; max-height: 92vh; overflow-y: auto;
-    border-radius: 16px 16px 0 0; padding: 16px 16px 22px; position: relative;
-  }
-  .ticket-modal .cerrar {
-    position: absolute; top: 10px; right: 14px; background: none; border: none;
-    color: #9AA0AE; font-size: 24px; cursor: pointer; line-height: 1;
-  }
-  .ticket-modal h3 { font-family: 'Barlow Condensed', sans-serif; font-size: 15px; color: #9AA0AE; margin-bottom: 10px; text-transform: uppercase; letter-spacing: .06em; }
+  .ticket-panel .etiqueta { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; color: #9AA0AE; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .06em; }
   .ticket-paper {
     background: #fff; color: #111; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px;
     padding: 16px 14px 22px; border-radius: 2px; line-height: 1.55;
@@ -137,7 +130,8 @@
 <main>
 
   <section class="vista on" id="v-nuevo">
-    <div class="card">
+    <div class="form-grid">
+      <div class="card">
       <div class="par">
         <div class="campo">
           <label class="lbl">Folio</label>
@@ -190,10 +184,15 @@
         </div>
       </div>
       <div class="campo m" id="pendiente-preview" style="color:#9AA0AE;font-size:13px"></div>
+      </div>
 
-      <div style="display:flex;gap:8px;margin-top:6px">
-        <button class="btn" id="btn-preview" style="flex:1">👁 Vista previa</button>
-        <button class="btn morado" id="btn-guardar" style="flex:2">Guardar pedido</button>
+      <div class="ticket-panel">
+        <div class="etiqueta">Así va a salir el papel</div>
+        <div class="ticket-paper" id="ticket-paper"></div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn chico" id="btn-imprimir-vivo" style="flex:1">🖨 Imprimir</button>
+          <button class="btn morado chico" id="btn-guardar" style="flex:1">Guardar</button>
+        </div>
       </div>
     </div>
   </section>
@@ -204,22 +203,13 @@
 
 </main>
 
-<div class="overlay" id="overlay" hidden>
-  <div class="ticket-modal">
-    <button class="cerrar" id="cerrar-preview">×</button>
-    <h3>Así va a salir el papel</h3>
-    <div class="ticket-paper" id="ticket-paper"></div>
-    <button class="btn morado ancho" id="btn-preview-imprimir" style="margin-top:14px">🖨 Imprimir este ticket</button>
-  </div>
-</div>
-
 <script>
 const $ = (s, r) => (r || document).querySelector(s);
 const $$ = (s, r) => [...(r || document).querySelectorAll(s)];
 
 // El mismo puente que ya funciona para el cotizador de Lalo: mismo webhook, mismo token.
 const IMPRIMIR_WEBHOOK = "https://n8n.lalocortes.com/webhook/cotizador-ticket";
-const IMPRIMIR_TOKEN = "5a59d15f5e950ced17dfd6eb087303a4a23b5ed1"; // el mismo token que ya usas en el cotizador
+const IMPRIMIR_TOKEN = "PON-AQUI-TU-TOKEN"; // el mismo token que ya usas en el cotizador
 
 const fmt = (n) => "$" + (Number(n) || 0).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const hoyISO = () => new Date().toISOString().slice(0, 10);
@@ -289,12 +279,14 @@ $("#lugar-tienda").onclick = () => {
   $("#lugar-tienda").classList.add("on");
   $("#lugar-domicilio").classList.remove("on");
   $("#campo-domicilio").style.display = "none";
+  refrescarTicketLive();
 };
 $("#lugar-domicilio").onclick = () => {
   esDomicilio = true;
   $("#lugar-domicilio").classList.add("on");
   $("#lugar-tienda").classList.remove("on");
   $("#campo-domicilio").style.display = "block";
+  refrescarTicketLive();
 };
 
 function actualizarPendientePreview() {
@@ -305,8 +297,10 @@ function actualizarPendientePreview() {
     ? `Pendiente al entregar: ${fmt(total - anticipo)}`
     : "";
 }
-$("#f-total").oninput = actualizarPendientePreview;
-$("#f-anticipo").oninput = actualizarPendientePreview;
+
+// Cualquier cambio en el formulario redibuja el ticket de la derecha al instante.
+$$("#f-folio, #f-fecha, #f-cliente, #f-tel, #f-domicilio, #f-pedido, #f-notas, #f-total, #f-anticipo")
+  .forEach((campo) => { campo.oninput = () => { actualizarPendientePreview(); refrescarTicketLive(); }; });
 
 function limpiarForma() {
   $("#f-folio").value = siguienteFolio();
@@ -396,7 +390,6 @@ function pintarLista() {
         <div class="meta" style="margin-top:8px;white-space:pre-wrap">${esc(p.pedido)}</div>
         <span class="estado ${estadoClase}">${estadoTexto}</span>
         <div class="acciones">
-          <button class="btn chico" data-accion="preview">👁 Vista previa</button>
           <button class="btn morado chico" data-accion="imprimir">🖨 Imprimir</button>
           <button class="btn chico" data-accion="editar">Editar</button>
           ${p.estado !== "entregado"
@@ -453,16 +446,15 @@ function accionPedido(id, accion) {
     $("#f-notas").value = p.notas;
     $("#f-total").value = p.total || "";
     $("#f-anticipo").value = p.anticipo || "";
-    if (p.lugarEntrega === "A domicilio") { $("#lugar-domicilio").click(); $("#f-domicilio").value = p.domicilio; }
+    if (p.lugarEntrega === "A domicilio") { $("#f-domicilio").value = p.domicilio; $("#lugar-domicilio").click(); }
     else $("#lugar-tienda").click();
     actualizarPendientePreview();
+    refrescarTicketLive();
     $("#btn-guardar").dataset.editando = id;
     $("#btn-guardar").textContent = "Guardar cambios";
     irA("nuevo");
   } else if (accion === "imprimir") {
     imprimirPedido(p);
-  } else if (accion === "preview") {
-    abrirPreview(p);
   }
 }
 
@@ -507,24 +499,6 @@ function renderizarTicketHTML(bloques) {
   return html;
 }
 
-let pedidoEnPreview = null;
-
-function abrirPreview(p) {
-  pedidoEnPreview = p;
-  $("#ticket-paper").innerHTML = renderizarTicketHTML(bloquesPedido(p));
-  $("#overlay").hidden = false;
-}
-function cerrarPreview() {
-  $("#overlay").hidden = true;
-  pedidoEnPreview = null;
-}
-$("#cerrar-preview").onclick = cerrarPreview;
-$("#overlay").onclick = (e) => { if (e.target.id === "overlay") cerrarPreview(); };
-$("#btn-preview-imprimir").onclick = () => {
-  if (pedidoEnPreview) imprimirPedido(pedidoEnPreview);
-  cerrarPreview();
-};
-
 /** Arma un pedido temporal con lo que hay ahorita en el formulario, sin guardarlo. */
 function pedidoDesdeForma() {
   return {
@@ -540,8 +514,15 @@ function pedidoDesdeForma() {
     anticipo: Number($("#f-anticipo").value) || 0,
   };
 }
-$("#btn-preview").onclick = () => abrirPreview(pedidoDesdeForma());
 
+/** Redibuja el ticket de la derecha con lo que hay ahorita en el formulario. */
+function refrescarTicketLive() {
+  $("#ticket-paper").innerHTML = renderizarTicketHTML(bloquesPedido(pedidoDesdeForma()));
+}
+
+$("#btn-imprimir-vivo").onclick = () => imprimirPedido(pedidoDesdeForma());
+
+refrescarTicketLive();
 
 function bloquesPedido(p) {
   const L = limpiarEmojis;
