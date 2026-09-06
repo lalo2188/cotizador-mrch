@@ -16,6 +16,9 @@
 <script type="text/plain" id="app-source">
 const { useState, useMemo, useEffect } = React;
 
+const IMPRIMIR_WEBHOOK = "https://n8n.lalocortes.com/webhook/cotizador-ticket";
+const IMPRIMIR_TOKEN = "PON-AQUI-TU-TOKEN"; // el mismo que pongas en n8n
+
 /* ===================== DATOS TÉCNICOS FIJOS (no son precios) ===================== */
 const DISENOS_DTF = {
   "Espalda Full Size":      { Hombre: { S:[28,39], M:[29,41], L:[33,43], XL:[35,45] }, Mujer: { S:[26,37], M:[28,39], L:[31,42], XL:[33,43] } },
@@ -411,6 +414,35 @@ function generarTextoTicketInterno(partidas, tier, mults, modoMargen, refPedido,
   t += `MARGEN TOTAL: ${fmt(totalPrecio - totalCosto)} (${totalCosto > 0 ? (((totalPrecio - totalCosto) / totalCosto) * 100).toFixed(0) : 0}%)\n`;
   t += `GANANCIA PROMEDIO POR PIEZA: ${fmt(totalPiezas > 0 ? (totalPrecio - totalCosto) / totalPiezas : 0)}\n`;
   return t;
+}
+
+function limpiarParaImpresora(s) {
+  // La térmica no tiene emojis en su tabla de caracteres — salen como "??".
+  return String(s || "")
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}\u{FE0F}]/gu, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function generarBloquesTicket(partidas, tier, mults, modoMargen, refPedido, envio = 0) {
+  const pv = (p) => valorPartida(p, tier, mults, modoMargen);
+  const total = partidas.reduce((s, p) => s + pv(p), 0) + Number(envio || 0);
+  const L = limpiarParaImpresora;
+  const bloques = [{ tipo: "titulo", texto: "EL MERCHENARIO" }];
+  if (refPedido) bloques.push({ tipo: "texto", texto: L(refPedido), alinear: "centro" });
+  bloques.push({ tipo: "texto", texto: new Date().toLocaleDateString("es-MX"), alinear: "centro" });
+  bloques.push({ tipo: "linea" });
+  partidas.forEach((p) => {
+    bloques.push({ tipo: "columnas", izquierda: L(p.nombre || p.desc), derecha: fmt(pv(p)) });
+    if (p.nombre) bloques.push({ tipo: "texto", texto: "  " + L(p.desc) });
+  });
+  if (Number(envio) > 0) bloques.push({ tipo: "columnas", izquierda: "Envío", derecha: fmt(Number(envio)) });
+  bloques.push({ tipo: "linea" });
+  bloques.push({ tipo: "columnas", izquierda: `TOTAL (${tier})`, derecha: fmt(total), negrita: true });
+  bloques.push({ tipo: "texto", texto: `Anticipo 50%: ${fmt(total * 0.5)}` });
+  bloques.push({ tipo: "espacio", lineas: 1 });
+  bloques.push({ tipo: "texto", texto: "Precio sujeto a confirmación de medidas y diseño final.", alinear: "centro" });
+  return bloques;
 }
 
 /* ===================== ESTILOS ===================== */
@@ -1142,14 +1174,18 @@ function VistaCotizar({ mults, modoMargen, clientes, onGuardarHistorial, insumos
     setTimeout(() => setGuardadoOk(false), 2000);
   };
 
-  const handleImprimir = () => {
-    const texto = generarTextoTicket(partidas, tier, mults, modoMargen, refPedido, envio).replace(/\*/g, "");
-    const w = window.open("", "_blank", "width=380,height=640");
-    if (w) {
-      w.document.write(`<pre style="font-family:'IBM Plex Mono',monospace;font-size:12px;white-space:pre-wrap;width:58mm;padding:8px;margin:0;">${texto}</pre>`);
-      w.document.close();
-      w.focus();
-      w.print();
+  const handleImprimir = async () => {
+    const bloques = generarBloquesTicket(partidas, tier, mults, modoMargen, refPedido, envio);
+    try {
+      const r = await fetch(IMPRIMIR_WEBHOOK, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Cotizador-Key": IMPRIMIR_TOKEN },
+        body: JSON.stringify({ papel: 58, nombre: refPedido || "cotizacion", bloques }),
+      });
+      if (!r.ok) throw new Error(`Error ${r.status}`);
+      alert("Ticket enviado a imprimir ✓");
+    } catch (e) {
+      alert("No se pudo imprimir: " + e.message);
     }
   };
 
