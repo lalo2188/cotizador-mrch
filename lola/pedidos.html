@@ -209,7 +209,7 @@ const $$ = (s, r) => [...(r || document).querySelectorAll(s)];
 
 // El mismo puente que ya funciona para el cotizador de Lalo: mismo webhook, mismo token.
 const IMPRIMIR_WEBHOOK = "https://n8n.lalocortes.com/webhook/cotizador-ticket";
-const IMPRIMIR_TOKEN = "PON-AQUI-TU-TOKEN"; // el mismo token que ya usas en el cotizador
+const IMPRIMIR_TOKEN = "5a59d15f5e950ced17dfd6eb087303a4a23b5ed1"; // el mismo token que ya usas en el cotizador
 
 const fmt = (n) => "$" + (Number(n) || 0).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const hoyISO = () => new Date().toISOString().slice(0, 10);
