@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prueba de Cabezales — MRCH</title>
+<meta name="description" content="Genera e imprime renglones de prueba CMYK para evitar que se tapen los cabezales de la impresora">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; background: #EEF0F2; color: #1A1D26; min-height: 100vh; }
+  header { background: #14161D; color: #fff; padding: 14px 16px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; position: sticky; top: 0; z-index: 10; }
+  header h1 { font-size: 16px; font-weight: 700; flex: 1; }
+  header a { color: #9AA0AE; text-decoration: none; font-size: 12px; font-weight: 600; padding: 7px 12px; border: 1px solid #2A2E3A; border-radius: 8px; white-space: nowrap; }
+  header a:hover { color: #fff; border-color: #F4561D; }
+  main { max-width: 760px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+  .card { background: #fff; border-radius: 10px; padding: 16px; box-shadow: 0 1px 3px rgba(20,22,29,.08); }
+  .banner { border-radius: 10px; padding: 14px 16px; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+  .banner.ok { background: #EAFBEF; color: #157347; border: 1.5px solid #B7E9C6; }
+  .banner.warn { background: #FFF7E6; color: #9A6700; border: 1.5px solid #F6D98A; }
+  .banner.bad { background: #FDECEC; color: #B3261E; border: 1.5px solid #F3B8B4; }
+  .banner.info { background: #EEF3FF; color: #2255A4; border: 1.5px solid #BFD3F5; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; text-align: center; }
+  .stats div { background: #F6F7F9; border-radius: 8px; padding: 10px 6px; }
+  .stats b { display: block; font-size: 18px; }
+  .stats span { font-size: 11px; color: #7B8290; text-transform: uppercase; letter-spacing: .04em; }
+  .swatches { display: flex; gap: 6px; justify-content: center; margin-top: 10px; }
+  .sw { width: 22px; height: 22px; border-radius: 4px; border: 1px solid rgba(0,0,0,.15); }
+  .btn { display: block; width: 100%; text-align: center; background: #14161D; color: #fff; border: none; border-radius: 8px; padding: 13px 16px; font-weight: 700; cursor: pointer; font-size: 14px; }
+  .btn.org { background: #F4561D; }
+  .btn.gray { background: #F6F7F9; color: #1A1D26; border: 1.5px solid #D8DBE0; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .row-actions { display: flex; gap: 8px; }
+  .row-actions .btn { flex: 1; }
+  iframe.preview { width: 100%; height: 150px; border: 1px solid #D8DBE0; border-radius: 8px; margin-top: 10px; background: #f9f9fa; }
+  .confirm-box { border: 1.5px dashed #F4A26155; background: #FFF4EE; border-radius: 8px; padding: 12px; margin-top: 10px; }
+  .confirm-box p { font-size: 13px; margin-bottom: 10px; font-weight: 600; }
+  .small-link { display: block; text-align: center; font-size: 12px; color: #7B8290; margin-top: 8px; text-decoration: none; }
+  .small-link:hover { color: #F4561D; }
+  h2 { font-size: 14px; margin-bottom: 10px; }
+  .grid30 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+  .cell { border: 1.5px solid #D8DBE0; border-radius: 6px; padding: 6px 4px; text-align: center; font-size: 10px; color: #7B8290; }
+  .cell.done { background: #14161D; color: #fff; border-color: #14161D; }
+  .cell.next { border-color: #F4561D; color: #F4561D; font-weight: 700; }
+  .cell b { display: block; font-size: 12px; }
+  footer { text-align: center; color: #9AA0AE; font-size: 11px; padding: 20px 16px 30px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🖨️ Prueba de Cabezales (CMYK)</h1>
+  <a href="/">🏠 Inicio</a>
+  <a href="index.html">⚡ Cotizador</a>
+</header>
+<main>
+
+  <div id="banner" class="banner info">Cargando…</div>
+
+  <div class="card">
+    <div class="stats">
+      <div><b id="statHoja">—</b><span>Hoja #</span></div>
+      <div><b id="statRenglon">—</b><span>Renglón siguiente</span></div>
+      <div><b id="statUltima">—</b><span>Última impresión</span></div>
+    </div>
+    <div class="swatches">
+      <div class="sw" style="background:#00AEEF"></div>
+      <div class="sw" style="background:#EC008C"></div>
+      <div class="sw" style="background:#FFF200"></div>
+      <div class="sw" style="background:#000000"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Imprimir el siguiente renglón</h2>
+    <p style="font-size:12px;color:#7B8290;margin-bottom:12px">
+      Coloca la misma hoja tamaño carta (la "oblea") en la impresora y genera solo el renglón que sigue.
+      El resto de la hoja queda en blanco, así no se vuelve a imprimir sobre los renglones ya hechos.
+    </p>
+    <button id="btnGenerar" class="btn org">🖨️ Generar renglón e imprimir</button>
+    <iframe id="preview" class="preview" hidden></iframe>
+    <a id="linkDescargar" class="small-link" hidden href="#" download>⬇️ ¿No se abrió el diálogo de impresión? Descargar el PDF</a>
+    <div id="confirmBox" class="confirm-box" hidden>
+      <p id="confirmText"></p>
+      <div class="row-actions">
+        <button id="btnConfirmYes" class="btn">✅ Sí, ya se imprimió</button>
+        <button id="btnConfirmNo" class="btn gray">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>¿Imprimiste algo más hoy en esta impresora?</h2>
+    <p style="font-size:12px;color:#7B8290;margin-bottom:12px">
+      Si ya salió tinta de los cabezales por otro trabajo (una cotización, un diseño, etc.), no hace falta gastar un renglón de la prueba. Solo reinicia el contador de días.
+    </p>
+    <button id="btnOtroTrabajo" class="btn gray">📄 Hoy imprimí otro trabajo (reiniciar contador)</button>
+  </div>
+
+  <div class="card">
+    <h2>Progreso de la hoja actual</h2>
+    <div id="grid30" class="grid30"></div>
+    <button id="btnReiniciarHoja" class="btn gray" style="margin-top:14px">🔄 Empezar hoja nueva (reemplacé la oblea)</button>
+  </div>
+
+  <div class="card" style="font-size:12px;color:#7B8290;line-height:1.5">
+    ⚠️ Este progreso se guarda solo en <b>este navegador</b> (localStorage), no en un servidor. Si cambias de computadora o navegador, revisa la hoja física para saber en qué renglón vas.
+  </div>
+
+</main>
+<footer>MRCH · Prueba de cabezales CMYK</footer>
+
+<script>
+(function () {
+  "use strict";
+  var STORAGE_KEY = "mrch_cabezales_state_v1";
+  var TOTAL_ROWS = 30;
+  var WARN_DAYS = 2;
+  var COLORS = [
+    { name: "C", hex: "#00AEEF" },
+    { name: "M", hex: "#EC008C" },
+    { name: "Y", hex: "#FFF200" },
+    { name: "K", hex: "#000000" }
+  ];
+
+  function hexToRgb(hex) {
+    var n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+
+  function todayISO() {
+    var d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+
+  function formatDateEs(iso) {
+    if (!iso) return "—";
+    var d = new Date(iso + "T00:00:00");
+    return d.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
+  }
+
+  function daysSince(iso) {
+    if (!iso) return null;
+    var d = new Date(iso + "T00:00:00");
+    var ms = new Date(todayISO() + "T00:00:00").getTime() - d.getTime();
+    return Math.round(ms / 86400000);
+  }
+
+  function loadState() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    return { sheetNumber: 1, nextRow: 0, lastPrintDate: null, history: [] };
+  }
+
+  function saveState(s) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch (e) {}
+  }
+
+  var state = loadState();
+  var pendingRow = null;
+  var pendingBlobUrl = null;
+
+  function buildRowPDF(rowIndex, dateISO) {
+    var doc = new jspdf.jsPDF({ unit: "pt", format: "letter" });
+    var pageW = 612, pageH = 792;
+    var marginTop = 54, marginBottom = 54, marginLeft = 48;
+    var usableH = pageH - marginTop - marginBottom;
+    var rowH = usableH / TOTAL_ROWS;
+    var yTop = marginTop + rowIndex * rowH;
+    var yMid = yTop + rowH / 2;
+
+    doc.setDrawColor(210, 210, 210);
+    doc.setLineWidth(0.4);
+
+    doc.setFontSize(7.5);
+    doc.setTextColor(90, 90, 90);
+    var label = "#" + (rowIndex + 1) + "  " + formatDateEs(dateISO);
+    doc.text(label, marginLeft, yMid + 2.5);
+
+    var sq = 13;
+    var gap = 9;
+    var x = marginLeft + 92;
+    COLORS.forEach(function (c) {
+      var rgb = hexToRgb(c.hex);
+      doc.setFillColor(rgb[0], rgb[1], rgb[2]);
+      doc.rect(x, yMid - sq / 2, sq, sq, "F");
+      x += sq + gap;
+    });
+
+    return doc;
+  }
+
+  function render() {
+    var lastPrint = state.lastPrintDate;
+    var ds = daysSince(lastPrint);
+    var banner = document.getElementById("banner");
+
+    if (lastPrint === null) {
+      banner.className = "banner info";
+      banner.textContent = "ℹ️ Aún no registras ninguna impresión. Genera el primer renglón cuando quieras.";
+    } else if (ds <= 0) {
+      banner.className = "banner ok";
+      banner.textContent = "✅ Impresión registrada hoy. Todo en orden.";
+    } else if (ds === 1) {
+      banner.className = "banner ok";
+      banner.textContent = "✅ Última impresión: ayer. Todo en orden.";
+    } else if (ds === WARN_DAYS) {
+      banner.className = "banner warn";
+      banner.textContent = "⚠️ Ya van " + ds + " días sin imprimir. Imprime el siguiente renglón para no tapar los cabezales.";
+    } else {
+      banner.className = "banner bad";
+      banner.textContent = "🔴 Ya van " + ds + " días sin imprimir. ¡Imprime el siguiente renglón ahora!";
+    }
+
+    document.getElementById("statHoja").textContent = "#" + state.sheetNumber;
+    document.getElementById("statRenglon").textContent = state.nextRow < TOTAL_ROWS ? (state.nextRow + 1) + "/" + TOTAL_ROWS : "Hoja llena";
+    document.getElementById("statUltima").textContent = formatDateEs(lastPrint);
+
+    var btnGenerar = document.getElementById("btnGenerar");
+    if (state.nextRow >= TOTAL_ROWS) {
+      btnGenerar.disabled = true;
+      btnGenerar.textContent = "Hoja completa — empieza una hoja nueva";
+    } else {
+      btnGenerar.disabled = false;
+      btnGenerar.textContent = "🖨️ Generar renglón #" + (state.nextRow + 1) + " e imprimir";
+    }
+
+    var grid = document.getElementById("grid30");
+    grid.innerHTML = "";
+    for (var i = 0; i < TOTAL_ROWS; i++) {
+      var entry = state.history.find(function (h) { return h.row === i; });
+      var cell = document.createElement("div");
+      cell.className = "cell" + (entry ? " done" : (i === state.nextRow ? " next" : ""));
+      cell.innerHTML = "<b>" + (i + 1) + "</b>" + (entry ? formatDateEs(entry.date).replace(/ de \d+$/, "") : (i === state.nextRow ? "siguiente" : "—"));
+      grid.appendChild(cell);
+    }
+  }
+
+  function resetPreview() {
+    pendingRow = null;
+    if (pendingBlobUrl) { URL.revokeObjectURL(pendingBlobUrl); pendingBlobUrl = null; }
+    document.getElementById("preview").hidden = true;
+    document.getElementById("linkDescargar").hidden = true;
+    document.getElementById("confirmBox").hidden = true;
+  }
+
+  document.getElementById("btnGenerar").addEventListener("click", function () {
+    if (state.nextRow >= TOTAL_ROWS) return;
+    var rowIndex = state.nextRow;
+    var dateISO = todayISO();
+    var doc = buildRowPDF(rowIndex, dateISO);
+
+    var printDoc = buildRowPDF(rowIndex, dateISO);
+    printDoc.autoPrint();
+    var printBlobUrl = printDoc.output("bloburl");
+    window.open(printBlobUrl, "_blank");
+
+    var blob = doc.output("blob");
+    pendingBlobUrl = URL.createObjectURL(blob);
+    pendingRow = rowIndex;
+
+    var preview = document.getElementById("preview");
+    preview.src = pendingBlobUrl;
+    preview.hidden = false;
+
+    var link = document.getElementById("linkDescargar");
+    link.href = pendingBlobUrl;
+    link.download = "cabezales-hoja" + state.sheetNumber + "-renglon" + (rowIndex + 1) + ".pdf";
+    link.hidden = false;
+
+    document.getElementById("confirmText").textContent = "¿Se imprimió correctamente el renglón #" + (rowIndex + 1) + " (" + formatDateEs(dateISO) + ")?";
+    document.getElementById("confirmBox").hidden = false;
+  });
+
+  document.getElementById("btnConfirmYes").addEventListener("click", function () {
+    if (pendingRow === null) return;
+    var dateISO = todayISO();
+    state.history.push({ row: pendingRow, date: dateISO });
+    state.nextRow = pendingRow + 1;
+    state.lastPrintDate = dateISO;
+    saveState(state);
+    resetPreview();
+    render();
+  });
+
+  document.getElementById("btnConfirmNo").addEventListener("click", function () {
+    resetPreview();
+  });
+
+  document.getElementById("btnOtroTrabajo").addEventListener("click", function () {
+    state.lastPrintDate = todayISO();
+    saveState(state);
+    render();
+  });
+
+  document.getElementById("btnReiniciarHoja").addEventListener("click", function () {
+    if (!confirm("¿Empezar una hoja nueva? Esto reinicia el progreso de renglones (la fecha de última impresión se conserva).")) return;
+    state.sheetNumber += 1;
+    state.nextRow = 0;
+    state.history = [];
+    saveState(state);
+    resetPreview();
+    render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
