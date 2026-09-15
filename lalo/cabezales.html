@@ -56,6 +56,35 @@
 
   <div id="banner" class="banner info">Cargando…</div>
 
+  <div class="card" id="syncCard">
+    <h2>Sincronización entre dispositivos</h2>
+    <div id="syncOff">
+      <p style="font-size:12px;color:#7B8290;margin-bottom:12px">
+        Sin sincronizar: este dispositivo lleva su propio progreso. Actívala para que el celular y la computadora vean el mismo renglón automáticamente.
+      </p>
+      <div class="row-actions" style="margin-bottom:10px">
+        <button id="btnSyncCrear" class="btn gray">🔗 Activar (crear código nuevo)</button>
+      </div>
+      <div style="display:flex;gap:8px">
+        <input id="inpSyncCodigo" type="text" placeholder="Pegar código existente…" style="flex:1;padding:9px 10px;border:1.5px solid #D8DBE0;border-radius:8px;font-size:13px">
+        <button id="btnSyncConectar" class="btn gray" style="width:auto;padding:9px 14px">Conectar</button>
+      </div>
+    </div>
+    <div id="syncOn" hidden>
+      <p style="font-size:12px;color:#157347;margin-bottom:8px">✅ Sincronización activa en este dispositivo.</p>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+        <code id="syncCodigo" style="flex:1;background:#F6F7F9;padding:9px 10px;border-radius:8px;font-size:12px;word-break:break-all"></code>
+        <button id="btnSyncCopiar" class="btn gray" style="width:auto;padding:9px 12px">Copiar</button>
+      </div>
+      <p style="font-size:11px;color:#7B8290;margin-bottom:10px">Pega este código en el otro dispositivo (celular o computadora), en "Pegar código existente".</p>
+      <div class="row-actions">
+        <button id="btnSyncActualizar" class="btn gray">🔄 Actualizar ahora</button>
+        <button id="btnSyncDesconectar" class="btn gray">Desconectar</button>
+      </div>
+    </div>
+    <p id="syncMsg" style="font-size:11px;color:#B3261E;margin-top:8px"></p>
+  </div>
+
   <div class="card">
     <div class="stats">
       <div><b id="statHoja">—</b><span>Hoja #</span></div>
@@ -105,8 +134,7 @@
   <div class="card">
     <h2>Corregir renglón / fecha</h2>
     <p style="font-size:12px;color:#7B8290;margin-bottom:12px">
-      El progreso se guarda solo <b>en este navegador</b> (no se sincroniza solo entre el celular y la computadora).
-      Si aquí no coincide con la hoja física o con lo que ya imprimiste en otro dispositivo, corrígelo aquí.
+      Por si la sincronización no está activada, falla, o simplemente no coincide con la hoja física: corrígelo aquí manualmente.
     </p>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
       <div>
@@ -128,6 +156,8 @@
 (function () {
   "use strict";
   var STORAGE_KEY = "mrch_cabezales_state_v1";
+  var SYNC_KEY = "mrch_cabezales_sync_id_v1";
+  var JSONBLOB_BASE = "https://jsonblob.com/api/jsonBlob";
   var TOTAL_ROWS = 30;
   var WARN_DAYS = 2;
   var COLORS = [
@@ -172,9 +202,100 @@
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch (e) {}
   }
 
+  function getSyncId() {
+    try { return localStorage.getItem(SYNC_KEY); } catch (e) { return null; }
+  }
+  function setSyncId(id) {
+    try {
+      if (id) localStorage.setItem(SYNC_KEY, id);
+      else localStorage.removeItem(SYNC_KEY);
+    } catch (e) {}
+  }
+
+  function withTimeout(promise, ms) {
+    var ctrl = new AbortController();
+    var t = setTimeout(function () { ctrl.abort(); }, ms);
+    return { signal: ctrl.signal, done: promise(ctrl.signal).finally(function () { clearTimeout(t); }) };
+  }
+
+  function remoteCreate(data) {
+    var w = withTimeout(function (signal) {
+      return fetch(JSONBLOB_BASE, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify(data),
+        signal: signal
+      }).then(function (res) {
+        if (!res.ok) throw new Error("create failed: " + res.status);
+        var loc = res.headers.get("Location");
+        if (!loc) throw new Error("sin Location en la respuesta");
+        var parts = loc.split("/");
+        return parts[parts.length - 1];
+      });
+    }, 10000);
+    return w.done;
+  }
+
+  function remoteGet(id) {
+    var w = withTimeout(function (signal) {
+      return fetch(JSONBLOB_BASE + "/" + encodeURIComponent(id), {
+        headers: { "Accept": "application/json" },
+        signal: signal
+      }).then(function (res) {
+        if (!res.ok) throw new Error("get failed: " + res.status);
+        return res.json();
+      });
+    }, 10000);
+    return w.done;
+  }
+
+  function remotePut(id, data) {
+    var w = withTimeout(function (signal) {
+      return fetch(JSONBLOB_BASE + "/" + encodeURIComponent(id), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify(data),
+        signal: signal
+      }).then(function (res) {
+        if (!res.ok) throw new Error("put failed: " + res.status);
+      });
+    }, 10000);
+    return w.done;
+  }
+
   var state = loadState();
   var pendingRow = null;
   var pendingBlobUrl = null;
+
+  function setSyncMsg(text) {
+    document.getElementById("syncMsg").textContent = text || "";
+  }
+
+  function persist() {
+    saveState(state);
+    var syncId = getSyncId();
+    if (syncId) {
+      remotePut(syncId, state).then(function () {
+        setSyncMsg("");
+      }).catch(function () {
+        setSyncMsg("⚠️ No se pudo guardar en el servidor compartido; se quedó solo en este dispositivo. Intenta 'Actualizar ahora'.");
+      });
+    }
+  }
+
+  function renderSyncUI() {
+    var syncId = getSyncId();
+    var on = document.getElementById("syncOn");
+    var off = document.getElementById("syncOff");
+    if (syncId) {
+      on.hidden = false;
+      off.hidden = true;
+      document.getElementById("syncCodigo").textContent = syncId;
+    } else {
+      on.hidden = true;
+      off.hidden = false;
+    }
+  }
 
   function buildRowPDF(rowIndex, dateISO) {
     var doc = new jspdf.jsPDF({ unit: "pt", format: "letter" });
@@ -207,6 +328,7 @@
   }
 
   function render() {
+    renderSyncUI();
     var lastPrint = state.lastPrintDate;
     var ds = daysSince(lastPrint);
     var banner = document.getElementById("banner");
@@ -297,7 +419,7 @@
     state.history.push({ row: pendingRow, date: dateISO });
     state.nextRow = pendingRow + 1;
     state.lastPrintDate = dateISO;
-    saveState(state);
+    persist();
     resetPreview();
     render();
   });
@@ -308,7 +430,7 @@
 
   document.getElementById("btnOtroTrabajo").addEventListener("click", function () {
     state.lastPrintDate = todayISO();
-    saveState(state);
+    persist();
     render();
   });
 
@@ -321,7 +443,7 @@
     for (var i = 0; i < nuevoNextRow; i++) state.history.push({ row: i, date: fecha || todayISO() });
     state.nextRow = nuevoNextRow;
     state.lastPrintDate = fecha;
-    saveState(state);
+    persist();
     resetPreview();
     render();
   });
@@ -331,12 +453,98 @@
     state.sheetNumber += 1;
     state.nextRow = 0;
     state.history = [];
-    saveState(state);
+    persist();
     resetPreview();
     render();
   });
 
+  document.getElementById("btnSyncCrear").addEventListener("click", function () {
+    setSyncMsg("Creando…");
+    remoteCreate(state).then(function (id) {
+      setSyncId(id);
+      setSyncMsg("");
+      render();
+    }).catch(function () {
+      setSyncMsg("⚠️ No se pudo crear la sincronización. Revisa tu conexión e intenta de nuevo.");
+    });
+  });
+
+  document.getElementById("btnSyncConectar").addEventListener("click", function () {
+    var id = document.getElementById("inpSyncCodigo").value.trim();
+    if (!id) return;
+    setSyncMsg("Conectando…");
+    remoteGet(id).then(function (data) {
+      state = data;
+      setSyncId(id);
+      saveState(state);
+      setSyncMsg("");
+      resetPreview();
+      render();
+    }).catch(function () {
+      setSyncMsg("⚠️ No se encontró ese código o falló la conexión. Verifica que esté bien copiado.");
+    });
+  });
+
+  document.getElementById("btnSyncActualizar").addEventListener("click", function () {
+    var syncId = getSyncId();
+    if (!syncId) return;
+    setSyncMsg("Actualizando…");
+    remoteGet(syncId).then(function (data) {
+      state = data;
+      saveState(state);
+      setSyncMsg("");
+      resetPreview();
+      render();
+    }).catch(function () {
+      setSyncMsg("⚠️ No se pudo actualizar desde el servidor. Mostrando la última copia local.");
+    });
+  });
+
+  document.getElementById("btnSyncDesconectar").addEventListener("click", function () {
+    if (!confirm("¿Desconectar la sincronización en este dispositivo? Este dispositivo seguirá su propio progreso local.")) return;
+    setSyncId(null);
+    setSyncMsg("");
+    render();
+  });
+
+  document.getElementById("btnSyncCopiar").addEventListener("click", function () {
+    var id = getSyncId();
+    if (!id) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(id).then(function () {
+        setSyncMsg("Código copiado.");
+      }).catch(function () { setSyncMsg("No se pudo copiar; selecciónalo y cópialo manualmente."); });
+    } else {
+      setSyncMsg("No se pudo copiar; selecciónalo y cópialo manualmente.");
+    }
+  });
+
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState !== "visible") return;
+    var syncId = getSyncId();
+    if (!syncId) return;
+    remoteGet(syncId).then(function (data) {
+      state = data;
+      saveState(state);
+      render();
+    }).catch(function () {});
+  });
+
   render();
+
+  (function initSync() {
+    var syncId = getSyncId();
+    if (!syncId) return;
+    setSyncMsg("Sincronizando…");
+    remoteGet(syncId).then(function (data) {
+      state = data;
+      saveState(state);
+      setSyncMsg("");
+      render();
+    }).catch(function () {
+      setSyncMsg("⚠️ No se pudo conectar con la sincronización compartida; usando la última copia guardada en este dispositivo.");
+    });
+  })();
 })();
 </script>
 </body>
