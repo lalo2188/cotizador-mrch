@@ -102,8 +102,23 @@
     <button id="btnReiniciarHoja" class="btn gray" style="margin-top:14px">🔄 Empezar hoja nueva (reemplacé la oblea)</button>
   </div>
 
-  <div class="card" style="font-size:12px;color:#7B8290;line-height:1.5">
-    ⚠️ Este progreso se guarda solo en <b>este navegador</b> (localStorage), no en un servidor. Si cambias de computadora o navegador, revisa la hoja física para saber en qué renglón vas.
+  <div class="card">
+    <h2>Corregir renglón / fecha</h2>
+    <p style="font-size:12px;color:#7B8290;margin-bottom:12px">
+      El progreso se guarda solo <b>en este navegador</b> (no se sincroniza solo entre el celular y la computadora).
+      Si aquí no coincide con la hoja física o con lo que ya imprimiste en otro dispositivo, corrígelo aquí.
+    </p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div>
+        <label style="font-size:11px;color:#7B8290;display:block;margin-bottom:4px">Renglón siguiente (1-30)</label>
+        <input id="inpRenglon" type="number" min="1" max="30" style="width:100%;padding:9px 10px;border:1.5px solid #D8DBE0;border-radius:8px;font-size:14px">
+      </div>
+      <div>
+        <label style="font-size:11px;color:#7B8290;display:block;margin-bottom:4px">Última fecha impresa</label>
+        <input id="inpFecha" type="date" style="width:100%;padding:9px 10px;border:1.5px solid #D8DBE0;border-radius:8px;font-size:14px">
+      </div>
+    </div>
+    <button id="btnCorregir" class="btn gray">💾 Guardar corrección en este dispositivo</button>
   </div>
 
 </main>
@@ -235,6 +250,9 @@
       cell.innerHTML = "<b>" + (i + 1) + "</b>" + (entry ? formatDateEs(entry.date).replace(/ de \d+$/, "") : (i === state.nextRow ? "siguiente" : "—"));
       grid.appendChild(cell);
     }
+
+    document.getElementById("inpRenglon").value = Math.min(state.nextRow + 1, TOTAL_ROWS);
+    document.getElementById("inpFecha").value = lastPrint || todayISO();
   }
 
   function resetPreview() {
@@ -291,6 +309,20 @@
   document.getElementById("btnOtroTrabajo").addEventListener("click", function () {
     state.lastPrintDate = todayISO();
     saveState(state);
+    render();
+  });
+
+  document.getElementById("btnCorregir").addEventListener("click", function () {
+    var renglon = parseInt(document.getElementById("inpRenglon").value, 10);
+    var fecha = document.getElementById("inpFecha").value || null;
+    if (!renglon || renglon < 1 || renglon > TOTAL_ROWS) { alert("El renglón debe ser un número entre 1 y " + TOTAL_ROWS + "."); return; }
+    var nuevoNextRow = renglon - 1;
+    state.history = [];
+    for (var i = 0; i < nuevoNextRow; i++) state.history.push({ row: i, date: fecha || todayISO() });
+    state.nextRow = nuevoNextRow;
+    state.lastPrintDate = fecha;
+    saveState(state);
+    resetPreview();
     render();
   });
 
