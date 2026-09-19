@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Súper — Herramientas de compras</title>
+<meta name="description" content="Comparador de precios y lista de compras compartida">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #0F2416;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .wrap { max-width: 700px; width: 100%; }
+  .top { text-align: center; margin-bottom: 30px; color: #fff; }
+  .top .back { display: inline-block; margin-bottom: 18px; font-size: 12px; color: #BBF7D0; text-decoration: none; border: 1px solid rgba(255,255,255,0.25); border-radius: 20px; padding: 6px 14px; }
+  .top .back:hover { color: #fff; border-color: #fff; }
+  .top h1 { font-size: 2em; font-weight: 700; }
+  .top p { color: #A7E3B8; font-size: 14px; margin-top: 8px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; }
+  .card {
+    border-radius: 16px;
+    padding: 28px 22px;
+    text-decoration: none;
+    color: #fff;
+    display: block;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    transition: transform .2s ease, box-shadow .2s ease;
+  }
+  .card:hover { transform: translateY(-4px); box-shadow: 0 14px 30px rgba(0,0,0,0.4); }
+  .card .icon { font-size: 36px; display: block; margin-bottom: 10px; }
+  .card h2 { font-size: 1.2em; font-weight: 700; }
+  .card p { font-size: 13px; opacity: .9; margin-top: 6px; line-height: 1.5; }
+  .card .tag { display: inline-block; margin-top: 12px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; background: rgba(255,255,255,0.18); padding: 5px 10px; border-radius: 20px; }
+  .comparar { background: linear-gradient(135deg, #F4561D 0%, #C2410C 100%); }
+  .lista { background: linear-gradient(135deg, #16A34A 0%, #15803D 100%); }
+  .footer { text-align: center; color: #4D7A5C; font-size: 12px; margin-top: 26px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <a class="back" href="/">← Inicio</a>
+      <h1>🛒 Súper</h1>
+      <p>Herramientas para cuando vamos a comprar</p>
+    </div>
+    <div class="grid">
+      <a class="card comparar" href="/comparar.html">
+        <span class="icon">📊</span>
+        <h2>Comparador</h2>
+        <p>Compara precios por unidad entre varias opciones (ml/L, g/kg) y ve cuál te sale más barato.</p>
+        <span class="tag">Aquí mismo</span>
+      </a>
+      <a class="card lista" href="https://lista.lalocortes.com" target="_blank" rel="noopener">
+        <span class="icon">🧾</span>
+        <h2>Lista del súper</h2>
+        <p>La lista de compras compartida de la familia — agrega artículos, tiendas y se sincroniza para todos.</p>
+        <span class="tag">Se abre aparte</span>
+      </a>
+    </div>
+    <div class="footer">Súper · Herramientas de compras</div>
+  </div>
+</body>
+</html>
