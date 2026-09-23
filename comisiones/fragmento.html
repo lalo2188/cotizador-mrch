@@ -1,0 +1,332 @@
+<!-- Calculadora de comisiones Clip / Mercado Pago · pegar tal cual en un widget HTML de Elementor -->
+<style>
+.calculadora-comisiones {
+  --cc-bg: #ffffff;
+  --cc-surface: #f5f6f8;
+  --cc-border: #e3e6eb;
+  --cc-text: #14161d;
+  --cc-muted: #6b7280;
+  --cc-accent: #f4561d;
+  --cc-clip: #ff5a1f;
+  --cc-mp: #009ee3;
+  --cc-ok: #16a34a;
+  container-type: inline-size;
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 20px 16px;
+  background: var(--cc-bg);
+  color: var(--cc-text);
+  border: 1px solid var(--cc-border);
+  border-radius: 18px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.4;
+  text-align: left;
+  box-sizing: border-box;
+}
+.calculadora-comisiones *,
+.calculadora-comisiones *::before,
+.calculadora-comisiones *::after { box-sizing: border-box; }
+.calculadora-comisiones .cc-titulo { margin: 0 0 4px; font-size: 1.25em; font-weight: 700; line-height: 1.25; color: var(--cc-text); }
+.calculadora-comisiones .cc-subtitulo { margin: 0 0 18px; font-size: .875em; color: var(--cc-muted); }
+.calculadora-comisiones .cc-label { display: block; margin: 0 0 6px; font-size: .875em; font-weight: 600; color: var(--cc-text); }
+.calculadora-comisiones .cc-campo {
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 14px;
+  background: var(--cc-surface);
+  border: 2px solid var(--cc-border);
+  border-radius: 14px;
+  transition: border-color .15s ease;
+}
+.calculadora-comisiones .cc-campo:focus-within { border-color: var(--cc-accent); background: #fff; }
+.calculadora-comisiones .cc-campo span { font-size: 1.5em; font-weight: 700; color: var(--cc-muted); }
+.calculadora-comisiones .cc-campo input {
+  flex: 1; min-width: 0; width: 100%;
+  margin: 0; padding: 12px 0;
+  border: 0; outline: 0; box-shadow: none;
+  background: transparent;
+  font: inherit; font-size: 1.5em; font-weight: 700; color: var(--cc-text);
+}
+.calculadora-comisiones .cc-campo small { font-size: .8em; font-weight: 600; color: var(--cc-muted); }
+.calculadora-comisiones .cc-tarjetas { display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 18px; }
+.calculadora-comisiones .cc-tarjeta {
+  position: relative;
+  padding: 16px;
+  background: var(--cc-bg);
+  border: 1px solid var(--cc-border);
+  border-top: 5px solid var(--cc-marca);
+  border-radius: 16px;
+  box-shadow: 0 4px 14px rgba(20, 22, 29, .06);
+}
+.calculadora-comisiones .cc-tarjeta.cc-clip { --cc-marca: var(--cc-clip); }
+.calculadora-comisiones .cc-tarjeta.cc-mp { --cc-marca: var(--cc-mp); }
+.calculadora-comisiones .cc-tarjeta.cc-mejor { box-shadow: 0 0 0 2px var(--cc-ok), 0 4px 14px rgba(20, 22, 29, .06); }
+.calculadora-comisiones .cc-cabeza { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.calculadora-comisiones .cc-marca { margin: 0; font-size: .95em; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; color: var(--cc-marca); }
+.calculadora-comisiones .cc-tasa { font-size: .75em; font-weight: 600; color: var(--cc-muted); white-space: nowrap; }
+.calculadora-comisiones .cc-etiqueta { margin: 0; font-size: .8em; font-weight: 600; color: var(--cc-muted); }
+.calculadora-comisiones .cc-cobrar { margin: 2px 0 12px; font-size: 2.1em; font-weight: 800; line-height: 1.1; color: var(--cc-text); word-break: break-word; font-variant-numeric: tabular-nums; }
+.calculadora-comisiones .cc-lista { margin: 0; padding: 10px 0 0; border-top: 1px dashed var(--cc-border); }
+.calculadora-comisiones .cc-fila { display: flex; justify-content: space-between; gap: 10px; margin: 0; padding: 3px 0; font-size: .875em; }
+.calculadora-comisiones .cc-fila dt { margin: 0; color: var(--cc-muted); }
+.calculadora-comisiones .cc-fila dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.calculadora-comisiones .cc-insignia {
+  display: none;
+  padding: 3px 8px;
+  font-size: .7em; font-weight: 700;
+  color: var(--cc-ok); background: #dcfce7;
+  border-radius: 999px; white-space: nowrap;
+}
+.calculadora-comisiones .cc-mejor .cc-insignia { display: inline-block; }
+.calculadora-comisiones .cc-diferencia {
+  margin: 14px 0 0; padding: 12px 14px;
+  font-size: .925em; font-weight: 600;
+  background: var(--cc-surface);
+  border-radius: 12px;
+}
+.calculadora-comisiones .cc-nota { margin: 12px 0 0; font-size: .75em; color: var(--cc-muted); }
+.calculadora-comisiones .cc-config { margin-top: 16px; border-top: 1px solid var(--cc-border); padding-top: 10px; }
+.calculadora-comisiones .cc-config summary {
+  cursor: pointer; list-style: none;
+  font-size: .8em; font-weight: 600; color: var(--cc-muted);
+  padding: 4px 0;
+}
+.calculadora-comisiones .cc-config summary::-webkit-details-marker { display: none; }
+.calculadora-comisiones .cc-config summary::before { content: "▸ "; }
+.calculadora-comisiones .cc-config[open] summary::before { content: "▾ "; }
+.calculadora-comisiones .cc-config-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 10px; }
+.calculadora-comisiones .cc-config .cc-campo { padding: 0 12px; border-radius: 10px; }
+.calculadora-comisiones .cc-config .cc-campo input,
+.calculadora-comisiones .cc-config .cc-campo span { font-size: 1em; }
+.calculadora-comisiones .cc-config .cc-campo input { padding: 9px 0; }
+.calculadora-comisiones .cc-ayuda { display: block; margin-top: 4px; font-size: .75em; color: var(--cc-muted); }
+.calculadora-comisiones .cc-restablecer {
+  justify-self: start;
+  margin: 0; padding: 8px 14px;
+  font: inherit; font-size: .8em; font-weight: 600;
+  color: var(--cc-text); background: var(--cc-surface);
+  border: 1px solid var(--cc-border); border-radius: 10px;
+  cursor: pointer;
+}
+.calculadora-comisiones .cc-restablecer:hover { border-color: var(--cc-accent); }
+@container (min-width: 560px) {
+  .calculadora-comisiones .cc-tarjetas,
+  .calculadora-comisiones .cc-config-grid { grid-template-columns: 1fr 1fr; }
+  .calculadora-comisiones .cc-restablecer { grid-column: 1 / -1; }
+}
+@media (min-width: 640px) {
+  .calculadora-comisiones { padding: 24px; }
+}
+</style>
+
+<div class="calculadora-comisiones">
+  <h3 class="cc-titulo">¿Cuánto cobrar con terminal?</h3>
+  <p class="cc-subtitulo">Escribe cuánto quieres recibir y te decimos cuánto cobrarle a tu cliente.</p>
+
+  <label class="cc-label" for="cc-monto">Quiero recibir</label>
+  <div class="cc-campo">
+    <span aria-hidden="true">$</span>
+    <input id="cc-monto" class="cc-monto" type="text" inputmode="decimal" autocomplete="off" placeholder="1,000.00">
+    <small>MXN</small>
+  </div>
+
+  <div class="cc-tarjetas">
+    <section class="cc-tarjeta cc-clip" data-proveedor="clip">
+      <div class="cc-cabeza">
+        <h4 class="cc-marca">Clip</h4>
+        <span class="cc-insignia">Más barato</span>
+        <span class="cc-tasa" data-tasa></span>
+      </div>
+      <p class="cc-etiqueta">Monto a cobrar</p>
+      <p class="cc-cobrar" data-cobrar>$0.00</p>
+      <dl class="cc-lista">
+        <div class="cc-fila"><dt>Comisión aproximada</dt><dd data-comision>$0.00</dd></div>
+        <div class="cc-fila"><dt>Monto neto recibido</dt><dd data-neto>$0.00</dd></div>
+      </dl>
+    </section>
+
+    <section class="cc-tarjeta cc-mp" data-proveedor="mp">
+      <div class="cc-cabeza">
+        <h4 class="cc-marca">Mercado Pago</h4>
+        <span class="cc-insignia">Más barato</span>
+        <span class="cc-tasa" data-tasa></span>
+      </div>
+      <p class="cc-etiqueta">Monto a cobrar</p>
+      <p class="cc-cobrar" data-cobrar>$0.00</p>
+      <dl class="cc-lista">
+        <div class="cc-fila"><dt>Comisión aproximada</dt><dd data-comision>$0.00</dd></div>
+        <div class="cc-fila"><dt>Monto neto recibido</dt><dd data-neto>$0.00</dd></div>
+      </dl>
+    </section>
+  </div>
+
+  <p class="cc-diferencia" data-diferencia aria-live="polite">Escribe un monto para comparar.</p>
+
+  <p class="cc-nota">Las comisiones mostradas corresponden a pagos con tarjeta en una sola exhibición. No incluyen meses sin intereses, promociones ni tasas preferenciales.</p>
+
+  <details class="cc-config">
+    <summary>Configurar comisiones</summary>
+    <div class="cc-config-grid">
+      <div>
+        <label class="cc-label" for="cc-tasa-clip">Comisión Clip (con IVA)</label>
+        <div class="cc-campo">
+          <input id="cc-tasa-clip" class="cc-tasa-clip" type="text" inputmode="decimal" autocomplete="off">
+          <span aria-hidden="true">%</span>
+        </div>
+        <small class="cc-ayuda" data-ayuda="clip"></small>
+      </div>
+      <div>
+        <label class="cc-label" for="cc-tasa-mp">Comisión Mercado Pago (con IVA)</label>
+        <div class="cc-campo">
+          <input id="cc-tasa-mp" class="cc-tasa-mp" type="text" inputmode="decimal" autocomplete="off">
+          <span aria-hidden="true">%</span>
+        </div>
+        <small class="cc-ayuda" data-ayuda="mp"></small>
+      </div>
+      <button type="button" class="cc-restablecer">Restablecer comisiones</button>
+    </div>
+  </details>
+</div>
+
+<script>
+(function () {
+  // Comisiones efectivas (comisión base + 16% de IVA sobre la comisión).
+  // Clip: 3.60% × 1.16 = 4.176%   ·   Mercado Pago Point: 3.50% × 1.16 = 4.06%
+  const clipRate = 0.04176;
+  const mercadoPagoRate = 0.0406;
+  const IVA = 0.16;
+
+  const moneda = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const porcentaje = new Intl.NumberFormat("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+  const numero = new Intl.NumberFormat("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  // Convierte texto como "1,000.50" o "$ 1 000" en número. Devuelve NaN si no es válido.
+  function leerNumero(texto) {
+    const limpio = String(texto).replace(/[$\s,]/g, "");
+    return limpio === "" ? NaN : Number(limpio);
+  }
+
+  // Redondea hacia arriba al centavo (el pequeño margen evita errores de punto flotante).
+  function redondearArriba(valor) {
+    return Math.ceil(valor * 100 - 1e-7) / 100;
+  }
+
+  function redondear(valor) {
+    return Math.round(valor * 100) / 100;
+  }
+
+  function calcular(neto, tasa) {
+    const cobrar = redondearArriba(neto / (1 - tasa));
+    const comision = redondear(cobrar * tasa);
+    return { cobrar: cobrar, comision: comision, neto: redondear(cobrar - comision) };
+  }
+
+  function iniciar(raiz) {
+    if (raiz.dataset.ccListo) return;
+    raiz.dataset.ccListo = "1";
+
+    // IDs únicos por si hay más de una calculadora en la misma página.
+    const sufijo = Math.random().toString(36).slice(2, 8);
+    raiz.querySelectorAll("[id]").forEach(function (el) {
+      const nuevo = el.id + "-" + sufijo;
+      const etiqueta = raiz.querySelector('label[for="' + el.id + '"]');
+      if (etiqueta) etiqueta.htmlFor = nuevo;
+      el.id = nuevo;
+    });
+
+    const campoMonto = raiz.querySelector(".cc-monto");
+    const campoClip = raiz.querySelector(".cc-tasa-clip");
+    const campoMp = raiz.querySelector(".cc-tasa-mp");
+    const diferencia = raiz.querySelector("[data-diferencia]");
+    const tarjetas = {
+      clip: raiz.querySelector('[data-proveedor="clip"]'),
+      mp: raiz.querySelector('[data-proveedor="mp"]')
+    };
+    const tasas = { clip: clipRate, mp: mercadoPagoRate };
+
+    function mostrarTasa(clave) {
+      const pct = tasas[clave] * 100;
+      tarjetas[clave].querySelector("[data-tasa]").textContent = porcentaje.format(pct) + "% con IVA";
+      raiz.querySelector('[data-ayuda="' + clave + '"]').textContent =
+        "Equivale a " + porcentaje.format(pct / (1 + IVA)) + "% + IVA";
+    }
+
+    function pintar(clave, r) {
+      const t = tarjetas[clave];
+      t.querySelector("[data-cobrar]").textContent = moneda.format(r ? r.cobrar : 0);
+      t.querySelector("[data-comision]").textContent = moneda.format(r ? r.comision : 0);
+      t.querySelector("[data-neto]").textContent = moneda.format(r ? r.neto : 0);
+    }
+
+    function actualizar() {
+      const neto = leerNumero(campoMonto.value);
+      const valido = isFinite(neto) && neto > 0;
+      const rClip = valido ? calcular(neto, tasas.clip) : null;
+      const rMp = valido ? calcular(neto, tasas.mp) : null;
+
+      pintar("clip", rClip);
+      pintar("mp", rMp);
+      tarjetas.clip.classList.remove("cc-mejor");
+      tarjetas.mp.classList.remove("cc-mejor");
+
+      if (!valido) {
+        diferencia.textContent = campoMonto.value.trim() === "" ? "Escribe un monto para comparar." : "Escribe una cantidad válida mayor a $0.";
+        return;
+      }
+
+      const dif = redondear(Math.abs(rClip.cobrar - rMp.cobrar));
+      if (dif === 0) {
+        diferencia.textContent = "Con Clip y Mercado Pago cobrarías lo mismo.";
+      } else if (rMp.cobrar < rClip.cobrar) {
+        tarjetas.mp.classList.add("cc-mejor");
+        diferencia.textContent = "Con Mercado Pago cobrarías " + moneda.format(dif) + " menos que con Clip.";
+      } else {
+        tarjetas.clip.classList.add("cc-mejor");
+        diferencia.textContent = "Con Clip cobrarías " + moneda.format(dif) + " menos que con Mercado Pago.";
+      }
+    }
+
+    function leerTasa(campo, clave, porDefecto) {
+      const pct = leerNumero(campo.value);
+      tasas[clave] = isFinite(pct) && pct >= 0 && pct < 100 ? pct / 100 : porDefecto;
+      mostrarTasa(clave);
+      actualizar();
+    }
+
+    function restablecer() {
+      campoClip.value = porcentaje.format(clipRate * 100);
+      campoMp.value = porcentaje.format(mercadoPagoRate * 100);
+      tasas.clip = clipRate;
+      tasas.mp = mercadoPagoRate;
+      mostrarTasa("clip");
+      mostrarTasa("mp");
+      actualizar();
+    }
+
+    campoMonto.addEventListener("input", actualizar);
+    campoMonto.addEventListener("blur", function () {
+      const n = leerNumero(campoMonto.value);
+      if (isFinite(n) && n > 0) {
+        campoMonto.value = numero.format(n);
+        actualizar();
+      }
+    });
+    campoClip.addEventListener("input", function () { leerTasa(campoClip, "clip", clipRate); });
+    campoMp.addEventListener("input", function () { leerTasa(campoMp, "mp", mercadoPagoRate); });
+    raiz.querySelector(".cc-restablecer").addEventListener("click", restablecer);
+
+    restablecer();
+  }
+
+  function iniciarTodas() {
+    document.querySelectorAll(".calculadora-comisiones").forEach(iniciar);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", iniciarTodas);
+  } else {
+    iniciarTodas();
+  }
+})();
+</script>
