@@ -114,12 +114,13 @@
 }
 .calculadora-comisiones .cc-restablecer { grid-column: 1 / -1; }
 .calculadora-comisiones .cc-restablecer:hover { border-color: var(--cc-accent); }
-.calculadora-comisiones .cc-meses { display: flex; gap: 6px; margin: 14px 0 0; padding: 4px; background: var(--cc-surface); border-radius: 12px; border: 0; }
+.calculadora-comisiones .cc-meses { display: grid; grid-template-columns: 1.7fr repeat(6, 1fr); gap: 3px; margin: 0; padding: 4px; background: var(--cc-surface); border-radius: 12px; border: 0; }
 .calculadora-comisiones .cc-meses legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-.calculadora-comisiones .cc-meses label { flex: 1; margin: 0; cursor: pointer; }
+.calculadora-comisiones .cc-meses-titulo { margin: 14px 0 6px; font-size: .8em; font-weight: 600; color: var(--cc-muted); }
+.calculadora-comisiones .cc-meses label { margin: 0; min-width: 0; cursor: pointer; }
 .calculadora-comisiones .cc-meses input { position: absolute; opacity: 0; pointer-events: none; }
 .calculadora-comisiones .cc-meses span {
-  display: block; padding: 9px 4px;
+  display: block; padding: 9px 2px; white-space: nowrap;
   font-size: .8em; font-weight: 700; text-align: center; color: var(--cc-muted);
   border-radius: 9px; transition: background .15s ease, color .15s ease;
 }
@@ -156,11 +157,16 @@
     <small>MXN</small>
   </div>
 
+  <p class="cc-meses-titulo" aria-hidden="true">Forma de pago · meses sin intereses</p>
   <fieldset class="cc-meses">
-    <legend>Forma de pago</legend>
-    <label><input type="radio" name="cc-meses" value="1" checked><span>1 exhibición</span></label>
-    <label><input type="radio" name="cc-meses" value="3"><span>3 meses</span></label>
-    <label><input type="radio" name="cc-meses" value="6"><span>6 meses</span></label>
+    <legend>Forma de pago: contado o meses sin intereses</legend>
+    <label><input type="radio" name="cc-meses" value="1" checked><span>Contado</span></label>
+    <label><input type="radio" name="cc-meses" value="3"><span>3</span></label>
+    <label><input type="radio" name="cc-meses" value="6"><span>6</span></label>
+    <label><input type="radio" name="cc-meses" value="9"><span>9</span></label>
+    <label><input type="radio" name="cc-meses" value="12"><span>12</span></label>
+    <label><input type="radio" name="cc-meses" value="18"><span>18</span></label>
+    <label><input type="radio" name="cc-meses" value="24"><span>24</span></label>
   </fieldset>
 
   <!-- Las tarjetas se generan desde la lista PROVEEDORES del JavaScript -->
@@ -168,7 +174,7 @@
 
   <p class="cc-diferencia" data-diferencia aria-live="polite">Escribe un monto para comparar.</p>
 
-  <p class="cc-nota">Las comisiones incluyen IVA y corresponden a pagos con tarjeta con el dinero disponible al instante. No incluyen promociones, tasas preferenciales ni retenciones de impuestos.</p>
+  <p class="cc-nota">Las comisiones incluyen IVA y corresponden a pagos con tarjeta. No incluyen promociones, tasas preferenciales ni retenciones de impuestos.</p>
 
   <details class="cc-config">
     <summary>Configurar comisiones</summary>
@@ -182,25 +188,31 @@
 <script>
 (function () {
   // ===== Comisiones (todas con IVA incluido; cambia aquí si las empresas ajustan sus tarifas) =====
-  // Clip: 3.60% + 16% IVA = 4.176% por cobro.
-  const clipRate = 0.04176;
-  const clipFixedFee = 0;
-  const clipMsiRates = { 3: null, 6: null };               // null = sin tarifa de meses configurada
+  // Plazos de meses sin intereses que muestra la calculadora.
+  const MESES = [3, 6, 9, 12, 18, 24];
+  const IVA = 0.16;
+
+  // Clip: 2.99% + $1 + IVA = 3.4684% + $1.16 por cobro. Depósito en 24 h.
+  // Sobretasa de meses (+ IVA): 9 = 11.07%, 12 = 12.77%, 18 = 19.27%, 24 = 27.17%. Meses solo en ventas mayores a $300.
+  const clipRate = 0.034684;
+  const clipFixedFee = 1.16;
+  const clipMsiRates = { 3: null, 6: null, 9: 0.128412, 12: 0.148132, 18: 0.223532, 24: 0.315172 }; // null = sin tarifa configurada
+  const clipMsiMinimum = 300;
 
   // Mercado Pago Point (terminal): 3.50% + IVA = 4.06% por cobro.
   const mercadoPagoRate = 0.0406;
   const mercadoPagoFixedFee = 0;
-  const mercadoPagoMsiRates = { 3: null, 6: null };
+  const mercadoPagoMsiRates = { 3: null, 6: null, 9: null, 12: null, 18: null, 24: null };
 
   // Mercado Pago Link de pago (tarjeta de crédito, dinero al instante):
   // 3.49% + IVA = 4.05% + $4.64 por cobro · meses: 4.69% + IVA = 5.44% (3) y 7.69% + IVA = 8.92% (6).
   const mercadoPagoLinkRate = 0.0405;
   const mercadoPagoLinkFixedFee = 4.64;
-  const mercadoPagoLinkMsiRates = { 3: 0.0544, 6: 0.0892 };
+  const mercadoPagoLinkMsiRates = { 3: 0.0544, 6: 0.0892, 9: null, 12: null, 18: null, 24: null };
   // ============================================================================================
 
   const PROVEEDORES = [
-    { clave: "clip", marca: "clip", nombre: "Clip", producto: "Terminal", tasa: clipRate, fijo: clipFixedFee, meses: clipMsiRates },
+    { clave: "clip", marca: "clip", nombre: "Clip", producto: "Terminal", tasa: clipRate, fijo: clipFixedFee, meses: clipMsiRates, minimoMeses: clipMsiMinimum, ivaAparte: true },
     { clave: "mp-point", marca: "mp", nombre: "Mercado Pago", producto: "Terminal Point", tasa: mercadoPagoRate, fijo: mercadoPagoFixedFee, meses: mercadoPagoMsiRates },
     { clave: "mp-link", marca: "mp", nombre: "Mercado Pago", producto: "Link de pago", tasa: mercadoPagoLinkRate, fijo: mercadoPagoLinkFixedFee, meses: mercadoPagoLinkMsiRates }
   ];
@@ -208,6 +220,7 @@
   const moneda = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const porcentaje = new Intl.NumberFormat("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
   const numero = new Intl.NumberFormat("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const porcentajeCorto = new Intl.NumberFormat("es-MX", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
   // Convierte texto como "1,000.50" o "$ 1 000" en número. Devuelve NaN si no es válido.
   function leerNumero(texto) {
@@ -220,7 +233,16 @@
   }
 
   // Comisiones (en centavos) que cobra el proveedor sobre un cobro de `cobro` centavos.
+  // Con `ivaAparte` (como calcula Clip) se redondean las comisiones sin IVA y el IVA se suma al final.
   function comisiones(cobro, t, extraMeses) {
+    if (t.ivaAparte) {
+      const baseCobro = Math.round((cobro * t.tasa + t.fijo * 100) / (1 + IVA));
+      const baseMeses = Math.round(cobro * extraMeses / (1 + IVA));
+      const iva = Math.round((baseCobro + baseMeses) * IVA);
+      const total = baseCobro + baseMeses + iva;
+      const porMesesIva = Math.round(baseMeses * (1 + IVA));
+      return { porCobro: total - porMesesIva, porMeses: porMesesIva, total: total };
+    }
     const porCobro = Math.round(cobro * t.tasa + t.fijo * 100);
     const porMeses = Math.round(cobro * extraMeses);
     return { porCobro: porCobro, porMeses: porMeses, total: porCobro + porMeses };
@@ -255,7 +277,7 @@
       '</div>' +
       '<p class="cc-etiqueta">Monto a cobrar</p>' +
       '<p class="cc-cobrar" data-cobrar>$0.00</p>' +
-      '<p class="cc-aviso" data-aviso hidden>Agrega la comisión de meses de ' + nombreCompleto(p) + ' en “Configurar comisiones”.</p>' +
+      '<p class="cc-aviso" data-aviso hidden></p>' +
       '<dl class="cc-lista">' +
         '<div class="cc-fila"><dt>Comisión aproximada</dt><dd data-comision>$0.00</dd></div>' +
         '<div class="cc-fila" data-fila-meses hidden><dt>· Incluye por meses</dt><dd data-comision-meses>$0.00</dd></div>' +
@@ -277,8 +299,7 @@
     return '<fieldset class="cc-grupo" data-config="' + p.clave + '"><legend>' + nombreCompleto(p) + '</legend><div class="cc-grupo-campos">' +
       campo("tasa", "Comisión", "", "%") +
       campo("fijo", "Cargo fijo", "$", "") +
-      campo("3", "Extra 3 meses", "", "%") +
-      campo("6", "Extra 6 meses", "", "%") +
+      MESES.map(function (m) { return campo(String(m), "Extra " + m + " meses", "", "%"); }).join("") +
       '</div></fieldset>';
   }
 
@@ -318,19 +339,21 @@
     }
 
     function textoTasa(t, meses) {
-      let texto = porcentaje.format(t.tasa * 100) + "%";
+      let texto = porcentajeCorto.format(t.tasa * 100) + "%";
       if (t.fijo > 0) texto += " + " + moneda.format(t.fijo);
-      if (meses > 1 && t.meses[meses] != null) texto += " + " + porcentaje.format(t.meses[meses] * 100) + "%";
+      if (meses > 1 && t.meses[meses] != null) texto += " + " + porcentajeCorto.format(t.meses[meses] * 100) + "%";
       return texto;
     }
 
-    function pintar(p, r, meses, sinTarifa) {
+    function pintar(p, r, meses, aviso) {
       const t = tarjetas[p.clave];
+      const sinTarifa = meses > 1 && tarifas[p.clave].meses[meses] == null;
       t.classList.remove("cc-mejor");
-      t.classList.toggle("cc-sin-tarifa", sinTarifa);
-      t.querySelector("[data-tasa]").textContent = sinTarifa ? "Sin tarifa de meses" : textoTasa(tarifas[p.clave], meses);
-      t.querySelector("[data-aviso]").hidden = !sinTarifa;
-      t.querySelector("[data-cobrar]").textContent = r ? moneda.format(r.cobrar) : sinTarifa ? "—" : moneda.format(0);
+      t.classList.toggle("cc-sin-tarifa", !!aviso);
+      t.querySelector("[data-tasa]").textContent = sinTarifa ? "Sin tarifa de " + meses + " meses" : textoTasa(tarifas[p.clave], meses);
+      t.querySelector("[data-aviso]").hidden = !aviso;
+      t.querySelector("[data-aviso]").textContent = aviso;
+      t.querySelector("[data-cobrar]").textContent = r ? moneda.format(r.cobrar) : aviso ? "—" : moneda.format(0);
       t.querySelector("[data-comision]").textContent = r ? moneda.format(r.comision) : "—";
       t.querySelector("[data-neto]").textContent = r ? moneda.format(r.neto) : "—";
       t.querySelector("[data-fila-meses]").hidden = meses === 1;
@@ -349,8 +372,13 @@
         const t = tarifas[p.clave];
         const extra = meses === 1 ? 0 : t.meses[meses];
         const sinTarifa = extra == null;
-        const r = valido && !sinTarifa ? calcular(neto, t, extra) : null;
-        pintar(p, r, meses, sinTarifa);
+        let r = valido && !sinTarifa ? calcular(neto, t, extra) : null;
+        let aviso = sinTarifa ? "Agrega la comisión de " + meses + " meses de " + nombreCompleto(p) + " en “Configurar comisiones”." : "";
+        if (r && meses > 1 && p.minimoMeses && r.cobrar <= p.minimoMeses) {
+          aviso = nombreCompleto(p) + " solo ofrece meses en ventas mayores a " + moneda.format(p.minimoMeses) + ".";
+          r = null;
+        }
+        pintar(p, r, meses, aviso);
         if (r) resultados.push({ p: p, centavos: aCentavos(r.cobrar) });
       });
 
@@ -359,7 +387,7 @@
         return;
       }
       if (resultados.length < 2) {
-        diferencia.textContent = "Para comparar a " + meses + " meses, agrega las comisiones de meses que faltan en “Configurar comisiones”.";
+        diferencia.textContent = "A " + meses + " meses no hay suficientes opciones disponibles para comparar. Puedes agregar tarifas en “Configurar comisiones”.";
         return;
       }
 
@@ -378,7 +406,7 @@
       diferencia.textContent = "Con " + empatados.map(function (r) { return nombreCompleto(r.p); }).join(" o ") +
         " cobrarías " + (otros.length ? otros.join(", ") + " y " : "") + ultimo + ".";
       if (resultados.length < PROVEEDORES.length) {
-        diferencia.textContent += " (Sin comparar: opciones sin tarifa de " + meses + " meses.)";
+        diferencia.textContent += " (Sin comparar: opciones no disponibles a " + meses + " meses.)";
       }
     }
 
@@ -391,9 +419,10 @@
       tarifas[p.clave] = {
         tasa: isFinite(tasa) && tasa >= 0 && tasa < 100 ? tasa / 100 : p.tasa,
         fijo: isFinite(fijo) && fijo >= 0 ? fijo : texto("fijo").trim() === "" ? 0 : p.fijo,
-        meses: {}
+        meses: {},
+        ivaAparte: !!p.ivaAparte
       };
-      [3, 6].forEach(function (m) {
+      MESES.forEach(function (m) {
         const pct = leerNumero(texto(m));
         tarifas[p.clave].meses[m] = isFinite(pct) && pct >= 0 && pct < 100 ? pct / 100 : null;
       });
@@ -404,7 +433,7 @@
         const poner = function (campo, valor) { grupos[p.clave].querySelector('[data-campo="' + campo + '"]').value = valor; };
         poner("tasa", porcentaje.format(p.tasa * 100));
         poner("fijo", p.fijo > 0 ? numero.format(p.fijo) : "");
-        [3, 6].forEach(function (m) { poner(m, p.meses[m] != null ? porcentaje.format(p.meses[m] * 100) : ""); });
+        MESES.forEach(function (m) { poner(m, p.meses[m] != null ? porcentaje.format(p.meses[m] * 100) : ""); });
         leerConfig(p);
       });
       actualizar();
