@@ -193,10 +193,10 @@
   const IVA = 0.16;
 
   // Clip: 2.99% + $1 + IVA = 3.4684% + $1.16 por cobro. Depósito en 24 h.
-  // Sobretasa de meses (+ IVA): 9 = 11.07%, 12 = 12.77%, 18 = 19.27%, 24 = 27.17%. Meses solo en ventas mayores a $300.
+  // Sobretasa de meses (+ IVA): 3 = 4.57%, 6 = 7.57%, 9 = 11.07%, 12 = 12.77%, 18 = 19.27%, 24 = 27.17%. Meses solo en ventas mayores a $300.
   const clipRate = 0.034684;
   const clipFixedFee = 1.16;
-  const clipMsiRates = { 3: null, 6: null, 9: 0.128412, 12: 0.148132, 18: 0.223532, 24: 0.315172 }; // null = sin tarifa configurada
+  const clipMsiRates = { 3: 0.053012, 6: 0.087812, 9: 0.128412, 12: 0.148132, 18: 0.223532, 24: 0.315172 }; // null = sin tarifa configurada
   const clipMsiMinimum = 300;
 
   // Mercado Pago Point (terminal): 3.50% + IVA = 4.06% por cobro.
