@@ -7,7 +7,7 @@
 <meta name="description" content="Calcula cuánto cobrar con Clip o Mercado Pago para recibir el monto neto que quieres.">
 <style>
   body { margin: 0; min-height: 100vh; background: #f5f6f8; padding: 24px 16px; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-  .pagina { max-width: 760px; margin: 0 auto; }
+  .pagina { max-width: 1080px; margin: 0 auto; }
   .pagina-volver { display: inline-block; margin-bottom: 12px; font-size: 13px; color: #6b7280; text-decoration: none; }
   .pagina-volver:hover { color: #f4561d; }
 </style>
@@ -80,6 +80,8 @@
 .calculadora-comisiones .cc-tarjeta.cc-mp { --cc-marca: var(--cc-mp); }
 .calculadora-comisiones .cc-tarjeta.cc-mejor { box-shadow: 0 0 0 2px var(--cc-ok), 0 4px 14px rgba(20, 22, 29, .06); }
 .calculadora-comisiones .cc-cabeza { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.calculadora-comisiones .cc-nombre { display: flex; flex-direction: column; gap: 1px; }
+.calculadora-comisiones .cc-producto { font-size: .75em; font-weight: 600; color: var(--cc-muted); }
 .calculadora-comisiones .cc-marca { margin: 0; font-size: .95em; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; color: var(--cc-marca); }
 .calculadora-comisiones .cc-tasa { font-size: .75em; font-weight: 600; color: var(--cc-muted); white-space: nowrap; }
 .calculadora-comisiones .cc-etiqueta { margin: 0; font-size: .8em; font-weight: 600; color: var(--cc-muted); }
@@ -89,6 +91,7 @@
 .calculadora-comisiones .cc-fila dt { margin: 0; color: var(--cc-muted); }
 .calculadora-comisiones .cc-fila dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
 .calculadora-comisiones .cc-insignia {
+  margin-left: auto;
   display: none;
   padding: 3px 8px;
   font-size: .7em; font-weight: 700;
@@ -126,6 +129,7 @@
   border: 1px solid var(--cc-border); border-radius: 10px;
   cursor: pointer;
 }
+.calculadora-comisiones .cc-restablecer { grid-column: 1 / -1; }
 .calculadora-comisiones .cc-restablecer:hover { border-color: var(--cc-accent); }
 .calculadora-comisiones .cc-meses { display: flex; gap: 6px; margin: 14px 0 0; padding: 4px; background: var(--cc-surface); border-radius: 12px; border: 0; }
 .calculadora-comisiones .cc-meses legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
@@ -146,14 +150,17 @@
 .calculadora-comisiones .cc-grupo-campos { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
 .calculadora-comisiones .cc-grupo .cc-label { font-size: .75em; font-weight: 600; color: var(--cc-muted); }
 @container (min-width: 560px) {
-  .calculadora-comisiones .cc-tarjetas,
   .calculadora-comisiones .cc-config-grid { grid-template-columns: 1fr 1fr; }
-  .calculadora-comisiones .cc-restablecer { grid-column: 1 / -1; }
+}
+@container (min-width: 760px) {
+  .calculadora-comisiones .cc-tarjetas { grid-template-columns: repeat(3, 1fr); }
+  .calculadora-comisiones .cc-config-grid { grid-template-columns: repeat(3, 1fr); }
 }
 @media (min-width: 640px) {
   .calculadora-comisiones { padding: 24px; }
 }
 </style>
+
 
 <div class="calculadora-comisiones">
   <h3 class="cc-titulo">¿Cuánto cobrar con tarjeta?</h3>
@@ -173,41 +180,8 @@
     <label><input type="radio" name="cc-meses" value="6"><span>6 meses</span></label>
   </fieldset>
 
-  <div class="cc-tarjetas">
-    <section class="cc-tarjeta cc-clip" data-proveedor="clip">
-      <div class="cc-cabeza">
-        <h4 class="cc-marca">Clip</h4>
-        <span class="cc-insignia">Más barato</span>
-        <span class="cc-tasa" data-tasa></span>
-      </div>
-      <p class="cc-etiqueta">Monto a cobrar</p>
-      <p class="cc-cobrar" data-cobrar>$0.00</p>
-      <p class="cc-aviso" data-aviso hidden>Agrega la comisión de meses de Clip en “Configurar comisiones”.</p>
-      <dl class="cc-lista">
-        <div class="cc-fila"><dt>Comisión aproximada</dt><dd data-comision>$0.00</dd></div>
-        <div class="cc-fila" data-fila-meses hidden><dt>· Incluye por meses</dt><dd data-comision-meses>$0.00</dd></div>
-        <div class="cc-fila"><dt>Monto neto recibido</dt><dd data-neto>$0.00</dd></div>
-        <div class="cc-fila" data-fila-pagos hidden><dt>Tu cliente paga</dt><dd data-pagos>—</dd></div>
-      </dl>
-    </section>
-
-    <section class="cc-tarjeta cc-mp" data-proveedor="mp">
-      <div class="cc-cabeza">
-        <h4 class="cc-marca">Mercado Pago</h4>
-        <span class="cc-insignia">Más barato</span>
-        <span class="cc-tasa" data-tasa></span>
-      </div>
-      <p class="cc-etiqueta">Monto a cobrar</p>
-      <p class="cc-cobrar" data-cobrar>$0.00</p>
-      <p class="cc-aviso" data-aviso hidden>Agrega la comisión de meses de Mercado Pago en “Configurar comisiones”.</p>
-      <dl class="cc-lista">
-        <div class="cc-fila"><dt>Comisión aproximada</dt><dd data-comision>$0.00</dd></div>
-        <div class="cc-fila" data-fila-meses hidden><dt>· Incluye por meses</dt><dd data-comision-meses>$0.00</dd></div>
-        <div class="cc-fila"><dt>Monto neto recibido</dt><dd data-neto>$0.00</dd></div>
-        <div class="cc-fila" data-fila-pagos hidden><dt>Tu cliente paga</dt><dd data-pagos>—</dd></div>
-      </dl>
-    </section>
-  </div>
+  <!-- Las tarjetas se generan desde la lista PROVEEDORES del JavaScript -->
+  <div class="cc-tarjetas" data-tarjetas></div>
 
   <p class="cc-diferencia" data-diferencia aria-live="polite">Escribe un monto para comparar.</p>
 
@@ -216,25 +190,7 @@
   <details class="cc-config">
     <summary>Configurar comisiones</summary>
     <p class="cc-ayuda">Todos los porcentajes y cargos fijos van <strong>con IVA incluido</strong>. Deja vacío un campo de meses si esa opción no está disponible.</p>
-    <div class="cc-config-grid">
-      <fieldset class="cc-grupo" data-config="clip">
-        <legend>Clip</legend>
-        <div class="cc-grupo-campos">
-          <div><label class="cc-label" for="cc-clip-tasa">Comisión</label><div class="cc-campo"><input id="cc-clip-tasa" data-campo="tasa" type="text" inputmode="decimal" autocomplete="off"><span aria-hidden="true">%</span></div></div>
-          <div><label class="cc-label" for="cc-clip-fijo">Cargo fijo</label><div class="cc-campo"><span aria-hidden="true">$</span><input id="cc-clip-fijo" data-campo="fijo" type="text" inputmode="decimal" autocomplete="off"></div></div>
-          <div><label class="cc-label" for="cc-clip-m3">Extra 3 meses</label><div class="cc-campo"><input id="cc-clip-m3" data-campo="3" type="text" inputmode="decimal" autocomplete="off"><span aria-hidden="true">%</span></div></div>
-          <div><label class="cc-label" for="cc-clip-m6">Extra 6 meses</label><div class="cc-campo"><input id="cc-clip-m6" data-campo="6" type="text" inputmode="decimal" autocomplete="off"><span aria-hidden="true">%</span></div></div>
-        </div>
-      </fieldset>
-      <fieldset class="cc-grupo" data-config="mp">
-        <legend>Mercado Pago</legend>
-        <div class="cc-grupo-campos">
-          <div><label class="cc-label" for="cc-mp-tasa">Comisión</label><div class="cc-campo"><input id="cc-mp-tasa" data-campo="tasa" type="text" inputmode="decimal" autocomplete="off"><span aria-hidden="true">%</span></div></div>
-          <div><label class="cc-label" for="cc-mp-fijo">Cargo fijo</label><div class="cc-campo"><span aria-hidden="true">$</span><input id="cc-mp-fijo" data-campo="fijo" type="text" inputmode="decimal" autocomplete="off"></div></div>
-          <div><label class="cc-label" for="cc-mp-m3">Extra 3 meses</label><div class="cc-campo"><input id="cc-mp-m3" data-campo="3" type="text" inputmode="decimal" autocomplete="off"><span aria-hidden="true">%</span></div></div>
-          <div><label class="cc-label" for="cc-mp-m6">Extra 6 meses</label><div class="cc-campo"><input id="cc-mp-m6" data-campo="6" type="text" inputmode="decimal" autocomplete="off"><span aria-hidden="true">%</span></div></div>
-        </div>
-      </fieldset>
+    <div class="cc-config-grid" data-config-grid>
       <button type="button" class="cc-restablecer">Restablecer comisiones</button>
     </div>
   </details>
@@ -246,19 +202,25 @@
   // Clip: 3.60% + 16% IVA = 4.176% por cobro.
   const clipRate = 0.04176;
   const clipFixedFee = 0;
-  const clipMsiRates = { 3: null, 6: null };            // null = sin tarifa de meses configurada
+  const clipMsiRates = { 3: null, 6: null };               // null = sin tarifa de meses configurada
 
-  // Mercado Pago (link de pago, tarjeta de crédito, dinero al instante):
+  // Mercado Pago Point (terminal): 3.50% + IVA = 4.06% por cobro.
+  const mercadoPagoRate = 0.0406;
+  const mercadoPagoFixedFee = 0;
+  const mercadoPagoMsiRates = { 3: null, 6: null };
+
+  // Mercado Pago Link de pago (tarjeta de crédito, dinero al instante):
   // 3.49% + IVA = 4.05% + $4.64 por cobro · meses: 4.69% + IVA = 5.44% (3) y 7.69% + IVA = 8.92% (6).
-  const mercadoPagoRate = 0.0405;
-  const mercadoPagoFixedFee = 4.64;
-  const mercadoPagoMsiRates = { 3: 0.0544, 6: 0.0892 };
+  const mercadoPagoLinkRate = 0.0405;
+  const mercadoPagoLinkFixedFee = 4.64;
+  const mercadoPagoLinkMsiRates = { 3: 0.0544, 6: 0.0892 };
   // ============================================================================================
 
-  const PREDETERMINADAS = {
-    clip: { tasa: clipRate, fijo: clipFixedFee, meses: clipMsiRates },
-    mp: { tasa: mercadoPagoRate, fijo: mercadoPagoFixedFee, meses: mercadoPagoMsiRates }
-  };
+  const PROVEEDORES = [
+    { clave: "clip", marca: "clip", nombre: "Clip", producto: "Terminal", tasa: clipRate, fijo: clipFixedFee, meses: clipMsiRates },
+    { clave: "mp-point", marca: "mp", nombre: "Mercado Pago", producto: "Terminal Point", tasa: mercadoPagoRate, fijo: mercadoPagoFixedFee, meses: mercadoPagoMsiRates },
+    { clave: "mp-link", marca: "mp", nombre: "Mercado Pago", producto: "Link de pago", tasa: mercadoPagoLinkRate, fijo: mercadoPagoLinkFixedFee, meses: mercadoPagoLinkMsiRates }
+  ];
 
   const moneda = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const porcentaje = new Intl.NumberFormat("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
@@ -297,6 +259,46 @@
     return { cobrar: cobro / 100, comision: c.total / 100, comisionMeses: c.porMeses / 100, neto: (cobro - c.total) / 100 };
   }
 
+  function nombreCompleto(p) {
+    return p.nombre === "Clip" ? "Clip" : p.nombre + " " + p.producto;
+  }
+
+  function htmlTarjeta(p) {
+    return '<section class="cc-tarjeta cc-' + p.marca + '" data-proveedor="' + p.clave + '">' +
+      '<div class="cc-cabeza">' +
+        '<div class="cc-nombre"><h4 class="cc-marca">' + p.nombre + '</h4><span class="cc-producto">' + p.producto + '</span></div>' +
+        '<span class="cc-insignia">Más barato</span>' +
+        '<span class="cc-tasa" data-tasa></span>' +
+      '</div>' +
+      '<p class="cc-etiqueta">Monto a cobrar</p>' +
+      '<p class="cc-cobrar" data-cobrar>$0.00</p>' +
+      '<p class="cc-aviso" data-aviso hidden>Agrega la comisión de meses de ' + nombreCompleto(p) + ' en “Configurar comisiones”.</p>' +
+      '<dl class="cc-lista">' +
+        '<div class="cc-fila"><dt>Comisión aproximada</dt><dd data-comision>$0.00</dd></div>' +
+        '<div class="cc-fila" data-fila-meses hidden><dt>· Incluye por meses</dt><dd data-comision-meses>$0.00</dd></div>' +
+        '<div class="cc-fila"><dt>Monto neto recibido</dt><dd data-neto>$0.00</dd></div>' +
+        '<div class="cc-fila" data-fila-pagos hidden><dt>Tu cliente paga</dt><dd data-pagos>—</dd></div>' +
+      '</dl>' +
+    '</section>';
+  }
+
+  function htmlConfig(p, sufijo) {
+    const campo = function (clave, etiqueta, prefijo, postfijo) {
+      const id = "cc-" + p.clave + "-" + clave + "-" + sufijo;
+      return '<div><label class="cc-label" for="' + id + '">' + etiqueta + '</label><div class="cc-campo">' +
+        (prefijo ? '<span aria-hidden="true">' + prefijo + '</span>' : '') +
+        '<input id="' + id + '" data-campo="' + clave + '" type="text" inputmode="decimal" autocomplete="off">' +
+        (postfijo ? '<span aria-hidden="true">' + postfijo + '</span>' : '') +
+        '</div></div>';
+    };
+    return '<fieldset class="cc-grupo" data-config="' + p.clave + '"><legend>' + nombreCompleto(p) + '</legend><div class="cc-grupo-campos">' +
+      campo("tasa", "Comisión", "", "%") +
+      campo("fijo", "Cargo fijo", "$", "") +
+      campo("3", "Extra 3 meses", "", "%") +
+      campo("6", "Extra 6 meses", "", "%") +
+      '</div></fieldset>';
+  }
+
   function iniciar(raiz) {
     if (raiz.dataset.ccListo) return;
     raiz.dataset.ccListo = "1";
@@ -311,15 +313,20 @@
     });
     raiz.querySelectorAll('input[name="cc-meses"]').forEach(function (el) { el.name = "cc-meses-" + sufijo; });
 
+    raiz.querySelector("[data-tarjetas]").innerHTML = PROVEEDORES.map(htmlTarjeta).join("");
+    const botonRestablecer = raiz.querySelector(".cc-restablecer");
+    botonRestablecer.insertAdjacentHTML("beforebegin", PROVEEDORES.map(function (p) { return htmlConfig(p, sufijo); }).join(""));
+
     const campoMonto = raiz.querySelector(".cc-monto");
     const diferencia = raiz.querySelector("[data-diferencia]");
     const opcionesMeses = raiz.querySelectorAll(".cc-meses input");
-    const nombres = { clip: "Clip", mp: "Mercado Pago" };
-    const tarjetas = {
-      clip: raiz.querySelector('[data-proveedor="clip"]'),
-      mp: raiz.querySelector('[data-proveedor="mp"]')
-    };
+    const tarjetas = {};
+    const grupos = {};
     const tarifas = {};
+    PROVEEDORES.forEach(function (p) {
+      tarjetas[p.clave] = raiz.querySelector('[data-proveedor="' + p.clave + '"]');
+      grupos[p.clave] = raiz.querySelector('[data-config="' + p.clave + '"]');
+    });
 
     function mesesElegidos() {
       let m = 1;
@@ -327,18 +334,18 @@
       return m;
     }
 
-    function textoTasa(clave, meses) {
-      const t = tarifas[clave];
+    function textoTasa(t, meses) {
       let texto = porcentaje.format(t.tasa * 100) + "%";
       if (t.fijo > 0) texto += " + " + moneda.format(t.fijo);
       if (meses > 1 && t.meses[meses] != null) texto += " + " + porcentaje.format(t.meses[meses] * 100) + "%";
       return texto;
     }
 
-    function pintar(clave, r, meses, sinTarifa) {
-      const t = tarjetas[clave];
+    function pintar(p, r, meses, sinTarifa) {
+      const t = tarjetas[p.clave];
+      t.classList.remove("cc-mejor");
       t.classList.toggle("cc-sin-tarifa", sinTarifa);
-      t.querySelector("[data-tasa]").textContent = sinTarifa ? "Sin tarifa de meses" : textoTasa(clave, meses);
+      t.querySelector("[data-tasa]").textContent = sinTarifa ? "Sin tarifa de meses" : textoTasa(tarifas[p.clave], meses);
       t.querySelector("[data-aviso]").hidden = !sinTarifa;
       t.querySelector("[data-cobrar]").textContent = r ? moneda.format(r.cobrar) : sinTarifa ? "—" : moneda.format(0);
       t.querySelector("[data-comision]").textContent = r ? moneda.format(r.comision) : "—";
@@ -353,66 +360,69 @@
       const neto = leerNumero(campoMonto.value);
       const valido = isFinite(neto) && neto > 0;
       const meses = mesesElegidos();
-      const r = {};
+      const resultados = [];
 
-      ["clip", "mp"].forEach(function (clave) {
-        const t = tarifas[clave];
+      PROVEEDORES.forEach(function (p) {
+        const t = tarifas[p.clave];
         const extra = meses === 1 ? 0 : t.meses[meses];
         const sinTarifa = extra == null;
-        r[clave] = valido && !sinTarifa ? calcular(neto, t, extra) : null;
-        pintar(clave, r[clave], meses, sinTarifa);
-        tarjetas[clave].classList.remove("cc-mejor");
+        const r = valido && !sinTarifa ? calcular(neto, t, extra) : null;
+        pintar(p, r, meses, sinTarifa);
+        if (r) resultados.push({ p: p, centavos: aCentavos(r.cobrar) });
       });
 
       if (!valido) {
         diferencia.textContent = campoMonto.value.trim() === "" ? "Escribe un monto para comparar." : "Escribe una cantidad válida mayor a $0.";
         return;
       }
-      if (!r.clip || !r.mp) {
-        const falta = !r.clip ? "clip" : "mp";
-        diferencia.textContent = "Para comparar a " + meses + " meses, agrega la comisión de meses de " + nombres[falta] + " en “Configurar comisiones”.";
+      if (resultados.length < 2) {
+        diferencia.textContent = "Para comparar a " + meses + " meses, agrega las comisiones de meses que faltan en “Configurar comisiones”.";
         return;
       }
 
-      const dif = Math.abs(aCentavos(r.clip.cobrar) - aCentavos(r.mp.cobrar)) / 100;
-      if (dif === 0) {
-        diferencia.textContent = "Con Clip y Mercado Pago cobrarías lo mismo.";
-      } else if (r.mp.cobrar < r.clip.cobrar) {
-        tarjetas.mp.classList.add("cc-mejor");
-        diferencia.textContent = "Con Mercado Pago cobrarías " + moneda.format(dif) + " menos que con Clip.";
-      } else {
-        tarjetas.clip.classList.add("cc-mejor");
-        diferencia.textContent = "Con Clip cobrarías " + moneda.format(dif) + " menos que con Mercado Pago.";
+      resultados.sort(function (a, b) { return a.centavos - b.centavos; });
+      const mejor = resultados[0];
+      const empatados = resultados.filter(function (r) { return r.centavos === mejor.centavos; });
+      if (empatados.length === resultados.length) {
+        diferencia.textContent = "Con todas las opciones cobrarías lo mismo.";
+        return;
+      }
+      empatados.forEach(function (r) { tarjetas[r.p.clave].classList.add("cc-mejor"); });
+      const otros = resultados.slice(empatados.length).map(function (r) {
+        return moneda.format((r.centavos - mejor.centavos) / 100) + " menos que con " + nombreCompleto(r.p);
+      });
+      const ultimo = otros.pop();
+      diferencia.textContent = "Con " + empatados.map(function (r) { return nombreCompleto(r.p); }).join(" o ") +
+        " cobrarías " + (otros.length ? otros.join(", ") + " y " : "") + ultimo + ".";
+      if (resultados.length < PROVEEDORES.length) {
+        diferencia.textContent += " (Sin comparar: opciones sin tarifa de " + meses + " meses.)";
       }
     }
 
     // Lee los campos de "Configurar comisiones"; un valor inválido usa el predeterminado.
-    function leerConfig(clave) {
-      const grupo = raiz.querySelector('[data-config="' + clave + '"]');
-      const base = PREDETERMINADAS[clave];
-      const valor = function (campo) { return leerNumero(grupo.querySelector('[data-campo="' + campo + '"]').value); };
-      const tasa = valor("tasa");
-      const fijo = valor("fijo");
-      tarifas[clave] = {
-        tasa: isFinite(tasa) && tasa >= 0 && tasa < 100 ? tasa / 100 : base.tasa,
-        fijo: isFinite(fijo) && fijo >= 0 ? fijo : grupo.querySelector('[data-campo="fijo"]').value.trim() === "" ? 0 : base.fijo,
+    function leerConfig(p) {
+      const grupo = grupos[p.clave];
+      const texto = function (campo) { return grupo.querySelector('[data-campo="' + campo + '"]').value; };
+      const tasa = leerNumero(texto("tasa"));
+      const fijo = leerNumero(texto("fijo"));
+      tarifas[p.clave] = {
+        tasa: isFinite(tasa) && tasa >= 0 && tasa < 100 ? tasa / 100 : p.tasa,
+        fijo: isFinite(fijo) && fijo >= 0 ? fijo : texto("fijo").trim() === "" ? 0 : p.fijo,
         meses: {}
       };
       [3, 6].forEach(function (m) {
-        const pct = valor(m);
-        tarifas[clave].meses[m] = isFinite(pct) && pct >= 0 && pct < 100 ? pct / 100 : null;
+        const pct = leerNumero(texto(m));
+        tarifas[p.clave].meses[m] = isFinite(pct) && pct >= 0 && pct < 100 ? pct / 100 : null;
       });
     }
 
     function restablecer() {
-      ["clip", "mp"].forEach(function (clave) {
-        const base = PREDETERMINADAS[clave];
-        const grupo = raiz.querySelector('[data-config="' + clave + '"]');
-        const poner = function (campo, texto) { grupo.querySelector('[data-campo="' + campo + '"]').value = texto; };
-        poner("tasa", porcentaje.format(base.tasa * 100));
-        poner("fijo", base.fijo > 0 ? numero.format(base.fijo) : "");
-        [3, 6].forEach(function (m) { poner(m, base.meses[m] != null ? porcentaje.format(base.meses[m] * 100) : ""); });
-        leerConfig(clave);
+      PROVEEDORES.forEach(function (p) {
+        const poner = function (campo, valor) { grupos[p.clave].querySelector('[data-campo="' + campo + '"]').value = valor; };
+        poner("tasa", porcentaje.format(p.tasa * 100));
+        poner("fijo", p.fijo > 0 ? numero.format(p.fijo) : "");
+        [3, 6].forEach(function (m) { poner(m, p.meses[m] != null ? porcentaje.format(p.meses[m] * 100) : ""); });
+        leerConfig(p);
       });
       actualizar();
     }
@@ -426,13 +436,13 @@
       }
     });
     opcionesMeses.forEach(function (el) { el.addEventListener("change", actualizar); });
-    ["clip", "mp"].forEach(function (clave) {
-      raiz.querySelector('[data-config="' + clave + '"]').addEventListener("input", function () {
-        leerConfig(clave);
+    PROVEEDORES.forEach(function (p) {
+      grupos[p.clave].addEventListener("input", function () {
+        leerConfig(p);
         actualizar();
       });
     });
-    raiz.querySelector(".cc-restablecer").addEventListener("click", restablecer);
+    botonRestablecer.addEventListener("click", restablecer);
 
     restablecer();
   }
