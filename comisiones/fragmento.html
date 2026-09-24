@@ -199,10 +199,11 @@
   const clipMsiRates = { 3: 0.053012, 6: 0.087812, 9: 0.128412, 12: 0.148132, 18: 0.223532, 24: 0.315172 }; // null = sin tarifa configurada
   const clipMsiMinimum = 300;
 
-  // Mercado Pago Point (terminal): 3.50% + IVA = 4.06% por cobro.
+  // Mercado Pago Point (terminal / Tap, dinero al instante): 3.50% + IVA = 4.06% por cobro.
+  // Meses (+ IVA): 6 = 7.69%, 9 = 11.19%, 12 = 12.89%, 18 = 19.39%, 24 = 27.29% (con IVA redondeado a 2 decimales, como Mercado Pago).
   const mercadoPagoRate = 0.0406;
   const mercadoPagoFixedFee = 0;
-  const mercadoPagoMsiRates = { 3: null, 6: null, 9: null, 12: null, 18: null, 24: null };
+  const mercadoPagoMsiRates = { 3: null, 6: 0.0892, 9: 0.1298, 12: 0.1495, 18: 0.2249, 24: 0.3166 };
 
   // Mercado Pago Link de pago (tarjeta de crédito, dinero al instante):
   // 3.49% + IVA = 4.05% + $4.64 por cobro · meses: 4.69% + IVA = 5.44% (3) y 7.69% + IVA = 8.92% (6).
