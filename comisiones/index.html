@@ -217,10 +217,10 @@
   const clipMsiMinimum = 300;
 
   // Mercado Pago Point (terminal / Tap, dinero al instante): 3.50% + IVA = 4.06% por cobro.
-  // Meses (+ IVA): 6 = 7.69%, 9 = 11.19%, 12 = 12.89%, 18 = 19.39%, 24 = 27.29% (con IVA redondeado a 2 decimales, como Mercado Pago).
+  // Point y Tap tienen las mismas tarifas. Meses (+ IVA): 3 = 4.69%, 6 = 7.69%, 9 = 11.19%, 12 = 12.89%, 18 = 19.39%, 24 = 27.29% (con IVA redondeado a 2 decimales, como Mercado Pago).
   const mercadoPagoRate = 0.0406;
   const mercadoPagoFixedFee = 0;
-  const mercadoPagoMsiRates = { 3: null, 6: 0.0892, 9: 0.1298, 12: 0.1495, 18: 0.2249, 24: 0.3166 };
+  const mercadoPagoMsiRates = { 3: 0.0544, 6: 0.0892, 9: 0.1298, 12: 0.1495, 18: 0.2249, 24: 0.3166 };
 
   // Mercado Pago Link de pago (tarjeta de crédito, dinero al instante):
   // 3.49% + IVA = 4.05% + $4.64 por cobro · meses: 4.69% + IVA = 5.44% (3) y 7.69% + IVA = 8.92% (6).
@@ -231,7 +231,7 @@
 
   const PROVEEDORES = [
     { clave: "clip", marca: "clip", nombre: "Clip", producto: "Terminal", tasa: clipRate, fijo: clipFixedFee, meses: clipMsiRates, minimoMeses: clipMsiMinimum, ivaAparte: true },
-    { clave: "mp-point", marca: "mp", nombre: "Mercado Pago", producto: "Terminal Point", tasa: mercadoPagoRate, fijo: mercadoPagoFixedFee, meses: mercadoPagoMsiRates },
+    { clave: "mp-point", marca: "mp", nombre: "Mercado Pago", producto: "Point / Tap", tasa: mercadoPagoRate, fijo: mercadoPagoFixedFee, meses: mercadoPagoMsiRates },
     { clave: "mp-link", marca: "mp", nombre: "Mercado Pago", producto: "Link de pago", tasa: mercadoPagoLinkRate, fijo: mercadoPagoLinkFixedFee, meses: mercadoPagoLinkMsiRates }
   ];
 
