@@ -42,7 +42,7 @@ const nodoCosto = (n) => {
   const cantNecesaria = Number(n.cantNecesaria) || 0;
   return (loteCant > 0 ? loteCosto / loteCant : 0) * cantNecesaria;
 };
-let _id = 0; const nid = () => ++_id;
+let _id = 0; const nid = () => String(++_id);
 const hoy = () => new Date().toLocaleDateString("es-MX");
 const FECHA_INICIAL = hoy();
 
@@ -2022,6 +2022,17 @@ function App() {
     if (!cargado.dtf || !cargado.dtf.some((m) => m.tipo === "escalonado")) cargado.dtf = DEFAULT_MATERIALES.dtf;
     if (!cargado.empaque) cargado.empaque = DEFAULT_MATERIALES.empaque;
     if (cargado.dtf.some((m) => m.id === "tote-negra" || m.id === "tote-cafe")) cargado.dtf = cargado.dtf.filter((m) => m.id !== "tote-negra" && m.id !== "tote-cafe");
+    // Migración: algunos insumos quedaron guardados con id numérico (bug de nid()) en vez de texto,
+    // lo cual rompía la comparación con el <select> (siempre entrega texto) y hacía que la cotización
+    // cayera en el primer artículo del catálogo. Se normalizan a texto, junto con sus variantes/colores.
+    Object.keys(cargado).forEach((cat) => {
+      if (!Array.isArray(cargado[cat])) return;
+      cargado[cat] = cargado[cat].map((m) => ({
+        ...m,
+        id: typeof m.id === "number" ? String(m.id) : m.id,
+        variantes: Array.isArray(m.variantes) ? m.variantes.map((v) => ({ ...v, id: typeof v.id === "number" ? String(v.id) : v.id })) : m.variantes,
+      }));
+    });
     return cargado;
   });
   const [preciosFijos, setPreciosFijos] = useState(() => {
@@ -2039,7 +2050,18 @@ function App() {
   const [costosOperativos, setCostosOperativos] = useState(() => loadLS("cz_costosOperativos", DEFAULT_COSTOS_OPERATIVOS));
   const [costoMaquinas, setCostoMaquinas] = useState(() => loadLS("cz_costoMaquinas", DEFAULT_COSTO_MAQUINAS));
   const [manoObra, setManoObra] = useState(() => loadLS("cz_manoObra", DEFAULT_MANO_OBRA));
-  const [catalogoOtros, setCatalogoOtros] = useState(() => loadLS("cz_catalogoOtros", DEFAULT_CATALOGO_OTROS));
+  const [catalogoOtros, setCatalogoOtros] = useState(() => {
+    const cargado = loadLS("cz_catalogoOtros", DEFAULT_CATALOGO_OTROS);
+    Object.keys(cargado).forEach((sub) => {
+      if (!Array.isArray(cargado[sub])) return;
+      cargado[sub] = cargado[sub].map((o) => ({
+        ...o,
+        id: typeof o.id === "number" ? String(o.id) : o.id,
+        colores: Array.isArray(o.colores) ? o.colores.map((c) => ({ ...c, id: typeof c.id === "number" ? String(c.id) : c.id })) : o.colores,
+      }));
+    });
+    return cargado;
+  });
   const [productosLab, setProductosLab] = useState(() => loadLS("cz_productosLab", []));
 
   useEffect(() => saveLS("cz_catalogoOtros", catalogoOtros), [catalogoOtros]);
