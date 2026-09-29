@@ -1106,6 +1106,7 @@ function VistaCotizar({ mults, modoMargen, clientes, onGuardarHistorial, insumos
   const [nombrePartida, setNombrePartida] = useState("");
   const [partidas, setPartidas] = useState([]);
   const [guardadoOk, setGuardadoOk] = useState(false);
+  const [estadoTicket, setEstadoTicket] = useState("idle"); // idle | enviando | ok | error
   const [vistaTicket, setVistaTicket] = useState("cliente");
   const [envio, setEnvio] = useState(0);
 
@@ -1150,14 +1151,33 @@ function VistaCotizar({ mults, modoMargen, clientes, onGuardarHistorial, insumos
     setTimeout(() => setGuardadoOk(false), 2000);
   };
 
-  const handleImprimir = () => {
-    const texto = generarTextoTicket(partidas, tier, mults, modoMargen, refPedido, envio).replace(/\*/g, "");
+  const imprimirEnVentana = (texto) => {
     const w = window.open("", "_blank", "width=380,height=640");
     if (w) {
       w.document.write(`<pre style="font-family:'IBM Plex Mono',monospace;font-size:12px;white-space:pre-wrap;width:58mm;padding:8px;margin:0;">${texto}</pre>`);
       w.document.close();
       w.focus();
       w.print();
+    }
+  };
+
+  const handleImprimir = async () => {
+    const texto = generarTextoTicket(partidas, tier, mults, modoMargen, refPedido, envio).replace(/\*/g, "");
+    setEstadoTicket("enviando");
+    try {
+      const res = await fetch("https://n8n.lalocortes.com/webhook-test/cotizador-ticket", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ texto }),
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      setEstadoTicket("ok");
+      setTimeout(() => setEstadoTicket("idle"), 2000);
+    } catch (err) {
+      console.error("Error enviando ticket a la térmica:", err);
+      setEstadoTicket("error");
+      setTimeout(() => setEstadoTicket("idle"), 2500);
+      imprimirEnVentana(texto);
     }
   };
 
@@ -1226,7 +1246,9 @@ function VistaCotizar({ mults, modoMargen, clientes, onGuardarHistorial, insumos
         {partidas.length > 0 && vistaTicket === "cliente" && (<>
           <button className="cz-btn" style={{ width: "100%", marginTop: 10, background: "#25D366" }} onClick={handleWhatsApp}>📲 Enviar por WhatsApp</button>
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <button className="cz-btn" style={{ flex: 1 }} onClick={handleImprimir}>🖨 Ticket 58mm</button>
+            <button className="cz-btn" style={{ flex: 1 }} onClick={handleImprimir} disabled={estadoTicket === "enviando"}>
+              {estadoTicket === "enviando" ? "⏳ Enviando..." : estadoTicket === "ok" ? "✅ Enviado" : estadoTicket === "error" ? "⚠️ Error, ver ventana" : "🖨 Ticket 58mm"}
+            </button>
             <button className="cz-btn org" style={{ flex: 1 }} onClick={handleGuardar}>{guardadoOk ? "✅ Guardado" : "💾 Guardar"}</button>
           </div>
         </>)}
