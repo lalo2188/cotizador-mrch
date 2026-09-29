@@ -1165,7 +1165,7 @@ function VistaCotizar({ mults, modoMargen, clientes, onGuardarHistorial, insumos
     const texto = generarTextoTicket(partidas, tier, mults, modoMargen, refPedido, envio).replace(/\*/g, "");
     setEstadoTicket("enviando");
     try {
-      const res = await fetch("https://n8n.lalocortes.com/webhook-test/cotizador-ticket", {
+      const res = await fetch("https://n8n.lalocortes.com/webhook/cotizador-ticket", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ texto }),
