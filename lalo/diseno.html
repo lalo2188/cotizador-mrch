@@ -33,13 +33,10 @@
   .stage { display: flex; justify-content: center; overflow: auto; padding: 10px 0 30px; }
 
   /* ===== TICKET ===== */
-  #ticket-wrap { background: #FFE600; padding: 40px 36px; display: inline-block; }
-  #ticket { width: 400px; background: #F7F7F5; color: #14161D; padding: 28px 24px 24px; font-family: 'IBM Plex Mono', 'Courier New', monospace; position: relative;
-    -webkit-mask: none; box-shadow: 0 10px 30px rgba(0,0,0,.18); }
-  #ticket::before, #ticket::after { content: ""; position: absolute; left: 0; right: 0; height: 10px;
-    background: linear-gradient(-45deg, transparent 6px, #F7F7F5 0) 0 0/14px 10px repeat-x, linear-gradient(45deg, transparent 6px, #F7F7F5 0) 0 0/14px 10px repeat-x; }
-  #ticket::before { top: -9px; transform: scaleY(-1); }
-  #ticket::after { bottom: -9px; }
+  #ticket-wrap { background: #FFE600; padding: 44px 44px 52px 36px; display: inline-block; }
+  #ticket { width: 400px; color: #14161D; font-family: 'IBM Plex Mono', 'Courier New', monospace; position: relative; }
+  #ticket .zz { display: block; width: 400px; height: 16px; overflow: visible; }
+  #ticket .t-body { background: linear-gradient(90deg, #F1F1EE 0%, #F8F8F6 6%, #F8F8F6 94%, #EDEDEA 100%); padding: 18px 24px 22px; box-shadow: 5px 2px 8px rgba(0,0,0,.28); }
   .t-logo { text-align: center; padding: 6px 0 14px; }
   .t-logo img { max-width: 78%; max-height: 150px; object-fit: contain; }
   .t-logo .fallback { font-family: 'Archivo Black', Impact, sans-serif; font-size: 78px; line-height: .9; letter-spacing: -2px; }
@@ -234,7 +231,7 @@ function renderTicket() {
       ${estado.tarjeta ? `<tr><td class="k">Tarjeta:</td><td class="v">${esc(estado.tarjeta)}</td></tr>` : ''}
     </table></div>` : '';
 
-  t.innerHTML = `
+  t.innerHTML = zigzag('top') + `<div class="t-body">
     <div class="t-logo">${logo}</div>
     <div class="t-dash"></div>
     <div class="t-head"><span>${esc(estado.titulo)}</span><span>Fecha: ${esc(estado.fecha)}</span></div>
@@ -244,7 +241,24 @@ function renderTicket() {
     <div class="t-total"><span class="l">TOTAL</span><span class="v">${money(total)}</span></div>
     ${banco}
     <div class="t-dash"></div>
-    <div class="t-thanks"><div class="u">Ü</div><div class="g">GRACIAS</div></div>`;
+    <div class="t-thanks"><div class="u">Ü</div><div class="g">GRACIAS</div></div>
+    </div>` + zigzag('bottom');
+}
+
+/* Dientes del papel (SVG real para que se exporte bien en PNG) */
+function zigzag(pos) {
+  const W = 400, H = 14, N = 25, w = W / N;
+  let pts = '';
+  if (pos === 'top') {
+    pts = '0,' + H;
+    for (let i = 0; i < N; i++) pts += ` ${i * w + w / 2},0 ${(i + 1) * w},${H}`;
+  } else {
+    pts = '0,0';
+    for (let i = 0; i < N; i++) pts += ` ${i * w + w / 2},${H} ${(i + 1) * w},0`;
+  }
+  const sombra = pos === 'bottom'
+    ? `<polygon points="${pts}" fill="rgba(0,0,0,.22)" transform="translate(5,4)"/>` : '';
+  return `<svg class="zz" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">${sombra}<polygon points="${pts}" fill="#F8F8F6"/></svg>`;
 }
 
 /* ---------- Bindings ---------- */
