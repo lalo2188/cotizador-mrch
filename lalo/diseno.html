@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MRCH · Cotizador de Diseño</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=Archivo+Black&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'IBM Plex Mono', 'Courier New', monospace; background: #F4F5F7; color: #14161D; min-height: 100vh; }
+  .top { background: #14161D; color: #fff; padding: 12px 20px; display: flex; align-items: center; gap: 14px; }
+  .top a { color: #FFE600; text-decoration: none; font-size: 13px; }
+  .top h1 { font-size: 16px; font-weight: 700; }
+  .layout { display: grid; grid-template-columns: minmax(320px, 440px) 1fr; gap: 20px; padding: 20px; align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+  .panel { background: #fff; border: 1px solid #E1E4E8; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: #6B7280; }
+  label { font-size: 11px; color: #6B7280; display: block; margin-bottom: 3px; }
+  input, select { width: 100%; padding: 8px 10px; border: 1.5px solid #D8DBE0; border-radius: 8px; font: inherit; font-size: 13px; background: #fff; }
+  input:focus, select:focus { outline: none; border-color: #14161D; }
+  .row { display: flex; gap: 8px; align-items: flex-end; }
+  .row > * { min-width: 0; }
+  .btn { padding: 9px 14px; border: none; border-radius: 8px; background: #14161D; color: #fff; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .btn.sec { background: #fff; color: #14161D; border: 1.5px solid #D8DBE0; font-weight: 500; }
+  .btn.yel { background: #FFE600; color: #14161D; }
+  .btn.sm { padding: 5px 9px; font-size: 12px; }
+  .btn.x { background: #fff; color: #B91C1C; border: 1.5px solid #FCA5A5; padding: 5px 9px; }
+  .sec-card { border: 1.5px solid #E1E4E8; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 8px; background: #FAFAFB; }
+  .item-row { display: grid; grid-template-columns: 46px 1fr 78px 30px; gap: 6px; align-items: center; }
+  .check { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #374151; }
+  .check input { width: auto; }
+  .stage { display: flex; justify-content: center; overflow: auto; padding: 10px 0 30px; }
+
+  /* ===== TICKET ===== */
+  #ticket-wrap { background: #FFE600; padding: 40px 36px; display: inline-block; }
+  #ticket { width: 400px; background: #F7F7F5; color: #14161D; padding: 28px 24px 24px; font-family: 'IBM Plex Mono', 'Courier New', monospace; position: relative;
+    -webkit-mask: none; box-shadow: 0 10px 30px rgba(0,0,0,.18); }
+  #ticket::before, #ticket::after { content: ""; position: absolute; left: 0; right: 0; height: 10px;
+    background: linear-gradient(-45deg, transparent 6px, #F7F7F5 0) 0 0/14px 10px repeat-x, linear-gradient(45deg, transparent 6px, #F7F7F5 0) 0 0/14px 10px repeat-x; }
+  #ticket::before { top: -9px; transform: scaleY(-1); }
+  #ticket::after { bottom: -9px; }
+  .t-logo { text-align: center; padding: 6px 0 14px; }
+  .t-logo img { max-width: 78%; max-height: 150px; object-fit: contain; }
+  .t-logo .fallback { font-family: 'Archivo Black', Impact, sans-serif; font-size: 78px; line-height: .9; letter-spacing: -2px; }
+  .t-dash { border-top: 2px dashed #14161D; margin: 10px 0; }
+  .t-head { display: flex; justify-content: space-between; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; }
+  .t-cliente { font-size: 14px; margin-top: 4px; }
+  .t-sec { margin-top: 18px; }
+  .t-sec-title { display: flex; align-items: center; gap: 12px; }
+  .t-sec-title svg { width: 38px; height: 38px; flex: none; }
+  .t-sec-title span { background: #FFE600; padding: 3px 12px; font-weight: 700; font-size: 19px; letter-spacing: .06em; text-transform: uppercase; }
+  .t-item { display: flex; align-items: baseline; gap: 6px; margin-top: 9px; font-size: 14px; }
+  .t-item .q { white-space: nowrap; }
+  .t-item .d { flex: 0 1 auto; }
+  .t-item .dots { flex: 1; border-bottom: 2px dotted #9CA3AF; transform: translateY(-3px); min-width: 14px; }
+  .t-item .p { white-space: nowrap; font-weight: 700; }
+  .t-total { display: flex; justify-content: space-between; align-items: center; margin: 4px 0; }
+  .t-total .l { font-weight: 700; font-size: 22px; letter-spacing: .04em; }
+  .t-total .v { background: #FFE600; font-weight: 700; font-size: 34px; padding: 2px 14px; }
+  .t-bank { display: flex; gap: 14px; align-items: flex-start; }
+  .t-bank svg { width: 40px; height: 40px; flex: none; margin-top: 4px; }
+  .t-bank table { flex: 1; border-collapse: collapse; }
+  .t-bank td { padding: 5px 0 4px; border-bottom: 2px dotted #C4C7CC; vertical-align: bottom; }
+  .t-bank td.k { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; width: 40%; }
+  .t-bank td.v { font-size: 17px; font-weight: 700; }
+  .t-thanks { text-align: center; margin-top: 8px; }
+  .t-thanks .u { font-family: 'Archivo Black', Impact, sans-serif; font-size: 54px; line-height: 1; }
+  .t-thanks .g { font-weight: 700; letter-spacing: .32em; font-size: 20px; border-bottom: 3px solid #14161D; display: inline-block; padding-bottom: 4px; margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="top">
+  <a href="/lalo/">← Lalo</a>
+  <h1>🎨 Cotizador de Diseño</h1>
+</div>
+
+<div class="layout">
+  <div style="display:flex; flex-direction:column; gap:14px;">
+    <div class="panel">
+      <h2>Datos generales</h2>
+      <div class="row">
+        <div style="flex:2"><label>Cliente</label><input id="cliente" placeholder="Nombre del cliente"></div>
+        <div style="flex:1"><label>Fecha</label><input id="fecha"></div>
+      </div>
+      <div class="row">
+        <div style="flex:1"><label>Título del ticket</label><input id="titulo" value="Ticket de compra"></div>
+      </div>
+      <div class="check"><input type="checkbox" id="verPrecios"><label for="verPrecios" style="margin:0">Mostrar precio por renglón</label></div>
+      <div class="row">
+        <div style="flex:1"><label>Total manual (opcional, sustituye al calculado)</label><input id="totalManual" type="number" placeholder="Auto"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Secciones</h2>
+      <div id="secciones" style="display:flex; flex-direction:column; gap:10px;"></div>
+      <button class="btn yel" id="addSec">+ Agregar sección</button>
+    </div>
+
+    <div class="panel">
+      <h2>Datos de pago</h2>
+      <div class="check"><input type="checkbox" id="verBanco" checked><label for="verBanco" style="margin:0">Mostrar bloque de pago</label></div>
+      <div class="row"><div style="flex:1"><label>Banco</label><input id="banco"></div><div style="flex:1"><label>Titular</label><input id="titular"></div></div>
+      <div class="row"><div style="flex:1"><label>Cuenta CLABE</label><input id="clabe"></div></div>
+      <div class="row"><div style="flex:1"><label>Tarjeta</label><input id="tarjeta"></div></div>
+      <p style="font-size:11px;color:#6B7280">Se guardan solo en este navegador.</p>
+    </div>
+
+    <div class="panel">
+      <h2>Logo</h2>
+      <p style="font-size:12px;color:#6B7280">Usa <b>logo-mrch.svg</b> (o .png) si está junto a esta página; si no, súbelo aquí (se recuerda en este navegador).</p>
+      <input type="file" id="logoFile" accept="image/*">
+    </div>
+
+    <button class="btn" id="exportar" style="padding:14px;font-size:15px;">⬇ Descargar imagen PNG</button>
+    <button class="btn sec" id="limpiar">Limpiar cotización</button>
+  </div>
+
+  <div class="stage">
+    <div id="ticket-wrap">
+      <div id="ticket"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const ICONOS = {
+  diploma: '<svg viewBox="0 0 48 48" fill="none" stroke="#14161D" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M28 5H11v38h14"/><path d="M28 5l9 9v7"/><path d="M18 20h10M18 28h6"/><circle cx="35" cy="33" r="6"/><path d="M32 38l-2 7 5-3 5 3-2-7"/></svg>',
+  calendario: '<svg viewBox="0 0 48 48" fill="none" stroke="#14161D" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="9" width="38" height="33" rx="5"/><path d="M5 20h38M15 4v9M33 4v9"/><path d="M14 28h3M22 28h3M31 28h3M14 35h3M22 35h3M31 35h3"/></svg>',
+  logo: '<svg viewBox="0 0 48 48" fill="none" stroke="#14161D" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 40l8-3L38 13a5 5 0 00-7-7L7 30z"/><path d="M28 9l7 7"/></svg>',
+  playera: '<svg viewBox="0 0 48 48" fill="none" stroke="#14161D" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-12 6 4 10 6-2v22h18V20l6 2 4-10-12-6c-1 4-4 6-7 6s-6-2-7-6z"/></svg>',
+  estrella: '<svg viewBox="0 0 48 48" fill="none" stroke="#14161D" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M24 5l5.5 11.5 12.5 1.7-9 8.8 2.2 12.5L24 33.6 12.8 39.5 15 27l-9-8.8 12.5-1.7z"/></svg>',
+  bolsa: '<svg viewBox="0 0 48 48" fill="none" stroke="#14161D" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 15h32l-2 28H10z"/><path d="M17 20v-6a7 7 0 0114 0v6"/></svg>',
+  imagen: '<svg viewBox="0 0 48 48" fill="none" stroke="#14161D" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="8" width="38" height="32" rx="4"/><circle cx="16" cy="19" r="4"/><path d="M5 35l12-10 9 8 6-5 11 9"/></svg>'
+};
+const BANCO_SVG = '<svg viewBox="0 0 48 48" fill="#14161D"><path d="M24 4L4 14v4h40v-4zM8 20h6v18H8zM21 20h6v18h-6zM34 20h6v18h-6zM5 40h38v5H5z"/></svg>';
+const KEY = 'mrch_diseno_v1';
+
+const hoy = () => {
+  const m = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+  const d = new Date();
+  return String(d.getDate()).padStart(2,'0') + '/' + m[d.getMonth()] + '/' + d.getFullYear();
+};
+const uid = () => Math.random().toString(36).slice(2, 9);
+const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 });
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+let estado = cargar();
+function estadoInicial() {
+  return { cliente: '', fecha: hoy(), titulo: 'Ticket de compra', verPrecios: false, totalManual: '', verBanco: true,
+    banco: '', titular: '', clabe: '', tarjeta: '', logoData: '',
+    secciones: [{ id: uid(), nombre: 'Diseños', icono: 'diploma', items: [{ id: uid(), cant: 1, desc: '', precio: '' }] }] };
+}
+function cargar() {
+  try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.secciones) return Object.assign(estadoInicial(), s); } catch (e) {}
+  return estadoInicial();
+}
+function guardar() { try { localStorage.setItem(KEY, JSON.stringify(estado)); } catch (e) {} }
+
+function totalCalculado() {
+  let t = 0;
+  estado.secciones.forEach(s => s.items.forEach(i => { t += (Number(i.cant) || 0) * (Number(i.precio) || 0); }));
+  return t;
+}
+
+/* ---------- Editor ---------- */
+function renderEditor() {
+  const cont = document.getElementById('secciones');
+  cont.innerHTML = '';
+  estado.secciones.forEach((s, si) => {
+    const div = document.createElement('div');
+    div.className = 'sec-card';
+    const opts = Object.keys(ICONOS).map(k => `<option value="${k}" ${s.icono === k ? 'selected' : ''}>${k}</option>`).join('');
+    div.innerHTML = `
+      <div class="row">
+        <div style="flex:2"><label>Nombre de sección</label><input data-f="nombre" value="${esc(s.nombre)}"></div>
+        <div style="flex:1"><label>Ícono</label><select data-f="icono">${opts}</select></div>
+        <button class="btn x" data-a="delsec" title="Quitar sección">✕</button>
+      </div>
+      <div class="items"></div>
+      <button class="btn sec sm" data-a="additem">+ Renglón</button>`;
+    const items = div.querySelector('.items');
+    s.items.forEach((it, ii) => {
+      const r = document.createElement('div');
+      r.className = 'item-row';
+      r.style.marginBottom = '6px';
+      r.innerHTML = `
+        <input data-i="${ii}" data-f="cant" type="number" min="0" value="${esc(it.cant)}" title="Cantidad">
+        <input data-i="${ii}" data-f="desc" value="${esc(it.desc)}" placeholder="Descripción">
+        <input data-i="${ii}" data-f="precio" type="number" min="0" value="${esc(it.precio)}" placeholder="$ c/u">
+        <button class="btn x" data-i="${ii}" data-a="delitem" title="Quitar">✕</button>`;
+      items.appendChild(r);
+    });
+    div.addEventListener('input', (e) => {
+      const f = e.target.dataset.f; if (!f) return;
+      if (e.target.dataset.i !== undefined) s.items[+e.target.dataset.i][f] = e.target.value;
+      else s[f] = e.target.value;
+      guardar(); renderTicket();
+    });
+    div.addEventListener('click', (e) => {
+      const a = e.target.dataset.a; if (!a) return;
+      if (a === 'additem') s.items.push({ id: uid(), cant: 1, desc: '', precio: '' });
+      if (a === 'delitem') s.items.splice(+e.target.dataset.i, 1);
+      if (a === 'delsec') estado.secciones.splice(si, 1);
+      guardar(); renderEditor(); renderTicket();
+    });
+    cont.appendChild(div);
+  });
+}
+
+/* ---------- Ticket ---------- */
+function renderTicket() {
+  const t = document.getElementById('ticket');
+  const logo = estado.logoData
+    ? `<img src="${estado.logoData}" alt="MRCH">`
+    : `<img id="logoImg" src="logo-mrch.svg" alt="MRCH" onerror="if(!this.dataset.t){this.dataset.t=1;this.src='logo-mrch.png';}else{this.outerHTML='<div class=&quot;fallback&quot;>MRCH</div>'}">`;
+  const total = estado.totalManual !== '' && estado.totalManual != null ? Number(estado.totalManual) : totalCalculado();
+
+  const secs = estado.secciones.map(s => {
+    const its = s.items.filter(i => i.desc || i.precio).map(i => {
+      const p = estado.verPrecios && i.precio !== '' ? `<span class="p">${money((Number(i.cant)||0) * Number(i.precio))}</span>` : '';
+      return `<div class="t-item"><span class="q">${esc(i.cant)} ×</span><span class="d">${esc(i.desc)}</span><span class="dots"></span>${p}</div>`;
+    }).join('');
+    return `<div class="t-sec"><div class="t-sec-title">${ICONOS[s.icono] || ''}<span>${esc(s.nombre)}</span></div>${its}</div>`;
+  }).join('');
+
+  const banco = estado.verBanco && (estado.banco || estado.titular || estado.clabe || estado.tarjeta) ? `
+    <div class="t-dash"></div>
+    <div class="t-bank">${BANCO_SVG}<table>
+      ${estado.banco ? `<tr><td class="k">Banco:</td><td class="v">${esc(estado.banco)}</td></tr>` : ''}
+      ${estado.titular ? `<tr><td class="k">Titular:</td><td class="v">${esc(estado.titular)}</td></tr>` : ''}
+      ${estado.clabe ? `<tr><td class="k">Cuenta CLABE:</td><td class="v">${esc(estado.clabe)}</td></tr>` : ''}
+      ${estado.tarjeta ? `<tr><td class="k">Tarjeta:</td><td class="v">${esc(estado.tarjeta)}</td></tr>` : ''}
+    </table></div>` : '';
+
+  t.innerHTML = `
+    <div class="t-logo">${logo}</div>
+    <div class="t-dash"></div>
+    <div class="t-head"><span>${esc(estado.titulo)}</span><span>Fecha: ${esc(estado.fecha)}</span></div>
+    ${estado.cliente ? `<div class="t-cliente">Cliente: ${esc(estado.cliente)}</div>` : ''}
+    ${secs}
+    <div class="t-dash" style="margin-top:20px"></div>
+    <div class="t-total"><span class="l">TOTAL</span><span class="v">${money(total)}</span></div>
+    ${banco}
+    <div class="t-dash"></div>
+    <div class="t-thanks"><div class="u">Ü</div><div class="g">GRACIAS</div></div>`;
+}
+
+/* ---------- Bindings ---------- */
+const campos = ['cliente','fecha','titulo','totalManual','banco','titular','clabe','tarjeta'];
+campos.forEach(id => {
+  const el = document.getElementById(id);
+  el.value = estado[id] == null ? '' : estado[id];
+  el.addEventListener('input', () => { estado[id] = el.value; guardar(); renderTicket(); });
+});
+['verPrecios','verBanco'].forEach(id => {
+  const el = document.getElementById(id);
+  el.checked = !!estado[id];
+  el.addEventListener('change', () => { estado[id] = el.checked; guardar(); renderTicket(); });
+});
+document.getElementById('addSec').onclick = () => {
+  estado.secciones.push({ id: uid(), nombre: 'Nueva sección', icono: 'estrella', items: [{ id: uid(), cant: 1, desc: '', precio: '' }] });
+  guardar(); renderEditor(); renderTicket();
+};
+document.getElementById('logoFile').addEventListener('change', (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => { estado.logoData = rd.result; guardar(); renderTicket(); };
+  rd.readAsDataURL(f);
+});
+document.getElementById('limpiar').onclick = () => {
+  if (!confirm('¿Limpiar cliente y renglones? (se conservan datos de pago y logo)')) return;
+  const keep = { banco: estado.banco, titular: estado.titular, clabe: estado.clabe, tarjeta: estado.tarjeta, logoData: estado.logoData, verBanco: estado.verBanco };
+  estado = Object.assign(estadoInicial(), keep);
+  campos.forEach(id => { document.getElementById(id).value = estado[id] == null ? '' : estado[id]; });
+  document.getElementById('verPrecios').checked = false;
+  guardar(); renderEditor(); renderTicket();
+};
+document.getElementById('exportar').onclick = async () => {
+  const btn = document.getElementById('exportar');
+  btn.disabled = true; btn.textContent = '⏳ Generando...';
+  try {
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    const canvas = await html2canvas(document.getElementById('ticket-wrap'), { scale: 2, backgroundColor: '#FFE600', useCORS: true });
+    const a = document.createElement('a');
+    const nombre = (estado.cliente || 'cotizacion').replace(/[^\w\-áéíóúñ ]/gi, '').trim().replace(/\s+/g, '-');
+    a.download = 'MRCH-diseno-' + nombre + '.png';
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+  } catch (err) {
+    alert('No se pudo generar la imagen: ' + err.message);
+  }
+  btn.disabled = false; btn.textContent = '⬇ Descargar imagen PNG';
+};
+
+renderEditor();
+renderTicket();
+</script>
+</body>
+</html>
