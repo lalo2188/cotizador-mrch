@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Casas → Google Sheet",
+  "version": "1.0.0",
+  "description": "Botón ❤️ para guardar casas de Inmuebles24, Trovit, Propiedades.com y Marketplace en un Google Sheet.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://script.google.com/*",
+    "https://script.googleusercontent.com/*"
+  ],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "Casas → Google Sheet", "default_popup": "popup.html" },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.inmuebles24.com/*",
+        "*://*.trovit.com.mx/*",
+        "*://propiedades.com/*",
+        "*://*.propiedades.com/*",
+        "*://*.facebook.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
