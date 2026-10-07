@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Casas → Google Sheet",
   "version": "1.0.0",
-  "description": "Botón ❤️ para guardar casas de Inmuebles24, Trovit, Propiedades.com y Marketplace en un Google Sheet.",
+  "description": "Botón ❤️ para guardar casas de Inmuebles24, Trovit, Propiedades.com, Monopolio y Marketplace en un Google Sheet.",
   "permissions": ["storage"],
   "host_permissions": [
     "https://script.google.com/*",
@@ -17,6 +17,8 @@
         "*://*.trovit.com.mx/*",
         "*://propiedades.com/*",
         "*://*.propiedades.com/*",
+        "*://monopolio.com.mx/*",
+        "*://*.monopolio.com.mx/*",
         "*://*.facebook.com/*"
       ],
       "js": ["content.js"],
