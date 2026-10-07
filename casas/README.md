@@ -2,7 +2,7 @@
 
 Botón ❤️ en Chrome para guardar las casas que te gustan en un Google Sheet compartido. En el Sheet cada quien vota 👍/🤔/👎 y se calcula el tiempo en carro al **CETI Colomos** según el horario de entrada y salida.
 
-Funciona en **Inmuebles24, Trovit, Propiedades.com, Monopolio y Facebook Marketplace**. No es un bot: igual que el lector de Facebook, solo lee lo que tú ya tienes abierto en la pantalla, así que los sitios no lo bloquean.
+Funciona en **Inmuebles24, Trovit, Propiedades.com, Monopolio, Rentumo y Facebook Marketplace**. No es un bot: igual que el lector de Facebook, solo lee lo que tú ya tienes abierto en la pantalla, así que los sitios no lo bloquean.
 
 ```
 casas/

@@ -10,7 +10,8 @@
     /inmuebles24/.test(HOST) ? 'Inmuebles24' :
     /trovit/.test(HOST) ? 'Trovit' :
     /propiedades\.com/.test(HOST) ? 'Propiedades.com' :
-    /monopolio\.com\.mx/.test(HOST) ? 'Monopolio' : HOST;
+    /monopolio\.com\.mx/.test(HOST) ? 'Monopolio' :
+    /rentumo\./.test(HOST) ? 'Rentumo' : HOST;
 
   // En Facebook solo tiene sentido en la página de un artículo de Marketplace
   const esPaginaValida = () => FUENTE !== 'Marketplace' || /\/marketplace\/item\//.test(location.pathname);
@@ -109,6 +110,7 @@
       Inmuebles24: ['.section-location-property h4', '.section-location-property', '[class*="location-container"] h4', '[class*="LocationLocation"]'],
       'Propiedades.com': ['[class*="address"]', '[class*="Address"]', '[class*="ubicacion"]', '[class*="location"] h2'],
       Trovit: ['[class*="address"]', '[class*="location"]', '.item-address'],
+      Rentumo: ['[class*="address"]', '[class*="location"]', '[class*="ubicacion"]'],
       Monopolio: ['[class*="address"]', '[class*="direccion"]', '[class*="ubicacion"]', '[class*="location"]'],
       Marketplace: []
     }[FUENTE] || ['[class*="address"]', '[class*="location"]'];
@@ -183,6 +185,7 @@
       'Propiedades.com': '[class*="price"], [class*="Price"]',
       Trovit: '[class*="price"]',
       Monopolio: '[class*="price"], [class*="precio"]',
+      Rentumo: '[class*="price"], [class*="precio"]',
       Marketplace: ''
     }[FUENTE];
     const precioTexto = precioSitio ? textoDe(precioSitio) : '';
@@ -194,7 +197,7 @@
       FUENTE === 'Marketplace' ? textoDe('[role="main"] h1') : '',
       textoDe('h1'), meta('og:title'), document.title
     ));
-    titulo = titulo.replace(/\s*[|–-]\s*(Inmuebles24|Trovit|Propiedades\.com|Monopolio|Facebook).*$/i, '');
+    titulo = titulo.replace(/\s*[|–-]\s*(Inmuebles24|Trovit|Propiedades\.com|Monopolio|Rentumo|Facebook).*$/i, '');
 
     const banos = num(busca(txt, RE.banos));
     const medios = num(busca(txt, RE.medios));
