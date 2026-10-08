@@ -300,8 +300,14 @@ function calcularFila_(sh, fila, desdeDireccion) {
   if (!horario.length) throw new Error('la hoja "Horario" está vacía (menú 🏠 Casas → Actualizar horario)');
 
   const get = k => sh.getRange(fila, C[k]).getValue();
-  let lat = get('lat'), lng = get('lng'), precision;
-  if (desdeDireccion || !lat || !lng) {
+  let lat = +get('lat'), lng = +get('lng'), precision;
+  if (lat > 14 && lat < 33 && lng > 86 && lng < 118.5) { // guardada sin el "-" (versión anterior)
+    lng = -lng;
+    sh.getRange(fila, C.lng).setValue(lng);
+  }
+  // Coordenadas fuera de México (ej. guardadas sin el "-") no sirven: se ubica con la dirección
+  const enMexico = lat > 14 && lat < 33 && lng > -118.5 && lng < -86;
+  if (desdeDireccion || !enMexico) {
     const dir = String(get('direccion') || '').trim();
     if (!dir) throw new Error('la casa no tiene dirección');
     const consulta = /jal(isco)?\b|guadalajara|zapopan|tlaquepaque|tonal[aá]|tlajomulco/i.test(dir) ? dir + ', México' : dir + ', ' + CONFIG.ZONA;
@@ -529,7 +535,7 @@ function json_(o) {
 
 function numero_(v) {
   if (v === '' || v == null) return '';
-  const n = parseFloat(String(v).replace(/[^\d.]/g, ''));
+  const n = parseFloat(String(v).replace(/[^\d.-]/g, '').replace(/(?!^)-/g, '')); // conserva el "-" (longitud de México)
   return isFinite(n) ? n : '';
 }
 
