@@ -31,7 +31,9 @@
     if (v == null) return null;
     const s = String(v).replace(/[^\d.,]/g, '');
     if (!s) return null;
-    // "1,250.5" o "1,250" → 1250(.5)
+    // Miles con punto o coma ("14.000", "1,250,000") → 14000 / 1250000
+    if (/^\d{1,3}([.,])\d{3}(\1\d{3})*$/.test(s)) return +s.replace(/[.,]/g, '');
+    // "1,250.5" → 1250.5 · "3,5" → 3.5
     const n = parseFloat(s.replace(/,(?=\d{3}(\D|$))/g, '').replace(',', '.'));
     return isFinite(n) ? n : null;
   };
@@ -65,7 +67,8 @@
   /* ───────────────────────── extracción ───────────────────────── */
 
   const RE = {
-    precio: /(?:\$|MXN|MN|US\$|USD)\s?((?:\d{1,3}(?:[,.]\d{3})+|\d{4,})(?:\.\d{2})?)/i,
+    // $14,000 · $14.000 · $14 000 · MX$14 mil · $14k
+    precio: /(?:\$|MXN|MN|US\$|USD)\s?(?:(\d+(?:[.,]\d+)?)\s*(mil|k)\b|((?:\d{1,3}(?:[,.\s\u00a0\u202f]\d{3})+|\d{4,})(?:\.\d{2})?))/i,
     rec: /(\d{1,2})\s*(?:rec[aá]maras?|rec\b\.?|habitaciones?|hab\b\.?|dormitorios?|beds?\b|bedrooms?)/i,
     banos: /(\d{1,2}(?:[.,]5)?)\s*(?:baños?|banos?|baths?\b|bathrooms?)/i,
     medios: /(\d)\s*medios?\s*baños?/i,
@@ -198,8 +201,11 @@
       Marketplace: ''
     }[FUENTE];
     const precioTexto = precioSitio ? textoDe(precioSitio) : '';
-    const mPrecio = (precioTexto.match(RE.precio) || txt.match(RE.precio) || [])[1];
-    const precio = primero(ldPrecio && ldPrecio.p, num(meta('product:price:amount')), num(mPrecio));
+    const mp = precioTexto.match(RE.precio) || txt.match(RE.precio);
+    const precioTxt = !mp ? null
+      : mp[2] ? Math.round(parseFloat(mp[1].replace(',', '.')) * 1000)  // "14 mil" / "14k"
+      : num(mp[3].replace(/[\s\u00a0\u202f]/g, ''));
+    const precio = primero(ldPrecio && ldPrecio.p, num(meta('product:price:amount')), precioTxt);
     const usd = /US\$|USD|dólares/i.test(precioTexto) || /USD/i.test((ldPrecio && ldPrecio.moneda) || '');
 
     let titulo = limpio(primero(
@@ -331,7 +337,8 @@
       const t = res.tiempos;
       estado(`✅ Guardada en la fila ${res.fila}.` +
         (t && t.ida != null ? ` 🚗 Al CETI: ~${t.ida} min (peor día ${t.idaMax}), regreso ~${t.regreso} min.` : '') +
-        (res.aviso ? ' ⚠️ ' + res.aviso : ''), 'ok');
+        (res.aviso ? ' ⚠️ ' + res.aviso : '') +
+        (res.version ? ` (script ${res.version})` : ' (⚠️ script viejo: publica la versión nueva)'), 'ok');
     });
   };
 

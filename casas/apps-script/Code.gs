@@ -19,6 +19,7 @@ const CONFIG = {
   MAX_FOTOS: 40
 };
 
+const VERSION = 'v4';               // la extensión la muestra al guardar: si ves otra, falta publicar la nueva versión
 const HOJA = 'Casas';
 const HOJA_HORARIO = 'Horario';
 const DIAS = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
@@ -150,7 +151,7 @@ function token_() {
 
 function doGet(e) {
   if ((e.parameter.token || '') !== token_()) return json_({ ok: false, error: 'Código secreto incorrecto' });
-  return json_({ ok: true, mensaje: 'Sheet "' + SpreadsheetApp.getActive().getName() + '"', sheetUrl: SpreadsheetApp.getActive().getUrl() });
+  return json_({ ok: true, mensaje: 'Sheet "' + SpreadsheetApp.getActive().getName() + '" · script ' + VERSION, version: VERSION, sheetUrl: SpreadsheetApp.getActive().getUrl() });
 }
 
 function doPost(e) {
@@ -212,7 +213,7 @@ function doPost(e) {
   let tiempos = null;
   try { tiempos = calcularFila_(sh, fila); } catch (err) { avisos.push('Tiempo al CETI: ' + err.message); }
 
-  return json_({ ok: true, fila, tiempos, aviso: avisos.join(' · '), sheetUrl: ss.getUrl() });
+  return json_({ ok: true, fila, tiempos, aviso: avisos.join(' · '), version: VERSION, sheetUrl: ss.getUrl() });
 }
 
 /* ───────────────────────── fotos ───────────────────────── */
