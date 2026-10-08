@@ -15,7 +15,7 @@ casas/
 ### 1. El Google Sheet
 1. Crea un Google Sheet nuevo, por ejemplo "Casas 2026".
 2. Abre **Extensiones → Apps Script**, borra lo que trae y pega todo `apps-script/Code.gs`.
-3. Arriba, en `VOTANTES`, cambia `'Esposa'` por el nombre de tu esposa. Guarda con 💾.
+3. Arriba, en `VOTANTES`, cambia `'Esposa'` por el nombre de tu esposa. En `CARPETA_FOTOS_ID` va el ID de la carpeta de Drive para las fotos: es lo que viene después de `/folders/` en el link de la carpeta. Guarda con 💾.
 4. Regresa al Sheet y recarga la página. Aparece el menú **🏠 Casas**.
 5. **🏠 Casas → 1. Preparar hoja**. Google te pide permisos (Sheets, Drive, Maps y conexión externa); acéptalos. Si sale "Google no verificó esta app", entra a *Configuración avanzada → Ir a … (no seguro)*. Es tu propio script.
 6. **🏠 Casas → 2. Configurar calendario de la escuela** y pega la dirección `.ics` del calendario de tu niña. Se llena la hoja **Horario** con la entrada y salida de cada día. Revísala: si algo no cuadra, corrígela a mano.
@@ -38,7 +38,12 @@ casas/
 
 ### 4. Compartir con tu esposa
 - Comparte el Sheet normal (botón **Compartir**) para que ella vote en su columna.
-- Las fotos se copian a la carpeta de Drive **"Casas - fotos"**. Compártela también si quiere verlas en grande.
+- Por cada casa se crea una subcarpeta en tu carpeta de fotos de Drive con todas las fotos del anuncio y un `datos del anuncio.txt`. Comparte la carpeta principal con tu esposa para que pueda abrirlas.
+
+## Actualizar a una versión nueva
+1. **Script:** en Apps Script borra todo, pega el código nuevo y guarda. Luego ve a **Implementar → Administrar implementaciones → ✏️ → Versión: Nueva versión → Implementar**. La URL `/exec` no cambia.
+2. Si cambiaron las columnas, corre **🏠 Casas → 1. Preparar hoja**. La hoja vieja se renombra como "Casas (versión anterior …)" y se crea una nueva.
+3. **Extensión:** reemplaza los archivos de la carpeta, entra a `chrome://extensions`, dale ↻ a la extensión y recarga la página del anuncio.
 
 ## Uso
 1. Abre el anuncio de una casa que te guste.
@@ -60,8 +65,8 @@ Tips:
 | 🚗 Regreso | Del CETI a la casa a la hora de salida. |
 | Ubicación | **📍 Exacta** si el anuncio trae el punto en el mapa o la dirección completa. **≈ Aprox.** si solo dice la colonia. |
 | 👍 Lalo / 👍 Esposa | Menú 👍 🤔 👎. |
-| Veredicto | ✅ Los dos (la fila se pone verde) · ❌ Nel (se pone gris) · 🤔 Platicarlo · ⏳ Falta votar. |
-| Fotos (Drive) | Carpeta con todas las fotos. |
+| Veredicto | Se actualiza solo al votar: ✅ Los dos (la fila se pone verde) · ❌ Nel (se pone gris) · 🤔 Platicarlo · ⏳ Falta votar. |
+| Fotos (Drive) | Link a la carpeta de esa casa con todas las fotos. |
 | Ruta | Abre la ruta en Google Maps. |
 
 **Si corriges la dirección a mano**, selecciona esa fila y usa **🏠 Casas → Recalcular tiempos (fila seleccionada)**.

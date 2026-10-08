@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Casas → Google Sheet",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Botón ❤️ para guardar casas de Inmuebles24, Trovit, Propiedades.com, Monopolio, Rentumo y Marketplace en un Google Sheet.",
   "permissions": ["storage"],
   "host_permissions": [
@@ -25,7 +25,7 @@
         "*://*.facebook.com/*"
       ],
       "js": ["content.js"],
-      "run_at": "document_idle"
+      "run_at": "document_start"
     }
   ]
 }

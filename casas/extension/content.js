@@ -4,6 +4,15 @@
   if (window.__casasSheet) return;
   window.__casasSheet = true;
 
+  // Algunos sitios usan letras como atajos (ej. "r") y se "comen" lo que escribes en el panel.
+  // Este script corre antes que los de la página, así que aquí atrapamos las teclas primero
+  // y no dejamos que el sitio las vea cuando estás escribiendo en el panel.
+  const HOST_ID = '__casas_sheet_host';
+  ['keydown', 'keypress', 'keyup'].forEach(tipo => window.addEventListener(tipo, e => {
+    const h = document.getElementById(HOST_ID);
+    if (h && e.composedPath().includes(h)) e.stopImmediatePropagation();
+  }, true));
+
   const HOST = location.hostname;
   const FUENTE =
     /facebook\.com$/.test(HOST) ? 'Marketplace' :
@@ -234,6 +243,7 @@
   /* ───────────────────────── interfaz ───────────────────────── */
 
   const host = document.createElement('div');
+  host.id = HOST_ID;
   host.style.cssText = 'position:fixed;z-index:2147483647;right:20px;bottom:20px;';
   const ui = host.attachShadow({ mode: 'open' });
   ui.innerHTML = `
@@ -331,6 +341,7 @@
     if (valida && !host.isConnected) document.documentElement.appendChild(host);
     if (!valida && host.isConnected) { $('panel').classList.remove('abierto'); host.remove(); }
   };
-  sincronizar();
-  setInterval(sincronizar, 1000);
+  const iniciar = () => { sincronizar(); setInterval(sincronizar, 1000); };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar, { once: true });
+  else iniciar();
 })();

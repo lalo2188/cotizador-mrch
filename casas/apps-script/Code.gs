@@ -13,9 +13,10 @@ const CONFIG = {
   ZONA_HORARIA: 'America/Mexico_City',
   MINUTOS_ANTES: 40,                 // para la ida: salir de casa X minutos antes de la hora de entrada
   VOTANTES: ['Lalo', 'Esposa'],      // cámbialos por sus nombres antes de correr "Preparar hoja"
-  GUARDAR_FOTOS_EN_DRIVE: true,      // los anuncios se borran; así no pierdes las fotos
-  MAX_FOTOS_DRIVE: 20,
-  CARPETA_FOTOS: 'Casas - fotos'
+  // Carpeta de Drive donde se crea una subcarpeta con las fotos de cada casa (el ID es lo que va
+  // después de /folders/ en el link de la carpeta). Si lo dejas vacío, se crea "Casas - fotos" en tu Drive.
+  CARPETA_FOTOS_ID: '1TRgO15UTDh56bzfnJphdxURMMHib7bC_',
+  MAX_FOTOS: 40
 };
 
 const HOJA = 'Casas';
@@ -47,8 +48,7 @@ const COLS = [
   ['fuente', 'Fuente', 95],
   ['link', 'Anuncio', 80],
   ['ruta', 'Ruta', 70],
-  ['carpeta', 'Fotos (Drive)', 90],
-  ['fotos', 'Links de fotos', 120],
+  ['carpeta', 'Fotos (Drive)', 100],
   ['descripcion', 'Descripción', 300],
   ['lat', 'Lat', 80],
   ['lng', 'Lng', 80]
@@ -74,7 +74,12 @@ function onOpen() {
 function prepararHoja() {
   const ss = SpreadsheetApp.getActive();
   ss.setSpreadsheetTimeZone(CONFIG.ZONA_HORARIA);
-  const sh = ss.getSheetByName(HOJA) || ss.insertSheet(HOJA, 0);
+  let sh = ss.getSheetByName(HOJA);
+  if (sh && sh.getLastColumn() > 0 && sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].join('|') !== COLS.map(c => c[1]).join('|')) {
+    sh.setName(HOJA + ' (versión anterior ' + Utilities.formatDate(new Date(), CONFIG.ZONA_HORARIA, 'dd-MM HH:mm') + ')');
+    sh = null;
+  }
+  sh = sh || ss.insertSheet(HOJA, 0);
 
   sh.getRange(1, 1, 1, COLS.length).setValues([COLS.map(c => c[1])])
     .setFontWeight('bold').setBackground('#14161D').setFontColor('#FFFFFF').setWrap(true).setVerticalAlignment('middle');
@@ -164,14 +169,13 @@ function doPost(e) {
     const clave = urlClave_(casa.url);
     const n = sh.getLastRow();
     if (n > 1) {
-      const links = sh.getRange(2, C.link, n - 1, 1).getFormulas().map(r => urlClave_((r[0].match(/HYPERLINK\("([^"]+)"/) || [])[1]));
+      const links = sh.getRange(2, C.link, n - 1, 1).getRichTextValues().map(r => urlClave_(r[0] && r[0].getLinkUrl()));
       const i = links.indexOf(clave);
       if (i >= 0) return json_({ ok: true, duplicada: true, fila: i + 2, sheetUrl: ss.getUrl() });
     }
     fila = n + 1;
     id = n > 1 ? Math.max(0, ...sh.getRange(2, C.id, n - 1, 1).getValues().map(r => +r[0] || 0)) + 1 : 1;
 
-    const fotos = (casa.fotos || []).filter(u => /^https?:\/\//.test(u));
     const fila_ = new Array(COLS.length).fill('');
     const set = (k, v) => { fila_[C[k] - 1] = v === undefined || v === null ? '' : v; };
     set('id', id);
@@ -186,20 +190,17 @@ function doPost(e) {
     set('direccion', casa.direccion);
     set('notas', casa.notas);
     set('fuente', casa.fuente + (casa.moneda === 'USD' ? ' (precio en USD)' : ''));
-    set('link', `=HYPERLINK("${casa.url}","Ver anuncio")`);
-    set('fotos', fotos.join('\n').slice(0, 45000));
+    set('veredicto', veredicto_('', ''));
     set('descripcion', (casa.descripcion || '').slice(0, 45000));
     set('lat', numero_(casa.lat));
     set('lng', numero_(casa.lng));
-    const r = fila;
-    const v1 = letra_('voto1') + r, v2 = letra_('voto2') + r;
-    set('veredicto', `=IF(AND(${v1}="👍",${v2}="👍"),"✅ Los dos",IF(OR(${v1}="👎",${v2}="👎"),"❌ Nel",IF(OR(${v1}="",${v2}=""),"⏳ Falta votar","🤔 Platicarlo")))`);
     // Las celdas de texto se escriben como texto (evita que "=algo" o "+52…" se vuelvan fórmula)
-    ['titulo', 'direccion', 'notas', 'fotos', 'descripcion'].forEach(k => {
+    ['titulo', 'direccion', 'notas', 'descripcion'].forEach(k => {
       const s = String(fila_[C[k] - 1] || '');
       if (/^[=+\-@]/.test(s)) fila_[C[k] - 1] = "'" + s;
     });
     sh.getRange(fila, 1, 1, COLS.length).setValues([fila_]);
+    link_(sh.getRange(fila, C.link), '🔗 Ver anuncio', casa.url);
     sh.setRowHeight(fila, 110);
   } finally {
     lock.releaseLock();
@@ -217,45 +218,51 @@ function doPost(e) {
 /* ───────────────────────── fotos ───────────────────────── */
 
 function ponerFotos_(sh, fila, id, casa) {
-  const fotos = (casa.fotos || []).filter(u => /^https?:\/\//.test(u));
+  const fotos = (casa.fotos || []).filter(u => /^https?:\/\//.test(u)).slice(0, CONFIG.MAX_FOTOS);
   if (!fotos.length) return;
-  const celda = sh.getRange(fila, C.foto);
 
-  // Descarga las fotos (Facebook las sirve con links que caducan; por eso se copian)
-  const pedidas = fotos.slice(0, CONFIG.GUARDAR_FOTOS_EN_DRIVE ? CONFIG.MAX_FOTOS_DRIVE : 1)
-    .map(url => ({ url, muteHttpExceptions: true, followRedirects: true, headers: { 'User-Agent': 'Mozilla/5.0' } }));
+  // Descarga las fotos (los links de Facebook caducan; por eso se copian a Drive)
+  const pedidas = fotos.map(url => ({
+    url, muteHttpExceptions: true, followRedirects: true,
+    headers: { 'User-Agent': 'Mozilla/5.0', Referer: casa.url || '' }
+  }));
   const blobs = UrlFetchApp.fetchAll(pedidas).map((r, i) => {
-    const tipo = (r.getHeaders()['Content-Type'] || r.getHeaders()['content-type'] || '');
+    const h = r.getHeaders();
+    const tipo = String(h['Content-Type'] || h['content-type'] || '');
     if (r.getResponseCode() !== 200 || !/^image\//.test(tipo)) return null;
-    return r.getBlob().setName(`foto-${String(i + 1).padStart(2, '0')}.${tipo.includes('png') ? 'png' : tipo.includes('webp') ? 'webp' : 'jpg'}`);
+    const ext = tipo.includes('png') ? 'png' : tipo.includes('webp') ? 'webp' : 'jpg';
+    return r.getBlob().setName(`foto-${String(i + 1).padStart(2, '0')}.${ext}`);
   }).filter(Boolean);
+  if (!blobs.length) throw new Error('no se pudo descargar ninguna foto');
+
+  // Una carpeta por casa dentro de la carpeta de fotos
+  const nombre = `${id} - ${(casa.titulo || 'casa').replace(/[\\/:*?"<>|]/g, '').slice(0, 60)}`;
+  const carpeta = carpetaFotos_().createFolder(nombre);
+  blobs.forEach(b => carpeta.createFile(b));
+  carpeta.createFile('datos del anuncio.txt', [
+    casa.titulo, casa.url, '', 'Precio: ' + (casa.precio || '—'), 'Dirección: ' + (casa.direccion || '—'), '',
+    casa.descripcion || ''
+  ].join('\n'), MimeType.PLAIN_TEXT);
+  link_(sh.getRange(fila, C.carpeta), `📷 ${blobs.length} fotos`, carpeta.getUrl());
 
   // Miniatura dentro de la celda (queda guardada en el Sheet aunque borren el anuncio)
-  let puesta = false;
   const chica = blobs.find(b => b.getBytes().length < 1.5e6 && !/webp/.test(b.getContentType()));
   if (chica) {
     try {
       const img = SpreadsheetApp.newCellImage()
         .setSourceUrl('data:' + chica.getContentType() + ';base64,' + Utilities.base64Encode(chica.getBytes()))
         .setAltTextTitle(casa.titulo || 'Casa').build();
-      celda.setValue(img);
-      puesta = true;
-    } catch (_) { /* si falla, se usa =IMAGE() abajo */ }
-  }
-  if (!puesta) celda.setFormula(`=IMAGE("${fotos[0]}")`);
-
-  if (CONFIG.GUARDAR_FOTOS_EN_DRIVE && blobs.length) {
-    const raiz = carpeta_(CONFIG.CARPETA_FOTOS, DriveApp.getRootFolder());
-    const nombre = `${id} - ${(casa.titulo || 'casa').replace(/[\\/:*?"<>|]/g, '').slice(0, 60)}`;
-    const carpeta = raiz.createFolder(nombre);
-    blobs.forEach(b => carpeta.createFile(b));
-    sh.getRange(fila, C.carpeta).setFormula(`=HYPERLINK("${carpeta.getUrl()}","📷 ${blobs.length} fotos")`);
+      sh.getRange(fila, C.foto).setValue(img);
+    } catch (_) { /* sin miniatura; las fotos quedan en la carpeta */ }
   }
 }
 
-function carpeta_(nombre, padre) {
-  const it = padre.getFoldersByName(nombre);
-  return it.hasNext() ? it.next() : padre.createFolder(nombre);
+function carpetaFotos_() {
+  if (CONFIG.CARPETA_FOTOS_ID) {
+    try { return DriveApp.getFolderById(CONFIG.CARPETA_FOTOS_ID); } catch (_) { /* sin acceso: usa la de respaldo */ }
+  }
+  const it = DriveApp.getRootFolder().getFoldersByName('Casas - fotos');
+  return it.hasNext() ? it.next() : DriveApp.getRootFolder().createFolder('Casas - fotos');
 }
 
 /* ───────────────────────── tiempos al CETI ───────────────────────── */
@@ -332,7 +339,7 @@ function calcularFila_(sh, fila, desdeDireccion) {
   sh.getRange(fila, C.ida, 1, 5).setValues([[t.ida, t.idaMax, t.regreso, km != null ? Math.round(km * 10) / 10 : '', precision]]);
   sh.getRange(fila, C.ida).setNote('Con tráfico estimado por Google Maps (ida saliendo ' + CONFIG.MINUTOS_ANTES + ' min antes de la entrada):\n' + detalle.join('\n'));
   const ruta = `https://www.google.com/maps/dir/?api=1&origin=${origen}&destination=${encodeURIComponent(CONFIG.DESTINO)}&travelmode=driving`;
-  sh.getRange(fila, C.ruta).setFormula(`=HYPERLINK("${ruta}","🗺️ Ver")`);
+  link_(sh.getRange(fila, C.ruta), '🗺️ Ver ruta', ruta);
   return t;
 }
 
@@ -491,6 +498,30 @@ function horarioDesdeIcs(ics, hoy, tz) {
 }
 
 /* ───────────────────────── utilidades ───────────────────────── */
+
+/** Texto con link (sin fórmulas: =HYPERLINK falla si el Sheet está en otro idioma/región) */
+function link_(rango, texto, url) {
+  rango.setRichTextValue(SpreadsheetApp.newRichTextValue().setText(texto).setLinkUrl(url).build());
+}
+
+function veredicto_(a, b) {
+  if (a === '👍' && b === '👍') return '✅ Los dos';
+  if (a === '👎' || b === '👎') return '❌ Nel';
+  if (!a || !b) return '⏳ Falta votar';
+  return '🤔 Platicarlo';
+}
+
+/** Al votar (tú o tu esposa) se actualiza el Veredicto. Es un activador simple: no hay que configurar nada. */
+function onEdit(e) {
+  const sh = e.range.getSheet();
+  if (sh.getName() !== HOJA) return;
+  const f1 = e.range.getRow(), f2 = e.range.getLastRow();
+  const c1 = e.range.getColumn(), c2 = e.range.getLastColumn();
+  if (f2 < 2 || c2 < C.voto1 || c1 > C.voto2) return;
+  const desde = Math.max(f1, 2);
+  const votos = sh.getRange(desde, C.voto1, f2 - desde + 1, 2).getValues();
+  sh.getRange(desde, C.veredicto, votos.length, 1).setValues(votos.map(v => [veredicto_(v[0], v[1])]));
+}
 
 function json_(o) {
   return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
