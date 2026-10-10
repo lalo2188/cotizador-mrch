@@ -96,14 +96,28 @@
 
   async function cargar() {
     estadoCarga('Leyendo la hoja…');
-    let crudo = null;
+    let crudo = null, motivoScript = '';
     if (CFG.SCRIPT_URL) {
       try {
-        const d = await (await fetch(CFG.SCRIPT_URL)).json();
-        if (d.ok) { crudo = { tiendas: d.tiendas, entregas: d.entregas }; st.fuente = 'script'; }
-      } catch (e) { console.warn('Apps Script no respondió, uso lectura directa', e); }
+        const ctrl = new AbortController();
+        const espera = setTimeout(() => ctrl.abort(), 25000);
+        const r = await fetch(CFG.SCRIPT_URL, { signal: ctrl.signal });
+        clearTimeout(espera);
+        const txt = await r.text();
+        let d;
+        try { d = JSON.parse(txt); } catch (e) {
+          const m = txt.match(/<div[^>]*>([^<]{10,200})<\/div>/) || txt.match(/<title>([^<]+)<\/title>/);
+          throw new Error(m ? m[1].trim() : 'respuesta que no es JSON');
+        }
+        if (d.ok && Array.isArray(d.tiendas)) { crudo = { tiendas: d.tiendas, entregas: d.entregas || [] }; st.fuente = 'script'; }
+        else throw new Error(d.error || 'respuesta sin tiendas');
+      } catch (e) {
+        motivoScript = (e.name === 'AbortError' ? 'tardó más de 25 s' : (e.message || String(e))).replace(/\.$/, '');
+        console.warn('Apps Script no respondió (' + motivoScript + '), uso lectura directa');
+      }
     }
     if (!crudo) {
+      estadoCarga('Leyendo la hoja directo…');
       try {
         const tiendas = await leerGviz(CFG.HOJA_TIENDAS);
         let entregas = [];
@@ -116,15 +130,21 @@
       } catch (e) {
         console.error(e);
         estadoCarga('');
-        toast('No pude leer la hoja. ¿Está compartida como "cualquiera con el enlace"?', 6000);
+        toast('No pude leer la hoja. ' + (motivoScript ? 'Apps Script: ' + motivoScript + '. ' : '') + 'Lectura directa: ' + (e.message || e), 15000);
         return;
       }
     }
-    st.tiendas = crudo.tiendas.map(normalizarTienda).filter((t) => t.nombre);
-    st.entregas = crudo.entregas.map(normalizarEntrega).filter((e) => e.tienda && e.fecha);
-    calcularEstados();
-    pintarTodo();
+    try {
+      st.tiendas = crudo.tiendas.map(normalizarTienda).filter((t) => t.nombre);
+      st.entregas = crudo.entregas.map(normalizarEntrega).filter((e) => e.tienda && e.fecha);
+      calcularEstados();
+      pintarTodo();
+    } catch (e) {
+      console.error(e);
+      toast('Leí la hoja pero algo falló al dibujarla: ' + (e.message || e), 15000);
+    }
     estadoCarga('');
+    if (motivoScript) toast('Aviso: el Apps Script no respondió (' + motivoScript + '). Se ve el mapa, pero no se podrán guardar cambios.', 9000);
     geocodificarFaltantes();
   }
 
