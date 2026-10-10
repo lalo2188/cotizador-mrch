@@ -10,7 +10,7 @@ window.MAMACHITA_CONFIG = {
   // URL del Web App de Apps Script (ver apps-script/Code.gs y LEEME.md).
   // Mientras esté vacío, el mapa funciona en modo lectura y las entregas
   // se capturan directo en la hoja.
-  SCRIPT_URL: '',
+  SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbxi4b_S0pHL6lIiiHsDXINZj8JNcZqDBh8GRTEiZVGFEgHXGRrb3Ykuy4wP4MIMSqfV/exec',
 
   // Sabores que manejamos. La "columna" debe existir igual en la pestaña Entregas.
   SABORES: [
