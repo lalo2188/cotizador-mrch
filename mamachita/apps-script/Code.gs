@@ -56,6 +56,7 @@ function onOpen() {
     .addItem('Sacar coordenadas faltantes', 'geocodificar')
     .addItem('Llenar columna Estado', 'llenarEstados')
     .addItem('Buscar tiendas en Google (por zona)', 'buscarTiendasGoogle')
+    .addItem('Actualizar pestaña COLONIAS', 'armarColonias')
     .addItem('Revisar reestocks (correo)', 'revisarReestock')
     .addItem('Configurar (una sola vez)', 'configurar')
     .addToUi();
@@ -226,13 +227,13 @@ var TIPOS_GOOGLE = {
 var TIPOS_UTILES = Object.keys(TIPOS_GOOGLE);
 var CADENAS = /oxxo|7[\s-]?eleven|circle\s?k|kiosko|\bextra\b|go\s?mart|farmacia|walmart|costco|sam'?s|soriana|aurrer|chedraui|la comer|fresko|city market|superama|\bheb\b|mi bodega|bodega aurrera|super g\b|la michoacana/i;
 
-function buscarCerca_(lat, lng, radio) {
+function buscarCerca_(lat, lng, radio, consultas) {
   const clave = PropertiesService.getScriptProperties().getProperty('GOOGLE_PLACES_KEY');
   if (!clave) throw new Error('Falta la clave GOOGLE_PLACES_KEY en las propiedades del script');
   const existentes = filas_(SpreadsheetApp.getActive().getSheetByName(HOJA_TIENDAS));
   const vistos = {};
   const salida = [];
-  CONSULTAS_GOOGLE.forEach(function (consulta) {
+  (consultas || CONSULTAS_GOOGLE).forEach(function (consulta) {
     let token = '';
     for (let pagina = 0; pagina < 3; pagina++) {
       const cuerpo = {
@@ -294,16 +295,24 @@ function buscarTiendasGoogle() {
   });
   const inicio = Date.now();
   let agregadas = 0, pendientes = 0;
+  // Se recuerda cada combinación colonia + búsqueda: si agregamos otra búsqueda
+  // (p. ej. "tortillería"), se corre solo esa en las colonias ya revisadas.
+  // Las entradas viejas (solo el nombre de la colonia) cubren las 6 búsquedas originales.
+  const ORIGINALES = ['tienda de abarrotes', 'tienda', 'minisuper', 'miscelánea', 'cremería', 'mercado'];
+  const hecha = function (z, q) {
+    return hechas.indexOf(z + '|' + q) !== -1 || (hechas.indexOf(z) !== -1 && ORIGINALES.indexOf(q) !== -1);
+  };
   Object.keys(zonas).forEach(function (z) {
-    if (hechas.indexOf(z) !== -1) return;
+    const faltan = CONSULTAS_GOOGLE.filter(function (q) { return !hecha(z, q); });
+    if (!faltan.length) return;
     if (Date.now() - inicio > 4.5 * 60 * 1000) { pendientes++; return; }
     const c = zonas[z];
-    buscarCerca_(c.lat / c.n, c.lng / c.n, 1000).forEach(function (t) {
+    buscarCerca_(c.lat / c.n, c.lng / c.n, 1000, faltan).forEach(function (t) {
       agregarTienda_({ nombre: t.nombre, tipo: t.tipo, zona: z, ubicacion: t.ubicacion, lat: t.lat, lng: t.lng,
         maps: t.maps, prioridad: 'Media', notas: 'Encontrada en Google Maps' });
       agregadas++;
     });
-    hechas.push(z);
+    faltan.forEach(function (q) { hechas.push(z + '|' + q); });
     props.setProperty('ZONAS_BUSCADAS', JSON.stringify(hechas));
   });
   ss.toast(agregadas + ' tiendas nuevas agregadas' + (pendientes ? '. Faltan ' + pendientes + ' zonas: vuelve a correrlo.' : '. ¡Todas las zonas revisadas!'), '🌶️ Mamachita', 15);
@@ -322,6 +331,94 @@ function distanciaKm_(a, b, c, d) {
 
 function norm_(v) {
   return String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+}
+
+// ---------- Pestaña COLONIAS: resumen con fórmulas vivas y gráficas ----------
+
+var HOJA_COLONIAS = 'COLONIAS';
+var ESTADOS_RESUMEN = ['Prospecto', 'Visitado', 'Interesado', 'Activa', 'No interesado'];
+var COLORES_ESTADOS = ['#9AA0AE', '#D4A017', '#2563EB', '#16A34A', '#4B5563'];
+
+function armarColonias() {
+  const ss = SpreadsheetApp.getActive();
+  const tiendas = ss.getSheetByName(HOJA_TIENDAS);
+  const enc = encabezados_(tiendas);
+  const col = function (nombre) {
+    const i = enc.indexOf(nombre);
+    if (i === -1) throw new Error('No encuentro la columna "' + nombre + '" en ' + HOJA_TIENDAS);
+    const letra = columnaLetra_(i + 1);
+    return "'" + HOJA_TIENDAS + "'!$" + letra + '$2:$' + letra;
+  };
+  const ZONA = col('Zona'), TIPO = col('Tipo'), NOMBRE = col('Nombre'), ESTADO = col('Estado');
+
+  let hoja = ss.getSheetByName(HOJA_COLONIAS) || ss.insertSheet(HOJA_COLONIAS);
+  hoja.getCharts().forEach(function (c) { hoja.removeChart(c); });
+  hoja.clear();
+  if (hoja.getMaxColumns() < 16) hoja.insertColumnsAfter(hoja.getMaxColumns(), 16 - hoja.getMaxColumns());
+
+  // Título
+  hoja.getRange('A1').setValue('🌶️ Mamachita · Tiendas por colonia').setFontSize(16).setFontWeight('bold').setFontColor('#B3121B');
+  hoja.getRange('A2').setFormula('="Actualizado en vivo · " & COUNTA(' + NOMBRE + ') & " tiendas en la lista"').setFontColor('#7A6455');
+
+  // Tabla por colonia (A4…). La colonia es lo que va antes de "/" en Zona.
+  const zonaBase = 'TRIM(IFERROR(REGEXEXTRACT(' + ZONA + ',"^[^/]+"),""))';
+  hoja.getRange('A4').setFormula('=QUERY({ARRAYFORMULA(' + zonaBase + '),' + NOMBRE + '},' +
+    '"select Col1, count(Col2) where Col2 is not null and Col1 <> \'\' group by Col1 order by count(Col2) desc label Col1 \'Colonia\', count(Col2) \'Total\'",0)');
+  ESTADOS_RESUMEN.forEach(function (e, i) {
+    const c = hoja.getRange(4, 3 + i);
+    c.setValue(e);
+    // Coincide con "Colonia" exacta o con "Colonia / algo".
+    hoja.getRange(5, 3 + i).setFormula('=ARRAYFORMULA(IF($A5:$A="","",COUNTIFS(' + ZONA + ',$A5:$A,' + ESTADO + ',"' + e + '")+COUNTIFS(' + ZONA + ',$A5:$A&" /*",' + ESTADO + ',"' + e + '")))');
+  });
+  hoja.getRange('H4').setValue('% visitado');
+  hoja.getRange('H5').setFormula('=ARRAYFORMULA(IF($A5:$A="","",IFERROR(1-C5:C/B5:B,0)))');
+  hoja.getRange('H5:H').setNumberFormat('0%');
+  hoja.getRange('A4:H4').setFontWeight('bold').setBackground('#B3121B').setFontColor('#FFFFFF');
+  hoja.setFrozenRows(4);
+
+  // Resumen por estado (J4…)
+  hoja.getRange('J4:K4').setValues([['Estado', 'Tiendas']]).setFontWeight('bold').setBackground('#B3121B').setFontColor('#FFFFFF');
+  ESTADOS_RESUMEN.forEach(function (e, i) {
+    hoja.getRange(5 + i, 10).setValue(e);
+    hoja.getRange(5 + i, 11).setFormula('=COUNTIF(' + ESTADO + ',"' + e + '")');
+  });
+  hoja.getRange(10, 10).setValue('Total').setFontWeight('bold');
+  hoja.getRange(10, 11).setFormula('=COUNTA(' + NOMBRE + ')').setFontWeight('bold');
+  hoja.getRange(11, 10).setValue('Colonias');
+  hoja.getRange(11, 11).setFormula('=COUNTA(A5:A)');
+
+  // Resumen por tipo (M4…)
+  hoja.getRange('M4').setFormula('=QUERY({' + TIPO + ',' + NOMBRE + '},"select Col1, count(Col2) where Col2 is not null and Col1 <> \'\' group by Col1 order by count(Col2) desc label Col1 \'Tipo\', count(Col2) \'Tiendas\'",0)');
+  hoja.getRange('M4:N4').setFontWeight('bold').setBackground('#B3121B').setFontColor('#FFFFFF');
+
+  hoja.setColumnWidth(1, 220);
+  hoja.setColumnWidth(10, 120);
+  hoja.setColumnWidth(13, 170);
+  SpreadsheetApp.flush();
+
+  // Gráficas
+  hoja.insertChart(hoja.newChart().asPieChart()
+    .addRange(hoja.getRange('J4:K9')).setNumHeaders(1)
+    .setTitle('Tiendas por estado').setColors(COLORES_ESTADOS).setPosition(14, 10, 0, 0).setOption('width', 420).setOption('height', 300)
+    .build());
+  hoja.insertChart(hoja.newChart().asBarChart()
+    .addRange(hoja.getRange('A4:A29')).addRange(hoja.getRange('C4:G29')).setNumHeaders(1).setStacked()
+    .setTitle('Top 25 colonias (por estado)').setColors(COLORES_ESTADOS).setPosition(30, 10, 0, 0)
+    .setOption('width', 620).setOption('height', 620)
+    .build());
+  hoja.insertChart(hoja.newChart().asColumnChart()
+    .addRange(hoja.getRange('M4:N16')).setNumHeaders(1)
+    .setTitle('Tiendas por tipo').setColors(['#B3121B']).setLegendPosition(Charts.Position.NONE)
+    .setPosition(14, 14, 0, 0).setOption('width', 460).setOption('height', 300)
+    .build());
+
+  ss.toast('Pestaña COLONIAS lista. Se actualiza sola al cambiar la lista.', '🌶️ Mamachita', 8);
+}
+
+function columnaLetra_(n) {
+  let s = '';
+  while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); }
+  return s;
 }
 
 // ---------- Aviso diario de reestock ----------
