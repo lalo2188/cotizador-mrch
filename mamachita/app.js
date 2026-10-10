@@ -655,7 +655,7 @@
   const TIPOS_OSM = {
     convenience: 'Abarrotes', supermarket: 'Minisúper', greengrocer: 'Frutería', deli: 'Deli / gourmet',
     dairy: 'Cremería', general: 'Miscelánea', variety_store: 'Miscelánea', butcher: 'Carnicería',
-    health_food: 'Tienda naturista', farm: 'Productos de granja', marketplace: 'Mercado',
+    health_food: 'Tienda naturista', farm: 'Productos de granja', tortilla: 'Tortillería', bakery: 'Tortillería', marketplace: 'Mercado',
   };
   // Cadenas que no reciben producto a consignación.
   const CADENAS = /oxxo|7[\s-]?eleven|circle\s?k|kiosko|\bextra\b|go\s?mart|farmacia|walmart|costco|sam'?s|soriana|aurrer|chedraui|la comer|fresko|city market|superama|heb|bodega/i;
@@ -685,7 +685,7 @@
         const c = b.getCenter();
         const radio = Math.min(2500, Math.round(c.distanceTo(b.getNorthEast())));
         const r = await enviar({ accion: 'buscar', lat: c.lat, lng: c.lng, radio });
-        if (r.ok) {
+        if (r.ok && Array.isArray(r.tiendas)) {
           fuente = 'Google Maps';
           datos = { elements: r.tiendas.map((t, i) => ({ type: 'google', id: i, lat: t.lat, lon: t.lng, maps: t.maps, tipo: t.tipo, ubicacion: t.ubicacion, tags: { name: t.nombre } })) };
         } else console.warn('Búsqueda en Google no disponible:', r.error);
@@ -706,14 +706,16 @@
       const calle = [t['addr:street'], t['addr:housenumber']].filter(Boolean).join(' ');
       const cercana = conCoords.map((x) => [x, distanciaKm([lat, lng], [x.lat, x.lng])]).sort((a, c) => a[1] - c[1])[0];
       return {
-        nombre, lat, lng, maps: e.maps || '',
-        tipo: e.tipo || TIPOS_OSM[t.shop] || TIPOS_OSM[t.amenity] || 'Abarrotes',
+        nombre, lat, lng, maps: e.maps || '', osmShop: t.shop,
+        tipo: e.tipo || (/tortill/i.test(nombre) ? 'Tortillería' : TIPOS_OSM[t.shop] || TIPOS_OSM[t.amenity] || 'Abarrotes'),
         zona: t['addr:suburb'] || (cercana && cercana[1] < 1.5 ? cercana[0].zona : ''),
         ubicacion: e.ubicacion || [calle, t['addr:suburb'], t['addr:city'] || 'Zapopan'].filter(Boolean).join(', '),
         repetida: !!(cercana && cercana[1] < 0.04) || st.tiendas.some((x) => norm(x.nombre) === norm(nombre)),
       };
     }).filter((c) => {
       if (!c.nombre || c.lat == null || c.repetida || CADENAS.test(c.nombre)) return false;
+      // De las panaderías solo nos interesan las que en realidad son tortillerías.
+      if (c.osmShop === 'bakery' && !/tortill/i.test(c.nombre)) return false;
       const k = norm(c.nombre) + '|' + c.lat.toFixed(4);
       if (vistos.has(k)) return false;
       vistos.add(k); return true;
@@ -737,7 +739,7 @@
     const lista = st.nuevas || [];
     abrirHoja(
       '<div class="top"><h3 class="disp">🔍 ' + lista.length + ' tiendas nuevas aquí</h3><button class="cerrar" data-cerrar>✕</button></div>' +
-      '<div class="nota">Vienen de <b>' + esc(st.fuenteNuevas || 'OpenStreetMap') + '</b>' + (st.fuenteNuevas === 'Google Maps' ? '' : ': no están todas las tiendas de barrio y algunas pueden ya no existir') + '. Ya quité las que tienes en tu lista y las cadenas (OXXO, 7-Eleven, súpers grandes).</div>' +
+      '<div class="nota">Abarrotes, misceláneas, minisúpers, cremerías, tortillerías y mercados. Vienen de <b>' + esc(st.fuenteNuevas || 'OpenStreetMap') + '</b>' + (st.fuenteNuevas === 'Google Maps' ? '' : ': no están todas las tiendas de barrio y algunas pueden ya no existir') + '. Ya quité las que tienes en tu lista y las cadenas (OXXO, 7-Eleven, súpers grandes).</div>' +
       '<div class="grid2"><div><label>Zona (opcional, para todas)</label><input id="nv-zona" placeholder="Usar la de cada tienda"></div>' +
         '<div><label>Prioridad</label><select id="nv-prio"><option>Alta</option><option selected>Media</option><option>Baja</option></select></div></div>' +
       '<div class="fila-btns"><button class="btn sec" type="button" id="nv-todas">Marcar todas</button><button class="btn sec" type="button" id="nv-ninguna">Ninguna</button></div>' +

@@ -217,11 +217,11 @@ function agregarTienda_(d) {
 // Requiere una clave de Google Places guardada en Configuración del proyecto →
 // Propiedades de la secuencia de comandos → GOOGLE_PLACES_KEY (ver README).
 
-var CONSULTAS_GOOGLE = ['tienda de abarrotes', 'tienda', 'minisuper', 'miscelánea', 'cremería', 'mercado'];
+var CONSULTAS_GOOGLE = ['tienda de abarrotes', 'tienda', 'minisuper', 'miscelánea', 'cremería', 'mercado', 'tortillería'];
 var TIPOS_GOOGLE = {
   convenience_store: 'Abarrotes', grocery_store: 'Abarrotes', food_store: 'Tienda de alimentación',
   supermarket: 'Minisúper', market: 'Mercado', butcher_shop: 'Carnicería', deli: 'Deli / gourmet',
-  health_food_store: 'Tienda naturista', liquor_store: 'Vinos y licores', store: 'Tienda',
+  health_food_store: 'Tienda naturista', liquor_store: 'Vinos y licores', store: 'Tienda', tortilleria: 'Tortillería',
 };
 var TIPOS_UTILES = Object.keys(TIPOS_GOOGLE);
 var CADENAS = /oxxo|7[\s-]?eleven|circle\s?k|kiosko|\bextra\b|go\s?mart|farmacia|walmart|costco|sam'?s|soriana|aurrer|chedraui|la comer|fresko|city market|superama|\bheb\b|mi bodega|bodega aurrera|super g\b|la michoacana/i;
@@ -254,7 +254,8 @@ function buscarCerca_(lat, lng, radio) {
         vistos[p.id] = true;
         const nombre = p.displayName ? p.displayName.text : '';
         const tipos = [p.primaryType].concat(p.types || []);
-        const tipo = tipos.filter(function (t) { return TIPOS_GOOGLE[t]; })[0];
+        const esTortilleria = /tortill/i.test(nombre);
+        const tipo = esTortilleria ? 'tortilleria' : tipos.filter(function (t) { return TIPOS_GOOGLE[t]; })[0];
         if (!nombre || !tipo || CADENAS.test(nombre)) return;
         if (distanciaKm_(lat, lng, p.location.latitude, p.location.longitude) * 1000 > radio * 1.25) return;
         const repetida = existentes.some(function (x) {
