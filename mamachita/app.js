@@ -649,6 +649,129 @@
     } catch (e) { toast(e.message || 'No se pudo conectar con el Apps Script', 9000); }
   }
 
+
+  // ---------- Descubrir tiendas nuevas (OpenStreetMap) ----------
+  const capaNuevas = L.layerGroup().addTo(mapa);
+  const TIPOS_OSM = {
+    convenience: 'Abarrotes', supermarket: 'Minisúper', greengrocer: 'Frutería', deli: 'Deli / gourmet',
+    dairy: 'Cremería', general: 'Miscelánea', variety_store: 'Miscelánea', butcher: 'Carnicería',
+    health_food: 'Tienda naturista', farm: 'Productos de granja', marketplace: 'Mercado',
+  };
+  // Cadenas que no reciben producto a consignación.
+  const CADENAS = /oxxo|7[\s-]?eleven|circle\s?k|kiosko|\bextra\b|go\s?mart|farmacia|walmart|costco|sam'?s|soriana|aurrer|chedraui|la comer|fresko|city market|superama|heb|bodega/i;
+  const SERVIDORES_OSM = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
+
+  async function consultarOSM(q) {
+    for (const url of SERVIDORES_OSM) {
+      try {
+        const r = await fetch(url, { method: 'POST', body: 'data=' + encodeURIComponent(q) });
+        if (r.ok) return await r.json();
+      } catch (e) { /* probamos el siguiente servidor */ }
+    }
+    throw new Error('OpenStreetMap no respondió, intenta en un momento');
+  }
+
+  async function buscarNuevas() {
+    if (mapa.getZoom() < 14) { toast('Acércate más (zoom) a la zona donde quieres buscar', 4000); return; }
+    const b = mapa.getBounds();
+    const bbox = [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()].map((n) => n.toFixed(5)).join(',');
+    const q = '[out:json][timeout:25];(nwr["shop"~"^(' + Object.keys(TIPOS_OSM).filter((k) => k !== 'marketplace').join('|') + ')$"](' + bbox + ');' +
+      'nwr["amenity"="marketplace"](' + bbox + '););out center tags;';
+    estadoCarga('Buscando tiendas en esta zona…');
+    let datos;
+    try { datos = await consultarOSM(q); } catch (e) { estadoCarga(''); toast(e.message, 5000); return; }
+    estadoCarga('');
+    const conCoords = st.tiendas.filter((t) => t.lat);
+    const vistos = new Set();
+    st.nuevas = datos.elements.map((e) => {
+      const t = e.tags || {};
+      const lat = e.lat != null ? e.lat : e.center && e.center.lat;
+      const lng = e.lon != null ? e.lon : e.center && e.center.lon;
+      const nombre = (t.name || t.brand || '').trim();
+      const calle = [t['addr:street'], t['addr:housenumber']].filter(Boolean).join(' ');
+      const cercana = conCoords.map((x) => [x, distanciaKm([lat, lng], [x.lat, x.lng])]).sort((a, c) => a[1] - c[1])[0];
+      return {
+        nombre, lat, lng,
+        tipo: TIPOS_OSM[t.shop] || TIPOS_OSM[t.amenity] || 'Abarrotes',
+        zona: t['addr:suburb'] || (cercana && cercana[1] < 1.5 ? cercana[0].zona : ''),
+        ubicacion: [calle, t['addr:suburb'], t['addr:city'] || 'Zapopan'].filter(Boolean).join(', '),
+        repetida: !!(cercana && cercana[1] < 0.04) || st.tiendas.some((x) => norm(x.nombre) === norm(nombre)),
+      };
+    }).filter((c) => {
+      if (!c.nombre || c.lat == null || c.repetida || CADENAS.test(c.nombre)) return false;
+      const k = norm(c.nombre) + '|' + c.lat.toFixed(4);
+      if (vistos.has(k)) return false;
+      vistos.add(k); return true;
+    });
+    pintarNuevas();
+    if (!st.nuevas.length) { toast('No encontré tiendas nuevas aquí (OpenStreetMap no tiene todas; agrégalas con ＋)', 6000); return; }
+    abrirNuevas();
+  }
+
+  function pintarNuevas() {
+    capaNuevas.clearLayers();
+    (st.nuevas || []).forEach((c, i) => {
+      L.marker([c.lat, c.lng], {
+        icon: L.divIcon({ className: 'leaflet-div-icon limpio', html: '<div class="pin-nuevo">+</div>', iconSize: [22, 22], iconAnchor: [11, 11] }),
+        title: c.nombre,
+      }).on('click', () => abrirNuevas(i)).addTo(capaNuevas);
+    });
+  }
+
+  function abrirNuevas(foco) {
+    const lista = st.nuevas || [];
+    abrirHoja(
+      '<div class="top"><h3 class="disp">🔍 ' + lista.length + ' tiendas nuevas aquí</h3><button class="cerrar" data-cerrar>✕</button></div>' +
+      '<div class="nota">Vienen de OpenStreetMap: no están todas las tiendas de barrio y algunas pueden ya no existir. Ya quité las que tienes en tu lista y las cadenas (OXXO, 7-Eleven, súpers grandes).</div>' +
+      '<div class="grid2"><div><label>Zona (opcional, para todas)</label><input id="nv-zona" placeholder="Usar la de cada tienda"></div>' +
+        '<div><label>Prioridad</label><select id="nv-prio"><option>Alta</option><option selected>Media</option><option>Baja</option></select></div></div>' +
+      '<div class="fila-btns"><button class="btn sec" type="button" id="nv-todas">Marcar todas</button><button class="btn sec" type="button" id="nv-ninguna">Ninguna</button></div>' +
+      '<div class="lista">' + lista.map((c, i) =>
+        '<label class="item" style="grid-template-columns:auto 1fr;cursor:pointer;color:var(--ink);font-size:inherit;font-weight:inherit;margin:0' + (i === foco ? ';border-color:var(--rojo)' : '') + '">' +
+        '<input type="checkbox" data-nueva="' + i + '"' + (foco == null || i === foco ? ' checked' : '') + ' style="width:auto">' +
+        '<span><span class="n">' + esc(c.nombre) + '</span><br><span class="m">' + esc(c.tipo) + (c.zona ? ' · ' + esc(c.zona) : '') + '<br>' + esc(c.ubicacion) + '</span></span></label>').join('') + '</div>' +
+      '<div id="form-extra"></div>' +
+      '<button class="btn" style="width:100%;margin-top:12px" id="nv-agregar">Agregar seleccionadas a mi lista</button>'
+    );
+    $('#nv-todas').onclick = () => document.querySelectorAll('[data-nueva]').forEach((x) => { x.checked = true; });
+    $('#nv-ninguna').onclick = () => document.querySelectorAll('[data-nueva]').forEach((x) => { x.checked = false; });
+    $('#nv-agregar').onclick = agregarNuevas;
+  }
+
+  async function agregarNuevas() {
+    const elegidas = [...document.querySelectorAll('[data-nueva]:checked')].map((x) => st.nuevas[+x.dataset.nueva]);
+    if (!elegidas.length) { toast('No marcaste ninguna'); return; }
+    const zona = $('#nv-zona').value.trim(), prioridad = $('#nv-prio').value;
+    const filas = elegidas.map((c) => ({
+      accion: 'tienda', nombre: c.nombre, tipo: c.tipo, prioridad, zona: zona || c.zona, ubicacion: c.ubicacion,
+      lat: c.lat, lng: c.lng, notas: 'Encontrada en el mapa',
+    }));
+    if (!CFG.SCRIPT_URL) {
+      const tsv = filas.map((d) => [d.prioridad, d.zona, d.tipo, d.nombre, d.ubicacion, 'FALSE',
+        'https://www.google.com/maps/search/?api=1&query=' + d.lat + ',' + d.lng, d.notas, 'Prospecto', d.lat, d.lng].join('\t')).join('\n');
+      $('#form-extra').innerHTML = sinScriptHTML(tsv, CFG.HOJA_TIENDAS);
+      return;
+    }
+    const boton = $('#nv-agregar'); boton.disabled = true;
+    let ok = 0;
+    try {
+      for (const d of filas) {
+        boton.textContent = 'Agregando ' + (ok + 1) + ' de ' + filas.length + '…';
+        const r = await enviar(d);
+        if (!r.ok) throw new Error(r.error || 'error');
+        ok++;
+      }
+    } catch (e) {
+      toast('Se agregaron ' + ok + '; luego falló: ' + e.message, 8000);
+    }
+    const agregadas = new Set(elegidas.slice(0, ok));
+    st.nuevas = st.nuevas.filter((c) => !agregadas.has(c));
+    pintarNuevas();
+    if (ok === filas.length) { cerrarHoja(); toast(ok + ' tiendas agregadas 🏪'); }
+    else boton.disabled = false;
+    await cargar();
+  }
+
   // ---------- Navegación ----------
   const esMovil = () => window.matchMedia('(max-width: 860px)').matches;
   function irA(vista) {
@@ -697,6 +820,7 @@
   $('#btn-nueva').onclick = () => abrirFormTienda();
   $('#btn-entrega').onclick = () => abrirFormEntrega(null);
   $('#btn-todo').onclick = () => encuadrar();
+  $('#btn-buscar').onclick = buscarNuevas;
   $('#btn-yo').onclick = async () => { const p = await ubicarme(); if (p) { mapa.flyTo(p, 15); pintarRuta(); pintarRutaMapa(); } };
   $('#btn-territorio').onclick = (e) => { st.territorioVisible = !st.territorioVisible; e.currentTarget.classList.toggle('on', st.territorioVisible); pintarMapa(); };
 
