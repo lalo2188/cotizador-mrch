@@ -10,14 +10,14 @@
  */
 
 // Clave que pide el mapa para guardar cambios. Déjala vacía si no quieres clave.
-const PIN = '';
+var PIN = '';
 
-const HOJA_TIENDAS = 'Prospectos';
-const HOJA_ENTREGAS = 'Entregas';
-const COLUMNAS_EXTRA = ['Estado', 'Lat', 'Lng'];
-const COLUMNAS_ENTREGAS = ['Fecha', 'Tienda', 'Tradicional', 'Pistache/Morita', 'Precio', 'Reestock', 'Quedaban', 'Notas'];
-const DIAS_REESTOCK = 14;
-const DIAS_AVISO = 3;
+var HOJA_TIENDAS = 'Prospectos';
+var HOJA_ENTREGAS = 'Entregas';
+var COLUMNAS_EXTRA = ['Estado', 'Lat', 'Lng'];
+var COLUMNAS_ENTREGAS = ['Fecha', 'Tienda', 'Tradicional', 'Pistache/Morita', 'Precio', 'Reestock', 'Quedaban', 'Notas'];
+var DIAS_REESTOCK = 14;
+var DIAS_AVISO = 3;
 
 // ---------- Configuración inicial ----------
 
@@ -60,10 +60,24 @@ function onOpen() {
 // ---------- Geocodificación ----------
 
 function geocodificar() {
-  const hoja = SpreadsheetApp.getActive().getSheetByName(HOJA_TIENDAS);
+  const ss = SpreadsheetApp.getActive();
+  const hoja = ss.getSheetByName(HOJA_TIENDAS);
   const enc = encabezados_(hoja);
   const n = hoja.getLastRow();
-  for (let fila = 2; fila <= n; fila++) geocodificarFila_(hoja, enc, fila);
+  const inicio = Date.now();
+  let ok = 0, fallas = 0, fila = 2;
+  // Apps Script corta a los 6 min; paramos antes y se puede volver a correr para seguir.
+  for (; fila <= n && Date.now() - inicio < 4.5 * 60 * 1000; fila++) {
+    try {
+      const r = geocodificarFila_(hoja, enc, fila);
+      if (r === true) ok++; else if (r === false) fallas++;
+    } catch (err) {
+      fallas++;
+      console.warn('Fila ' + fila + ': ' + err);
+    }
+  }
+  SpreadsheetApp.flush();
+  ss.toast(ok + ' ubicadas, ' + fallas + ' sin encontrar' + (fila <= n ? '. Faltan filas: vuelve a correrlo.' : '.'), '🌶️ Mamachita', 10);
 }
 
 function alEditar(e) {
@@ -78,10 +92,10 @@ function alEditar(e) {
 function geocodificarFila_(hoja, enc, fila) {
   const cLat = enc.indexOf('Lat') + 1, cLng = enc.indexOf('Lng') + 1;
   const cUbi = enc.indexOf('Ubicación') + 1, cNom = enc.indexOf('Nombre') + 1;
-  if (!cLat || !cLng || !cUbi) return;
+  if (!cLat || !cLng || !cUbi) throw new Error('Faltan las columnas Lat/Lng/Ubicación: corre "configurar"');
   const valores = hoja.getRange(fila, 1, 1, enc.length).getValues()[0];
   const ubicacion = String(valores[cUbi - 1] || '').trim();
-  if (!ubicacion || valores[cLat - 1] !== '') return;
+  if (!ubicacion || valores[cLat - 1] !== '') return null;
 
   const consultas = [ubicacion + ', Jalisco, México'];
   if (cNom && valores[cNom - 1]) consultas.unshift(valores[cNom - 1] + ', ' + ubicacion + ', Jalisco, México');
@@ -92,9 +106,10 @@ function geocodificarFila_(hoja, enc, fila) {
       const loc = r.results[0].geometry.location;
       hoja.getRange(fila, cLat).setValue(loc.lat);
       hoja.getRange(fila, cLng).setValue(loc.lng);
-      return;
+      return true;
     }
   }
+  return false;
 }
 
 // ---------- Web App ----------
