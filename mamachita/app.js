@@ -229,10 +229,22 @@
   // ---------- Mapa ----------
   const mapa = L.map('mapa', { zoomControl: false }).setView(GDL, 12);
   L.control.zoom({ position: 'topleft' }).addTo(mapa);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-    maxZoom: 19, subdomains: 'abcd',
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-  }).addTo(mapa);
+  const fondos = {
+    'Calles': L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    }),
+    'Calles (Esri)': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19, attribution: 'Tiles &copy; Esri',
+    }),
+    'Satélite': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19, attribution: 'Tiles &copy; Esri',
+    }),
+  };
+  const fondoGuardado = leerLocal('mm-fondo', 'Calles');
+  (fondos[fondoGuardado] || fondos['Calles']).addTo(mapa);
+  L.control.layers(fondos, null, { position: 'topleft' }).addTo(mapa);
+  mapa.on('baselayerchange', (e) => guardarLocal('mm-fondo', e.name));
   const capaTerritorio = L.layerGroup().addTo(mapa);
   const capaPines = L.layerGroup().addTo(mapa);
   const capaRuta = L.layerGroup().addTo(mapa);
