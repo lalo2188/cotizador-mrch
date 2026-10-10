@@ -542,18 +542,25 @@
     if (!CFG.SCRIPT_URL) return { ok: false, sinScript: true };
     let pin = '';
     try { pin = sessionStorage.getItem('mm-pin') || ''; } catch (e) { /* nada */ }
-    let r;
+    const cuerpo = JSON.stringify(Object.assign({ pin }, datos));
+    const leer = async (r) => {
+      const txt = await r.text();
+      try { return JSON.parse(txt); } catch (e) {
+        const m = txt.match(/<div[^>]*>([^<]{10,200})<\/div>/) || txt.match(/<title>([^<]+)<\/title>/);
+        throw new Error('Respuesta del Apps Script: ' + (m ? m[1].trim() : 'no es JSON') + '. ¿Publicaste una versión nueva de la implementación?');
+      }
+    };
+    let d;
     try {
-      r = await fetch(CFG.SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ pin }, datos)) });
+      // Los cambios van por GET (?d=...), que es lo que el navegador deja pasar sin problemas.
+      d = await leer(await fetch(CFG.SCRIPT_URL + '?d=' + encodeURIComponent(cuerpo)));
     } catch (e) {
-      // Google responde con una página de login (sin CORS) cuando la implementación no es pública.
+      if (e.message && e.message.startsWith('Respuesta del Apps Script')) throw e;
       throw new Error('El Apps Script no respondió. Revisa que la implementación tenga acceso "Cualquier usuario".');
     }
-    const txt = await r.text();
-    let d;
-    try { d = JSON.parse(txt); } catch (e) {
-      const m = txt.match(/<div[^>]*>([^<]{10,200})<\/div>/) || txt.match(/<title>([^<]+)<\/title>/);
-      throw new Error('Respuesta del Apps Script: ' + (m ? m[1].trim() : 'no es JSON') + '. ¿Publicaste una versión nueva de la implementación?');
+    if (!('accion' in d)) {
+      // Implementación vieja: todavía no entiende cambios por GET.
+      throw new Error('Tu Apps Script tiene una versión vieja: pega el Code.gs nuevo y publica una "Nueva versión" de la implementación.');
     }
     if (!d.ok && /PIN/.test(d.error || '')) {
       const nuevo = prompt('Clave para guardar cambios:');

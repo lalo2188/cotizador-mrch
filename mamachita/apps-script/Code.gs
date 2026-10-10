@@ -143,7 +143,14 @@ function geocodificarFila_(hoja, enc, fila) {
 
 // ---------- Web App ----------
 
-function doGet() {
+// Sin parámetros: devuelve la lista. Con ?d={...}: ejecuta un cambio. El mapa manda
+// los cambios por GET porque algunos navegadores bloquean el POST hacia Apps Script.
+function doGet(e) {
+  if (e && e.parameter && e.parameter.d) {
+    let d;
+    try { d = JSON.parse(e.parameter.d); } catch (err) { return json_({ ok: false, error: 'Datos inválidos' }); }
+    return json_(manejar_(d));
+  }
   const ss = SpreadsheetApp.getActive();
   return json_({
     ok: true,
@@ -153,21 +160,29 @@ function doGet() {
 }
 
 function doPost(e) {
+  let d;
+  try { d = JSON.parse(e.postData.contents); } catch (err) { return json_({ ok: false, error: 'Datos inválidos' }); }
+  return json_(manejar_(d));
+}
+
+function manejar_(d) {
   const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
+  let r;
   try {
-    const d = JSON.parse(e.postData.contents);
-    if (PIN && String(d.pin) !== PIN) return json_({ ok: false, error: 'PIN incorrecto' });
-    if (d.accion === 'entrega') return json_(conResumen_(registrarEntrega_(d)));
-    if (d.accion === 'estado') return json_(conResumen_(cambiarEstado_(d.tienda, d.estado)));
-    if (d.accion === 'tienda') return json_(agregarTienda_(d));
-    if (d.accion === 'buscar') return json_({ ok: true, tiendas: buscarCerca_(Number(d.lat), Number(d.lng), Number(d.radio) || 1200) });
-    return json_({ ok: false, error: 'Acción desconocida' });
+    lock.waitLock(20000);
+    if (PIN && String(d.pin) !== PIN) r = { ok: false, error: 'PIN incorrecto' };
+    else if (d.accion === 'entrega') r = conResumen_(registrarEntrega_(d));
+    else if (d.accion === 'estado') r = conResumen_(cambiarEstado_(d.tienda, d.estado));
+    else if (d.accion === 'tienda') r = agregarTienda_(d);
+    else if (d.accion === 'buscar') r = { ok: true, tiendas: buscarCerca_(Number(d.lat), Number(d.lng), Number(d.radio) || 1200) };
+    else r = { ok: false, error: 'Acción desconocida' };
   } catch (err) {
-    return json_({ ok: false, error: String(err) });
+    r = { ok: false, error: String(err && err.message || err) };
   } finally {
-    lock.releaseLock();
+    try { lock.releaseLock(); } catch (err) { /* no se tomó el candado */ }
   }
+  r.accion = d.accion;
+  return r;
 }
 
 function registrarEntrega_(d) {
