@@ -57,6 +57,7 @@ function onOpen() {
     .addItem('Llenar columna Estado', 'llenarEstados')
     .addItem('Buscar tiendas en Google (por zona)', 'buscarTiendasGoogle')
     .addItem('Actualizar pestaña COLONIAS', 'armarColonias')
+    .addItem('Agregar calle a nombres genéricos', 'renombrarGenericas')
     .addItem('Revisar reestocks (correo)', 'revisarReestock')
     .addItem('Configurar (una sola vez)', 'configurar')
     .addToUi();
@@ -201,6 +202,7 @@ function cambiarEstado_(nombre, estado) {
 }
 
 function agregarTienda_(d) {
+  d.nombre = nombreConCalle_(d.nombre, d.ubicacion);
   const hoja = SpreadsheetApp.getActive().getSheetByName(HOJA_TIENDAS);
   const enc = encabezados_(hoja);
   const valores = {
@@ -419,6 +421,58 @@ function columnaLetra_(n) {
   let s = '';
   while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); }
   return s;
+}
+
+// ---------- Nombres genéricos ("Tienda de Abarrotes") → con calle ----------
+
+var NOMBRES_GENERICOS = [
+  'tienda', 'tiendita', 'tienda de abarrotes', 'tienda de abarrote', 'tienda abarrotes', 'abarrotes', 'abarrote',
+  'abarrotera', 'super abarrotes', 'miscelanea', 'minisuper', 'mini super', 'super', 'tienda de conveniencia',
+  'tienda de alimentacion', 'tortilleria', 'cremeria', 'carniceria', 'fruteria', 'frutas y verduras', 'mercado',
+];
+
+function esGenerico_(nombre) {
+  const n = norm_(nombre).replace(/[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim();
+  return NOMBRES_GENERICOS.indexOf(n) !== -1;
+}
+
+// "Calle Tamaulipas s-n, C. Tamaulipas 1139B, Observatorio, 44266 Guadalajara" → "Tamaulipas 1139B"
+function calleCorta_(ubicacion) {
+  const partes = String(ubicacion || '').split(',').map(function (p) { return p.trim(); }).filter(String);
+  const conNumero = partes.filter(function (p) { return /\d/.test(p) && !/^\d{5}\b/.test(p); })[0];
+  const calle = conNumero || partes[0] || '';
+  return calle.replace(/^(calle|c\.|av\.?|avenida|calz\.?|calzada)\s+/i, '').trim();
+}
+
+function nombreConCalle_(nombre, ubicacion) {
+  if (!nombre || String(nombre).indexOf(' · ') !== -1 || !esGenerico_(nombre)) return nombre;
+  const calle = calleCorta_(ubicacion);
+  return calle ? nombre + ' · ' + calle : nombre;
+}
+
+// Renombra las tiendas con nombre genérico. No toca las que ya tienen entregas,
+// para no romper su historial en la pestaña Entregas.
+function renombrarGenericas() {
+  const ss = SpreadsheetApp.getActive();
+  const hoja = ss.getSheetByName(HOJA_TIENDAS);
+  const enc = encabezados_(hoja);
+  const cNom = enc.indexOf('Nombre'), cUbi = enc.indexOf('Ubicación');
+  const n = hoja.getLastRow() - 1;
+  if (cNom === -1 || cUbi === -1 || n < 1) return;
+  const conEntregas = {};
+  filas_(ss.getSheetByName(HOJA_ENTREGAS)).forEach(function (e) { conEntregas[norm_(e.Tienda)] = true; });
+  const rango = hoja.getRange(2, cNom + 1, n, 1);
+  const nombres = rango.getValues();
+  const ubicaciones = hoja.getRange(2, cUbi + 1, n, 1).getValues();
+  let cambios = 0;
+  const nuevos = nombres.map(function (f, i) {
+    if (conEntregas[norm_(f[0])]) return f;
+    const nuevo = nombreConCalle_(f[0], ubicaciones[i][0]);
+    if (nuevo !== f[0]) cambios++;
+    return [nuevo];
+  });
+  rango.setValues(nuevos);
+  ss.toast(cambios + ' nombres genéricos ahora llevan su calle.', '🌶️ Mamachita', 8);
 }
 
 // ---------- Aviso diario de reestock ----------
