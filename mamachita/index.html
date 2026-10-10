@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Mamachita · Territorio</title>
+<meta name="description" content="Mapa de tiendas, reestocks y territorio conquistado de Salsa Macha Mamachita en Guadalajara.">
+<meta name="theme-color" content="#B3121B">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root {
+    --rojo: #B3121B; --rojo-osc: #7F0D13; --oro: #C9A227;
+    --bg: #FFF6E8; --panel: #FFFFFF; --panel-2: #FBEEDB; --ink: #2B1A12; --muted: #7A6455; --line: #EAD9C2;
+    --s-prospecto: #9AA0AE; --s-visitado: #D4A017; --s-stock: #16A34A;
+    --s-pronto: #F59E0B; --s-vencido: #DC2626; --s-rechazo: #4B5563;
+    --sombra: 0 10px 30px rgba(60, 20, 10, .18);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1A1210; --panel: #241917; --panel-2: #2F211D; --ink: #F6EADB; --muted: #B8A392; --line: #3D2C26;
+      --sombra: 0 10px 30px rgba(0, 0, 0, .5);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1A1210; --panel: #241917; --panel-2: #2F211D; --ink: #F6EADB; --muted: #B8A392; --line: #3D2C26;
+    --sombra: 0 10px 30px rgba(0, 0, 0, .5);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body { font-family: 'Nunito', system-ui, sans-serif; background: var(--bg); color: var(--ink); overflow: hidden; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  .disp { font-family: 'Lilita One', 'Nunito', sans-serif; font-weight: 400; letter-spacing: .01em; }
+
+  /* ---------- Layout ---------- */
+  .app { display: grid; grid-template-rows: auto 1fr; height: 100dvh; }
+  header {
+    display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+    background: linear-gradient(135deg, var(--rojo) 0%, var(--rojo-osc) 100%); color: #FFF6E8;
+    box-shadow: 0 2px 12px rgba(0,0,0,.25); z-index: 1000;
+  }
+  header img { width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--oro); flex: none; }
+  .marca { line-height: 1.05; min-width: 0; }
+  .marca h1 { font-size: 1.45em; }
+  .marca small { font-size: 12px; opacity: .85; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hud { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .hud .nivel { text-align: right; line-height: 1.1; }
+  .hud .nivel b { font-size: 13px; display: block; }
+  .hud .nivel .barra { width: 120px; height: 7px; background: rgba(255,255,255,.25); border-radius: 9px; margin-top: 4px; overflow: hidden; }
+  .hud .nivel .barra i { display: block; height: 100%; background: var(--oro); border-radius: 9px; transition: width .6s; }
+  .icono-btn { background: rgba(255,255,255,.16); border: 0; border-radius: 10px; width: 38px; height: 38px; font-size: 18px; color: #fff; flex: none; }
+  .icono-btn:hover { background: rgba(255,255,255,.28); }
+
+  main { display: grid; grid-template-columns: 1fr 420px; min-height: 0; }
+  #mapa { min-height: 0; z-index: 1; }
+  .panel { background: var(--panel); border-left: 1px solid var(--line); display: grid; grid-template-rows: auto 1fr; min-height: 0; }
+  .tabs { display: flex; border-bottom: 1px solid var(--line); background: var(--panel-2); }
+  .tabs button { flex: 1; border: 0; background: none; padding: 12px 4px 10px; font-weight: 800; font-size: 13px; color: var(--muted); border-bottom: 3px solid transparent; }
+  .tabs button.on { color: var(--rojo); border-bottom-color: var(--rojo); }
+  :root[data-theme="dark"] .tabs button.on { color: #FF8A80; border-bottom-color: #FF8A80; }
+  .tabs .t-mapa { display: none; }
+  .vista { overflow-y: auto; padding: 16px; display: none; }
+  .vista.on { display: block; }
+
+  @media (max-width: 860px) {
+    main { grid-template-columns: 1fr; grid-template-rows: 1fr; position: relative; }
+    .panel { position: absolute; inset: 0; border-left: 0; z-index: 700; pointer-events: none; background: transparent; grid-template-rows: 1fr auto; }
+    .panel .tabs { order: 2; pointer-events: auto; padding-bottom: env(safe-area-inset-bottom); background: var(--panel); border-top: 1px solid var(--line); border-bottom: 0; }
+    .panel .tabs button { border-bottom: 0; border-top: 3px solid transparent; }
+    .panel .tabs button.on { border-top-color: var(--rojo); }
+    .tabs .t-mapa { display: block; }
+    .vista { background: var(--panel); pointer-events: auto; }
+    .hud .nivel { display: none; }
+    .marca small { max-width: 46vw; }
+  }
+
+  /* ---------- Componentes ---------- */
+  .alerta {
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 600;
+    background: var(--panel); color: var(--ink); border-radius: 14px; box-shadow: var(--sombra);
+    padding: 10px 14px; display: none; gap: 10px; align-items: center; font-size: 14px; font-weight: 700; max-width: calc(100% - 32px);
+  }
+  .alerta.on { display: flex; }
+  @media (max-width: 860px) { .alerta { left: 56px; right: 12px; transform: none; max-width: none; justify-content: space-between; font-size: 13px; } }
+  .alerta button { border: 0; background: var(--rojo); color: #fff; border-radius: 9px; padding: 6px 10px; font-weight: 800; font-size: 12px; white-space: nowrap; }
+  .mapa-wrap { position: relative; min-height: 0; display: grid; }
+  .flotantes { position: absolute; right: 12px; bottom: 24px; z-index: 600; display: flex; flex-direction: column; gap: 8px; }
+  .flotantes button { width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--panel); box-shadow: var(--sombra); font-size: 19px; }
+  .flotantes button.on { background: var(--rojo); color: #fff; }
+  @media (max-width: 860px) { .flotantes { bottom: 76px; } }
+  .estado-carga { position: absolute; left: 12px; bottom: 24px; z-index: 600; background: var(--panel); border-radius: 10px; box-shadow: var(--sombra); padding: 8px 12px; font-size: 12px; font-weight: 700; display: none; }
+  .estado-carga.on { display: block; }
+  @media (max-width: 860px) { .estado-carga { bottom: 76px; } }
+
+  .leyenda { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--panel); border-radius: 99px; padding: 5px 10px; font-size: 12px; font-weight: 700; }
+  .chip.off { opacity: .4; }
+  .chip i, .punto { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+  .filtros { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .filtros input { grid-column: 1 / -1; }
+  input, select, textarea { width: 100%; border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 9px 11px; font-size: 14px; }
+  textarea { resize: vertical; min-height: 60px; }
+  label { font-size: 12px; font-weight: 800; color: var(--muted); display: block; margin-bottom: 4px; }
+
+  .lista { display: flex; flex-direction: column; gap: 8px; }
+  .item { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; text-align: left; width: 100%; border: 1px solid var(--line); background: var(--panel); border-radius: 12px; padding: 10px 12px; }
+  .item:hover { border-color: var(--rojo); }
+  .item .n { font-weight: 800; font-size: 14px; }
+  .item .m { font-size: 12px; color: var(--muted); }
+  .badge { font-size: 11px; font-weight: 800; border-radius: 99px; padding: 3px 8px; color: #fff; white-space: nowrap; }
+  .vacio { color: var(--muted); font-size: 14px; text-align: center; padding: 24px 8px; }
+
+  .btn { border: 0; border-radius: 11px; padding: 10px 14px; font-weight: 800; font-size: 14px; background: var(--rojo); color: #fff; display: inline-flex; gap: 6px; align-items: center; justify-content: center; text-decoration: none; }
+  .btn.sec { background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .acciones { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; }
+  .fila-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+
+  .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+  .kpi { background: var(--panel-2); border-radius: 12px; padding: 10px 12px; }
+  .kpi b { font-size: 1.5em; display: block; font-variant-numeric: tabular-nums; }
+  .kpi span { font-size: 12px; color: var(--muted); font-weight: 700; }
+  h2 { font-size: 1.15em; margin: 18px 0 10px; }
+  h2:first-child { margin-top: 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); padding: 6px 4px; border-bottom: 1px solid var(--line); }
+  td { padding: 8px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .tabla-wrap { overflow-x: auto; }
+
+  .zona { margin-bottom: 12px; }
+  .zona .cab { display: flex; justify-content: space-between; font-size: 13px; font-weight: 800; margin-bottom: 4px; }
+  .zona .cab span { color: var(--muted); font-weight: 700; }
+  .zona .barra { height: 10px; border-radius: 9px; background: var(--panel-2); overflow: hidden; display: flex; }
+  .zona .barra i { display: block; height: 100%; }
+  .rango { background: linear-gradient(135deg, var(--rojo), var(--rojo-osc)); color: #FFF6E8; border-radius: 16px; padding: 16px; margin-bottom: 16px; display: flex; gap: 14px; align-items: center; }
+  .rango .pct { font-size: 2.4em; line-height: 1; }
+  .rango small { opacity: .85; font-size: 12px; display: block; }
+
+  .ruta-item { display: grid; grid-template-columns: 28px 1fr auto; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .ruta-item .num { width: 26px; height: 26px; border-radius: 50%; background: var(--rojo); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 12px; }
+  .ruta-item button { border: 0; background: none; color: var(--muted); font-size: 18px; }
+
+  /* ---------- Hoja de detalle / formularios ---------- */
+  .velo { position: fixed; inset: 0; background: rgba(20, 8, 4, .45); z-index: 2000; display: none; align-items: flex-end; justify-content: center; }
+  .velo.on { display: flex; }
+  @media (min-width: 861px) { .velo { align-items: center; } }
+  .hoja { background: var(--panel); width: 100%; max-width: 480px; max-height: 88dvh; overflow-y: auto; border-radius: 20px 20px 0 0; padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); box-shadow: var(--sombra); }
+  @media (min-width: 861px) { .hoja { border-radius: 20px; } }
+  .hoja .top { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 8px; }
+  .hoja .top h3 { font-size: 1.3em; flex: 1; }
+  .hoja .cerrar { border: 0; background: var(--panel-2); border-radius: 50%; width: 32px; height: 32px; font-size: 16px; flex: none; }
+  .meta { font-size: 13px; color: var(--muted); display: grid; gap: 4px; margin-bottom: 8px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  .campo { margin-bottom: 10px; }
+  .nota { font-size: 12px; color: var(--muted); background: var(--panel-2); border-radius: 10px; padding: 10px 12px; margin: 10px 0; line-height: 1.45; }
+  .nota a { color: var(--rojo); font-weight: 800; }
+  pre.tsv { font-size: 12px; background: var(--bg); border: 1px dashed var(--line); border-radius: 8px; padding: 8px; white-space: pre-wrap; word-break: break-word; margin: 8px 0; }
+  .toast { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-weight: 800; font-size: 14px; z-index: 3000; display: none; max-width: calc(100% - 32px); }
+  .toast.on { display: block; }
+
+  /* ---------- Pines del mapa ---------- */
+  .pin { position: relative; width: 26px; height: 26px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 3px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.35); display: grid; place-items: center; }
+  .pin span { transform: rotate(45deg); font-size: 11px; line-height: 1; }
+  .pin.p-baja { width: 20px; height: 20px; }
+  .pin.s-vencido::after { content: ''; position: absolute; inset: -9px; border-radius: 50%; border: 3px solid var(--s-vencido); animation: pulso 1.6s infinite; }
+  @keyframes pulso { from { transform: scale(.6); opacity: 1; } to { transform: scale(1.5); opacity: 0; } }
+  .leaflet-div-icon.limpio { background: none; border: 0; }
+  .leaflet-popup-content { font-family: 'Nunito', sans-serif; }
+  .marca-nueva { font-size: 28px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <img src="logo.png" alt="">
+    <div class="marca">
+      <h1 class="disp">Mamachita</h1>
+      <small id="subtitulo">Conquista tapatía de la salsa macha</small>
+    </div>
+    <div class="hud">
+      <div class="nivel">
+        <b id="hud-nivel">Nivel 1 · Antojito</b>
+        <div class="barra"><i id="hud-barra" style="width:0%"></i></div>
+      </div>
+      <button class="icono-btn" id="btn-nueva" title="Agregar tienda">＋</button>
+      <button class="icono-btn" id="btn-recargar" title="Recargar datos de la hoja">⟳</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="mapa-wrap">
+      <div id="mapa"></div>
+      <div class="alerta" id="alerta"><span id="alerta-txt"></span><button id="alerta-ruta">Armar ruta</button></div>
+      <div class="flotantes">
+        <button id="btn-territorio" class="on" title="Mostrar territorio conquistado">🚩</button>
+        <button id="btn-yo" title="Mi ubicación">◎</button>
+        <button id="btn-todo" title="Ver todas las tiendas">⤢</button>
+      </div>
+      <div class="estado-carga" id="estado-carga"></div>
+    </div>
+
+    <aside class="panel">
+      <nav class="tabs">
+        <button class="t-mapa" data-vista="mapa">🗺️ Mapa</button>
+        <button data-vista="tiendas" class="on">🏪 Tiendas</button>
+        <button data-vista="entregas">📦 Entregas</button>
+        <button data-vista="territorio">🚩 Territorio</button>
+        <button data-vista="ruta">🛵 Ruta</button>
+      </nav>
+      <div style="min-height:0;display:grid">
+        <section class="vista on" id="v-tiendas">
+          <div class="leyenda" id="leyenda"></div>
+          <div class="filtros">
+            <input id="f-texto" type="search" placeholder="Buscar tienda, zona o dirección…">
+            <select id="f-zona"><option value="">Todas las zonas</option></select>
+            <select id="f-prioridad">
+              <option value="">Toda prioridad</option><option>Alta</option><option>Media</option><option>Baja</option>
+            </select>
+          </div>
+          <div class="lista" id="lista-tiendas"></div>
+        </section>
+
+        <section class="vista" id="v-entregas">
+          <div class="fila-btns"><button class="btn" id="btn-entrega">＋ Registrar entrega</button></div>
+          <div class="kpis" id="kpis"></div>
+          <h2 class="disp">Por tienda</h2>
+          <div class="tabla-wrap" id="tabla-tiendas-activas"></div>
+          <h2 class="disp">Historial</h2>
+          <div class="tabla-wrap" id="tabla-historial"></div>
+        </section>
+
+        <section class="vista" id="v-territorio">
+          <div class="rango" id="rango"></div>
+          <h2 class="disp">Zonas</h2>
+          <div id="zonas"></div>
+        </section>
+
+        <section class="vista" id="v-ruta">
+          <div class="fila-btns">
+            <button class="btn" id="ruta-reestock">🔴 Ruta de reestock</button>
+            <button class="btn sec" id="ruta-cerca">📍 Prospectos cerca de mí</button>
+          </div>
+          <div id="ruta-lista"></div>
+          <div class="fila-btns" style="margin-top:12px">
+            <button class="btn sec" id="ruta-optimizar">↯ Ordenar por cercanía</button>
+            <button class="btn sec" id="ruta-limpiar">Vaciar</button>
+          </div>
+          <div id="ruta-links"></div>
+        </section>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<div class="velo" id="velo"><div class="hoja" id="hoja"></div></div>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
