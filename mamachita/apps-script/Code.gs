@@ -32,6 +32,8 @@ function configurar() {
     }
   });
 
+  llenarEstados();
+
   let entregas = ss.getSheetByName(HOJA_ENTREGAS);
   if (!entregas) {
     entregas = ss.insertSheet(HOJA_ENTREGAS);
@@ -52,9 +54,32 @@ function configurar() {
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('🌶️ Mamachita')
     .addItem('Sacar coordenadas faltantes', 'geocodificar')
+    .addItem('Llenar columna Estado', 'llenarEstados')
     .addItem('Revisar reestocks (correo)', 'revisarReestock')
     .addItem('Configurar (una sola vez)', 'configurar')
     .addToUi();
+}
+
+// Pone "Prospecto" (o "Visitado" si ya está palomeada) en las filas sin Estado
+// y deja la columna como lista desplegable.
+function llenarEstados() {
+  const hoja = SpreadsheetApp.getActive().getSheetByName(HOJA_TIENDAS);
+  const enc = encabezados_(hoja);
+  const cEst = enc.indexOf('Estado') + 1, cVis = enc.indexOf('Visitado') + 1, cNom = enc.indexOf('Nombre') + 1;
+  const n = hoja.getLastRow() - 1;
+  if (!cEst || n < 1) return;
+  const rango = hoja.getRange(2, cEst, n, 1);
+  const estados = rango.getValues();
+  const visitados = cVis ? hoja.getRange(2, cVis, n, 1).getValues() : [];
+  const nombres = cNom ? hoja.getRange(2, cNom, n, 1).getValues() : [];
+  rango.setValues(estados.map(function (f, i) {
+    if (f[0] !== '' || (cNom && !nombres[i][0])) return f;
+    return [visitados[i] && visitados[i][0] === true ? 'Visitado' : 'Prospecto'];
+  }));
+  hoja.getRange(2, cEst, hoja.getMaxRows() - 1, 1).setDataValidation(
+    SpreadsheetApp.newDataValidation()
+      .requireValueInList(['Prospecto', 'Visitado', 'Interesado', 'Activa', 'No interesado'], true)
+      .setAllowInvalid(false).build());
 }
 
 // ---------- Geocodificación ----------
