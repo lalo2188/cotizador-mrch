@@ -47,6 +47,7 @@ function configurar() {
   ScriptApp.getProjectTriggers().forEach(function (t) { ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger('alEditar').forSpreadsheet(ss).onEdit().create();
   ScriptApp.newTrigger('revisarReestock').timeBased().everyDays(1).atHour(8).create();
+  if (ss.getSheetByName(HOJA_COLONIAS)) ScriptApp.newTrigger('actualizarColonias').timeBased().everyHours(1).create();
 
   geocodificar();
 }
@@ -157,8 +158,8 @@ function doPost(e) {
   try {
     const d = JSON.parse(e.postData.contents);
     if (PIN && String(d.pin) !== PIN) return json_({ ok: false, error: 'PIN incorrecto' });
-    if (d.accion === 'entrega') return json_(registrarEntrega_(d));
-    if (d.accion === 'estado') return json_(cambiarEstado_(d.tienda, d.estado));
+    if (d.accion === 'entrega') return json_(conResumen_(registrarEntrega_(d)));
+    if (d.accion === 'estado') return json_(conResumen_(cambiarEstado_(d.tienda, d.estado)));
     if (d.accion === 'tienda') return json_(agregarTienda_(d));
     if (d.accion === 'buscar') return json_({ ok: true, tiendas: buscarCerca_(Number(d.lat), Number(d.lng), Number(d.radio) || 1200) });
     return json_({ ok: false, error: 'Acción desconocida' });
@@ -343,65 +344,31 @@ var COLORES_ESTADOS = ['#9AA0AE', '#D4A017', '#2563EB', '#16A34A', '#4B5563'];
 
 function armarColonias() {
   const ss = SpreadsheetApp.getActive();
-  const tiendas = ss.getSheetByName(HOJA_TIENDAS);
-  const enc = encabezados_(tiendas);
-  const col = function (nombre) {
-    const i = enc.indexOf(nombre);
-    if (i === -1) throw new Error('No encuentro la columna "' + nombre + '" en ' + HOJA_TIENDAS);
-    const letra = columnaLetra_(i + 1);
-    return "'" + HOJA_TIENDAS + "'!$" + letra + '$2:$' + letra;
-  };
-  const ZONA = col('Zona'), TIPO = col('Tipo'), NOMBRE = col('Nombre'), ESTADO = col('Estado');
-
-  let hoja = ss.getSheetByName(HOJA_COLONIAS) || ss.insertSheet(HOJA_COLONIAS);
+  const hoja = ss.getSheetByName(HOJA_COLONIAS) || ss.insertSheet(HOJA_COLONIAS);
   hoja.getCharts().forEach(function (c) { hoja.removeChart(c); });
   hoja.clear();
   if (hoja.getMaxColumns() < 16) hoja.insertColumnsAfter(hoja.getMaxColumns(), 16 - hoja.getMaxColumns());
 
-  // Título
   hoja.getRange('A1').setValue('🌶️ Mamachita · Tiendas por colonia').setFontSize(16).setFontWeight('bold').setFontColor('#B3121B');
-  hoja.getRange('A2').setFormula('="Actualizado en vivo · " & COUNTA(' + NOMBRE + ') & " tiendas en la lista"').setFontColor('#7A6455');
-
-  // Tabla por colonia (A4…). La colonia es lo que va antes de "/" en Zona.
-  const zonaBase = 'TRIM(IFERROR(REGEXEXTRACT(' + ZONA + ',"^[^/]+"),""))';
-  hoja.getRange('A4').setFormula('=QUERY({ARRAYFORMULA(' + zonaBase + '),' + NOMBRE + '},' +
-    '"select Col1, count(Col2) where Col2 is not null and Col1 <> \'\' group by Col1 order by count(Col2) desc label Col1 \'Colonia\', count(Col2) \'Total\'",0)');
-  ESTADOS_RESUMEN.forEach(function (e, i) {
-    const c = hoja.getRange(4, 3 + i);
-    c.setValue(e);
-    // Coincide con "Colonia" exacta o con "Colonia / algo".
-    hoja.getRange(5, 3 + i).setFormula('=ARRAYFORMULA(IF($A5:$A="","",COUNTIFS(' + ZONA + ',$A5:$A,' + ESTADO + ',"' + e + '")+COUNTIFS(' + ZONA + ',$A5:$A&" /*",' + ESTADO + ',"' + e + '")))');
-  });
-  hoja.getRange('H4').setValue('% visitado');
-  hoja.getRange('H5').setFormula('=ARRAYFORMULA(IF($A5:$A="","",IFERROR(1-C5:C/B5:B,0)))');
-  hoja.getRange('H5:H').setNumberFormat('0%');
-  hoja.getRange('A4:H4').setFontWeight('bold').setBackground('#B3121B').setFontColor('#FFFFFF');
+  const cab = function (rango) { hoja.getRange(rango).setFontWeight('bold').setBackground('#B3121B').setFontColor('#FFFFFF'); };
+  hoja.getRange(4, 1, 1, 8).setValues([['Colonia', 'Total'].concat(ESTADOS_RESUMEN, ['% visitado'])]);
+  cab('A4:H4');
+  hoja.getRange('J4:K4').setValues([['Estado', 'Tiendas']]);
+  cab('J4:K4');
+  hoja.getRange('M4:N4').setValues([['Tipo', 'Tiendas']]);
+  cab('M4:N4');
   hoja.setFrozenRows(4);
-
-  // Resumen por estado (J4…)
-  hoja.getRange('J4:K4').setValues([['Estado', 'Tiendas']]).setFontWeight('bold').setBackground('#B3121B').setFontColor('#FFFFFF');
-  ESTADOS_RESUMEN.forEach(function (e, i) {
-    hoja.getRange(5 + i, 10).setValue(e);
-    hoja.getRange(5 + i, 11).setFormula('=COUNTIF(' + ESTADO + ',"' + e + '")');
-  });
-  hoja.getRange(10, 10).setValue('Total').setFontWeight('bold');
-  hoja.getRange(10, 11).setFormula('=COUNTA(' + NOMBRE + ')').setFontWeight('bold');
-  hoja.getRange(11, 10).setValue('Colonias');
-  hoja.getRange(11, 11).setFormula('=COUNTA(A5:A)');
-
-  // Resumen por tipo (M4…)
-  hoja.getRange('M4').setFormula('=QUERY({' + TIPO + ',' + NOMBRE + '},"select Col1, count(Col2) where Col2 is not null and Col1 <> \'\' group by Col1 order by count(Col2) desc label Col1 \'Tipo\', count(Col2) \'Tiendas\'",0)');
-  hoja.getRange('M4:N4').setFontWeight('bold').setBackground('#B3121B').setFontColor('#FFFFFF');
-
   hoja.setColumnWidth(1, 220);
   hoja.setColumnWidth(10, 120);
-  hoja.setColumnWidth(13, 170);
+  hoja.setColumnWidth(13, 190);
+
+  actualizarColonias();
   SpreadsheetApp.flush();
 
-  // Gráficas
   hoja.insertChart(hoja.newChart().asPieChart()
     .addRange(hoja.getRange('J4:K9')).setNumHeaders(1)
-    .setTitle('Tiendas por estado').setColors(COLORES_ESTADOS).setPosition(14, 10, 0, 0).setOption('width', 420).setOption('height', 300)
+    .setTitle('Tiendas por estado').setColors(COLORES_ESTADOS).setPosition(14, 10, 0, 0)
+    .setOption('width', 420).setOption('height', 300)
     .build());
   hoja.insertChart(hoja.newChart().asBarChart()
     .addRange(hoja.getRange('A4:A29')).addRange(hoja.getRange('C4:G29')).setNumHeaders(1).setStacked()
@@ -414,14 +381,72 @@ function armarColonias() {
     .setPosition(14, 14, 0, 0).setOption('width', 460).setOption('height', 300)
     .build());
 
-  ss.toast('Pestaña COLONIAS lista. Se actualiza sola al cambiar la lista.', '🌶️ Mamachita', 8);
+  // Refresco automático cada hora (además de cada entrega o cambio de estado desde el mapa).
+  const yaHay = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'actualizarColonias'; });
+  if (!yaHay) ScriptApp.newTrigger('actualizarColonias').timeBased().everyHours(1).create();
+
+  ss.toast('Pestaña COLONIAS lista. Se actualiza sola cada hora y con cada cambio desde el mapa.', '🌶️ Mamachita', 8);
 }
 
-function columnaLetra_(n) {
-  let s = '';
-  while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); }
-  return s;
+// Calcula los conteos y los escribe como valores (sin fórmulas).
+function actualizarColonias() {
+  const ss = SpreadsheetApp.getActive();
+  const hoja = ss.getSheetByName(HOJA_COLONIAS);
+  if (!hoja) return;
+  const tiendas = filas_(ss.getSheetByName(HOJA_TIENDAS)).filter(function (t) { return String(t.Nombre || '').trim(); });
+
+  const porColonia = {}, porEstado = {}, porTipo = {};
+  ESTADOS_RESUMEN.forEach(function (e) { porEstado[e] = 0; });
+  tiendas.forEach(function (t) {
+    const colonia = String(t.Zona || '').split('/')[0].trim() || 'Sin colonia';
+    const estado = ESTADOS_RESUMEN.filter(function (e) { return norm_(e) === norm_(t.Estado); })[0] || 'Prospecto';
+    const tipo = String(t.Tipo || '').trim() || 'Sin tipo';
+    if (!porColonia[colonia]) {
+      porColonia[colonia] = { total: 0 };
+      ESTADOS_RESUMEN.forEach(function (e) { porColonia[colonia][e] = 0; });
+    }
+    porColonia[colonia].total++;
+    porColonia[colonia][estado]++;
+    porEstado[estado]++;
+    porTipo[tipo] = (porTipo[tipo] || 0) + 1;
+  });
+
+  const filasColonia = Object.keys(porColonia)
+    .sort(function (a, b) { return porColonia[b].total - porColonia[a].total || a.localeCompare(b); })
+    .map(function (c) {
+      const o = porColonia[c];
+      return [c, o.total].concat(ESTADOS_RESUMEN.map(function (e) { return o[e]; }), [o.total ? 1 - o.Prospecto / o.total : 0]);
+    });
+  const filasTipo = Object.keys(porTipo)
+    .sort(function (a, b) { return porTipo[b] - porTipo[a]; })
+    .map(function (t) { return [t, porTipo[t]]; });
+
+  const ultima = Math.max(hoja.getMaxRows(), 5);
+  hoja.getRange(5, 1, ultima - 4, 8).clearContent();
+  hoja.getRange(5, 10, ultima - 4, 2).clearContent();
+  hoja.getRange(5, 13, ultima - 4, 2).clearContent();
+  if (hoja.getMaxRows() < filasColonia.length + 5) hoja.insertRowsAfter(hoja.getMaxRows(), filasColonia.length + 5 - hoja.getMaxRows());
+
+  if (filasColonia.length) {
+    hoja.getRange(5, 1, filasColonia.length, 8).setValues(filasColonia);
+    hoja.getRange(5, 8, filasColonia.length, 1).setNumberFormat('0%');
+  }
+  const filasEstado = ESTADOS_RESUMEN.map(function (e) { return [e, porEstado[e]]; })
+    .concat([['Total', tiendas.length], ['Colonias', filasColonia.length]]);
+  hoja.getRange(5, 10, filasEstado.length, 2).setValues(filasEstado);
+  hoja.getRange(10, 10, 1, 2).setFontWeight('bold');
+  if (filasTipo.length) hoja.getRange(5, 13, filasTipo.length, 2).setValues(filasTipo);
+
+  hoja.getRange('A2').setValue('Actualizado ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm') +
+    ' · ' + tiendas.length + ' tiendas en ' + filasColonia.length + ' colonias').setFontColor('#7A6455');
 }
+
+// Refresca COLONIAS después de un cambio; si falla, no afecta la respuesta al mapa.
+function conResumen_(resultado) {
+  try { actualizarColonias(); } catch (e) { console.warn('COLONIAS: ' + e); }
+  return resultado;
+}
+
 
 // ---------- Nombres genéricos ("Tienda de Abarrotes") → con calle ----------
 
