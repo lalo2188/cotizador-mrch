@@ -678,8 +678,23 @@
     const q = '[out:json][timeout:25];(nwr["shop"~"^(' + Object.keys(TIPOS_OSM).filter((k) => k !== 'marketplace').join('|') + ')$"](' + bbox + ');' +
       'nwr["amenity"="marketplace"](' + bbox + '););out center tags;';
     estadoCarga('Buscando tiendas en esta zona…');
-    let datos;
-    try { datos = await consultarOSM(q); } catch (e) { estadoCarga(''); toast(e.message, 5000); return; }
+    let datos, fuente = 'OpenStreetMap';
+    if (CFG.SCRIPT_URL) {
+      // Primero Google Maps (vía Apps Script); si no hay clave de Places, seguimos con OpenStreetMap.
+      try {
+        const c = b.getCenter();
+        const radio = Math.min(2500, Math.round(c.distanceTo(b.getNorthEast())));
+        const r = await enviar({ accion: 'buscar', lat: c.lat, lng: c.lng, radio });
+        if (r.ok) {
+          fuente = 'Google Maps';
+          datos = { elements: r.tiendas.map((t, i) => ({ type: 'google', id: i, lat: t.lat, lon: t.lng, maps: t.maps, tipo: t.tipo, ubicacion: t.ubicacion, tags: { name: t.nombre } })) };
+        } else console.warn('Búsqueda en Google no disponible:', r.error);
+      } catch (e) { console.warn('Búsqueda en Google no disponible:', e); }
+    }
+    if (!datos) {
+      try { datos = await consultarOSM(q); } catch (e) { estadoCarga(''); toast(e.message, 5000); return; }
+    }
+    st.fuenteNuevas = fuente;
     estadoCarga('');
     const conCoords = st.tiendas.filter((t) => t.lat);
     const vistos = new Set();
@@ -691,10 +706,10 @@
       const calle = [t['addr:street'], t['addr:housenumber']].filter(Boolean).join(' ');
       const cercana = conCoords.map((x) => [x, distanciaKm([lat, lng], [x.lat, x.lng])]).sort((a, c) => a[1] - c[1])[0];
       return {
-        nombre, lat, lng,
-        tipo: TIPOS_OSM[t.shop] || TIPOS_OSM[t.amenity] || 'Abarrotes',
+        nombre, lat, lng, maps: e.maps || '',
+        tipo: e.tipo || TIPOS_OSM[t.shop] || TIPOS_OSM[t.amenity] || 'Abarrotes',
         zona: t['addr:suburb'] || (cercana && cercana[1] < 1.5 ? cercana[0].zona : ''),
-        ubicacion: [calle, t['addr:suburb'], t['addr:city'] || 'Zapopan'].filter(Boolean).join(', '),
+        ubicacion: e.ubicacion || [calle, t['addr:suburb'], t['addr:city'] || 'Zapopan'].filter(Boolean).join(', '),
         repetida: !!(cercana && cercana[1] < 0.04) || st.tiendas.some((x) => norm(x.nombre) === norm(nombre)),
       };
     }).filter((c) => {
@@ -722,7 +737,7 @@
     const lista = st.nuevas || [];
     abrirHoja(
       '<div class="top"><h3 class="disp">🔍 ' + lista.length + ' tiendas nuevas aquí</h3><button class="cerrar" data-cerrar>✕</button></div>' +
-      '<div class="nota">Vienen de OpenStreetMap: no están todas las tiendas de barrio y algunas pueden ya no existir. Ya quité las que tienes en tu lista y las cadenas (OXXO, 7-Eleven, súpers grandes).</div>' +
+      '<div class="nota">Vienen de <b>' + esc(st.fuenteNuevas || 'OpenStreetMap') + '</b>' + (st.fuenteNuevas === 'Google Maps' ? '' : ': no están todas las tiendas de barrio y algunas pueden ya no existir') + '. Ya quité las que tienes en tu lista y las cadenas (OXXO, 7-Eleven, súpers grandes).</div>' +
       '<div class="grid2"><div><label>Zona (opcional, para todas)</label><input id="nv-zona" placeholder="Usar la de cada tienda"></div>' +
         '<div><label>Prioridad</label><select id="nv-prio"><option>Alta</option><option selected>Media</option><option>Baja</option></select></div></div>' +
       '<div class="fila-btns"><button class="btn sec" type="button" id="nv-todas">Marcar todas</button><button class="btn sec" type="button" id="nv-ninguna">Ninguna</button></div>' +
@@ -744,11 +759,11 @@
     const zona = $('#nv-zona').value.trim(), prioridad = $('#nv-prio').value;
     const filas = elegidas.map((c) => ({
       accion: 'tienda', nombre: c.nombre, tipo: c.tipo, prioridad, zona: zona || c.zona, ubicacion: c.ubicacion,
-      lat: c.lat, lng: c.lng, notas: 'Encontrada en el mapa',
+      lat: c.lat, lng: c.lng, maps: c.maps, notas: 'Encontrada en ' + (st.fuenteNuevas || 'el mapa'),
     }));
     if (!CFG.SCRIPT_URL) {
       const tsv = filas.map((d) => [d.prioridad, d.zona, d.tipo, d.nombre, d.ubicacion, 'FALSE',
-        'https://www.google.com/maps/search/?api=1&query=' + d.lat + ',' + d.lng, d.notas, 'Prospecto', d.lat, d.lng].join('\t')).join('\n');
+        d.maps || 'https://www.google.com/maps/search/?api=1&query=' + d.lat + ',' + d.lng, d.notas, 'Prospecto', d.lat, d.lng].join('\t')).join('\n');
       $('#form-extra').innerHTML = sinScriptHTML(tsv, CFG.HOJA_TIENDAS);
       return;
     }

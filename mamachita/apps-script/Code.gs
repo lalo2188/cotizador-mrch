@@ -55,6 +55,7 @@ function onOpen() {
   SpreadsheetApp.getUi().createMenu('🌶️ Mamachita')
     .addItem('Sacar coordenadas faltantes', 'geocodificar')
     .addItem('Llenar columna Estado', 'llenarEstados')
+    .addItem('Buscar tiendas en Google (por zona)', 'buscarTiendasGoogle')
     .addItem('Revisar reestocks (correo)', 'revisarReestock')
     .addItem('Configurar (una sola vez)', 'configurar')
     .addToUi();
@@ -157,6 +158,7 @@ function doPost(e) {
     if (d.accion === 'entrega') return json_(registrarEntrega_(d));
     if (d.accion === 'estado') return json_(cambiarEstado_(d.tienda, d.estado));
     if (d.accion === 'tienda') return json_(agregarTienda_(d));
+    if (d.accion === 'buscar') return json_({ ok: true, tiendas: buscarCerca_(Number(d.lat), Number(d.lng), Number(d.radio) || 1200) });
     return json_({ ok: false, error: 'Acción desconocida' });
   } catch (err) {
     return json_({ ok: false, error: String(err) });
@@ -203,12 +205,122 @@ function agregarTienda_(d) {
   const valores = {
     'Prioridad': d.prioridad || 'Media', 'Zona': d.zona || '', 'Tipo': d.tipo || 'Abarrotes',
     'Nombre': d.nombre, 'Ubicación': d.ubicacion || '', 'Visitado': false,
-    'Maps': d.lat ? 'https://www.google.com/maps/search/?api=1&query=' + d.lat + ',' + d.lng : '',
+    'Maps': d.maps || (d.lat ? 'https://www.google.com/maps/search/?api=1&query=' + d.lat + ',' + d.lng : ''),
     'Notas': d.notas || '', 'Estado': 'Prospecto', 'Lat': d.lat || '', 'Lng': d.lng || '',
   };
   hoja.appendRow(enc.map(function (c) { return c in valores ? valores[c] : ''; }));
   geocodificarFila_(hoja, enc, hoja.getLastRow());
   return { ok: true };
+}
+
+// ---------- Buscar tiendas en Google Maps (Places API) ----------
+// Requiere una clave de Google Places guardada en Configuración del proyecto →
+// Propiedades de la secuencia de comandos → GOOGLE_PLACES_KEY (ver README).
+
+var CONSULTAS_GOOGLE = ['tienda de abarrotes', 'tienda', 'minisuper', 'miscelánea', 'cremería', 'mercado'];
+var TIPOS_GOOGLE = {
+  convenience_store: 'Abarrotes', grocery_store: 'Abarrotes', food_store: 'Tienda de alimentación',
+  supermarket: 'Minisúper', market: 'Mercado', butcher_shop: 'Carnicería', deli: 'Deli / gourmet',
+  health_food_store: 'Tienda naturista', liquor_store: 'Vinos y licores', store: 'Tienda',
+};
+var TIPOS_UTILES = Object.keys(TIPOS_GOOGLE);
+var CADENAS = /oxxo|7[\s-]?eleven|circle\s?k|kiosko|\bextra\b|go\s?mart|farmacia|walmart|costco|sam'?s|soriana|aurrer|chedraui|la comer|fresko|city market|superama|\bheb\b|mi bodega|bodega aurrera|super g\b|la michoacana/i;
+
+function buscarCerca_(lat, lng, radio) {
+  const clave = PropertiesService.getScriptProperties().getProperty('GOOGLE_PLACES_KEY');
+  if (!clave) throw new Error('Falta la clave GOOGLE_PLACES_KEY en las propiedades del script');
+  const existentes = filas_(SpreadsheetApp.getActive().getSheetByName(HOJA_TIENDAS));
+  const vistos = {};
+  const salida = [];
+  CONSULTAS_GOOGLE.forEach(function (consulta) {
+    let token = '';
+    for (let pagina = 0; pagina < 3; pagina++) {
+      const cuerpo = {
+        textQuery: consulta, languageCode: 'es', regionCode: 'MX', pageSize: 20,
+        locationBias: { circle: { center: { latitude: lat, longitude: lng }, radius: Math.min(radio, 50000) } },
+      };
+      if (token) cuerpo.pageToken = token;
+      const r = UrlFetchApp.fetch('https://places.googleapis.com/v1/places:searchText', {
+        method: 'post', contentType: 'application/json', muteHttpExceptions: true, payload: JSON.stringify(cuerpo),
+        headers: {
+          'X-Goog-Api-Key': clave,
+          'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location,places.googleMapsUri,places.primaryType,places.types,places.businessStatus,nextPageToken',
+        },
+      });
+      const d = JSON.parse(r.getContentText());
+      if (d.error) throw new Error('Google Places: ' + d.error.message);
+      (d.places || []).forEach(function (p) {
+        if (vistos[p.id] || p.businessStatus !== 'OPERATIONAL' || !p.location) return;
+        vistos[p.id] = true;
+        const nombre = p.displayName ? p.displayName.text : '';
+        const tipos = [p.primaryType].concat(p.types || []);
+        const tipo = tipos.filter(function (t) { return TIPOS_GOOGLE[t]; })[0];
+        if (!nombre || !tipo || CADENAS.test(nombre)) return;
+        if (distanciaKm_(lat, lng, p.location.latitude, p.location.longitude) * 1000 > radio * 1.25) return;
+        const repetida = existentes.some(function (x) {
+          if (String(x.Maps || '').indexOf(p.googleMapsUri) === 0) return true;
+          if (x.Lat === '' || x.Lng === '') return false;
+          const metros = distanciaKm_(Number(x.Lat), Number(x.Lng), p.location.latitude, p.location.longitude) * 1000;
+          return metros < 15 || (metros < 60 && norm_(x.Nombre).slice(0, 6) === norm_(nombre).slice(0, 6));
+        });
+        if (repetida) return;
+        salida.push({
+          nombre: nombre, tipo: TIPOS_GOOGLE[tipo], ubicacion: (p.formattedAddress || '').replace(/, Jal\.?,? ?(México)?$/, ''),
+          lat: p.location.latitude, lng: p.location.longitude, maps: p.googleMapsUri,
+        });
+      });
+      token = d.nextPageToken;
+      if (!token) break;
+    }
+  });
+  return salida;
+}
+
+// Recorre cada zona de la hoja y agrega las tiendas nuevas que Google conoce alrededor.
+// Corta antes de los 6 min de Apps Script; si faltan zonas, vuelve a correrlo y sigue.
+function buscarTiendasGoogle() {
+  const ss = SpreadsheetApp.getActive();
+  const hoja = ss.getSheetByName(HOJA_TIENDAS);
+  const props = PropertiesService.getScriptProperties();
+  const hechas = JSON.parse(props.getProperty('ZONAS_BUSCADAS') || '[]');
+  const zonas = {};
+  filas_(hoja).forEach(function (t) {
+    if (t.Lat === '' || t.Lng === '') return;
+    const z = String(t.Zona || '').split('/')[0].trim();
+    if (!z) return;
+    if (!zonas[z]) zonas[z] = { lat: 0, lng: 0, n: 0 };
+    zonas[z].lat += Number(t.Lat); zonas[z].lng += Number(t.Lng); zonas[z].n++;
+  });
+  const inicio = Date.now();
+  let agregadas = 0, pendientes = 0;
+  Object.keys(zonas).forEach(function (z) {
+    if (hechas.indexOf(z) !== -1) return;
+    if (Date.now() - inicio > 4.5 * 60 * 1000) { pendientes++; return; }
+    const c = zonas[z];
+    buscarCerca_(c.lat / c.n, c.lng / c.n, 1000).forEach(function (t) {
+      agregarTienda_({ nombre: t.nombre, tipo: t.tipo, zona: z, ubicacion: t.ubicacion, lat: t.lat, lng: t.lng,
+        maps: t.maps, prioridad: 'Media', notas: 'Encontrada en Google Maps' });
+      agregadas++;
+    });
+    hechas.push(z);
+    props.setProperty('ZONAS_BUSCADAS', JSON.stringify(hechas));
+  });
+  ss.toast(agregadas + ' tiendas nuevas agregadas' + (pendientes ? '. Faltan ' + pendientes + ' zonas: vuelve a correrlo.' : '. ¡Todas las zonas revisadas!'), '🌶️ Mamachita', 15);
+}
+
+// Para volver a buscar en todas las zonas (por ejemplo, en unos meses).
+function reiniciarBusquedaGoogle() {
+  PropertiesService.getScriptProperties().deleteProperty('ZONAS_BUSCADAS');
+}
+
+function distanciaKm_(a, b, c, d) {
+  const r = Math.PI / 180;
+  const h = Math.pow(Math.sin((c - a) * r / 2), 2) + Math.cos(a * r) * Math.cos(c * r) * Math.pow(Math.sin((d - b) * r / 2), 2);
+  return 12742 * Math.asin(Math.sqrt(h));
+}
+
+function norm_(v) {
+  return String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 }
 
 // ---------- Aviso diario de reestock ----------
