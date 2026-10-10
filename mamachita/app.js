@@ -522,8 +522,19 @@
     if (!CFG.SCRIPT_URL) return { ok: false, sinScript: true };
     let pin = '';
     try { pin = sessionStorage.getItem('mm-pin') || ''; } catch (e) { /* nada */ }
-    const r = await fetch(CFG.SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ pin }, datos)) });
-    const d = await r.json();
+    let r;
+    try {
+      r = await fetch(CFG.SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ pin }, datos)) });
+    } catch (e) {
+      // Google responde con una página de login (sin CORS) cuando la implementación no es pública.
+      throw new Error('El Apps Script no respondió. Revisa que la implementación tenga acceso "Cualquier usuario".');
+    }
+    const txt = await r.text();
+    let d;
+    try { d = JSON.parse(txt); } catch (e) {
+      const m = txt.match(/<div[^>]*>([^<]{10,200})<\/div>/) || txt.match(/<title>([^<]+)<\/title>/);
+      throw new Error('Respuesta del Apps Script: ' + (m ? m[1].trim() : 'no es JSON') + '. ¿Publicaste una versión nueva de la implementación?');
+    }
     if (!d.ok && /PIN/.test(d.error || '')) {
       const nuevo = prompt('Clave para guardar cambios:');
       if (nuevo) { try { sessionStorage.setItem('mm-pin', nuevo); } catch (e) { /* nada */ } return enviar(datos); }
@@ -574,7 +585,7 @@
           $('#form-extra').innerHTML = sinScriptHTML(fila, CFG.HOJA_ENTREGAS);
         } else if (r.ok) { cerrarHoja(); toast('Entrega guardada 🌶️'); await cargar(); return; }
         else toast('No se guardó: ' + (r.error || 'error'), 5000);
-      } catch (e) { toast('No se pudo conectar con el Apps Script', 5000); }
+      } catch (e) { toast(e.message || 'No se pudo conectar con el Apps Script', 9000); }
       boton.disabled = false; boton.textContent = 'Guardar entrega';
     });
   }
@@ -614,7 +625,7 @@
           $('#form-extra').innerHTML = sinScriptHTML([datos.prioridad, datos.zona, datos.tipo, datos.nombre, datos.ubicacion, 'FALSE', mapsUrl, datos.notas].join('\t'), CFG.HOJA_TIENDAS);
         } else if (r.ok) { st.puntoNuevo = null; if (marcaNueva) marcaNueva.remove(); cerrarHoja(); toast('Tienda agregada 🏪'); await cargar(); return; }
         else toast('No se guardó: ' + (r.error || 'error'), 5000);
-      } catch (e) { toast('No se pudo conectar con el Apps Script', 5000); }
+      } catch (e) { toast(e.message || 'No se pudo conectar con el Apps Script', 9000); }
       boton.disabled = false;
     });
   }
@@ -635,7 +646,7 @@
       toast('Estado actualizado');
       await cargar();
       abrirTienda(id);
-    } catch (e) { toast('No se pudo conectar con el Apps Script', 5000); }
+    } catch (e) { toast(e.message || 'No se pudo conectar con el Apps Script', 9000); }
   }
 
   // ---------- Navegación ----------
