@@ -57,6 +57,7 @@ function onOpen() {
     .addItem('Sacar coordenadas faltantes', 'geocodificar')
     .addItem('Llenar columna Estado', 'llenarEstados')
     .addItem('Buscar tiendas en Google (por zona)', 'buscarTiendasGoogle')
+    .addItem('Buscar tiendas en un pueblo o colonia nueva…', 'buscarEnLugar')
     .addItem('Actualizar pestaña COLONIAS', 'armarColonias')
     .addItem('Agregar calle a nombres genéricos', 'renombrarGenericas')
     .addItem('Revisar reestocks (correo)', 'revisarReestock')
@@ -261,12 +262,18 @@ function buscarCerca_(lat, lng, radio, consultas) {
   const existentes = filas_(SpreadsheetApp.getActive().getSheetByName(HOJA_TIENDAS));
   const vistos = {};
   const salida = [];
+  const dLat = radio / 111320, dLng = radio / (111320 * Math.cos(lat * Math.PI / 180));
   (consultas || CONSULTAS_GOOGLE).forEach(function (consulta) {
     let token = '';
     for (let pagina = 0; pagina < 3; pagina++) {
       const cuerpo = {
         textQuery: consulta, languageCode: 'es', regionCode: 'MX', pageSize: 20,
-        locationBias: { circle: { center: { latitude: lat, longitude: lng }, radius: Math.min(radio, 50000) } },
+        // Restringido al cuadro de búsqueda: con solo "bias" Google prefiere tiendas de Guadalajara
+        // y en pueblos como Tala no quedaba ninguna después de filtrar por distancia.
+        locationRestriction: { rectangle: {
+          low: { latitude: lat - dLat, longitude: lng - dLng },
+          high: { latitude: lat + dLat, longitude: lng + dLng },
+        } },
       };
       if (token) cuerpo.pageToken = token;
       const r = UrlFetchApp.fetch('https://places.googleapis.com/v1/places:searchText', {
@@ -344,6 +351,30 @@ function buscarTiendasGoogle() {
     props.setProperty('ZONAS_BUSCADAS', JSON.stringify(hechas));
   });
   ss.toast(agregadas + ' tiendas nuevas agregadas' + (pendientes ? '. Faltan ' + pendientes + ' zonas: vuelve a correrlo.' : '. ¡Todas las zonas revisadas!'), '🌶️ Mamachita', 15);
+}
+
+// Busca tiendas alrededor de un lugar que escribas (p. ej. "Tala, Jalisco") y las agrega a la hoja.
+function buscarEnLugar() {
+  const ui = SpreadsheetApp.getUi();
+  const r = ui.prompt('Buscar tiendas en Google', '¿Dónde? (ej. "Tala, Jalisco" o "Centro, Tlaquepaque")', ui.ButtonSet.OK_CANCEL);
+  if (r.getSelectedButton() !== ui.Button.OK || !r.getResponseText().trim()) return;
+  const lugar = r.getResponseText().trim();
+  const g = Maps.newGeocoder().setRegion('mx').setLanguage('es').geocode(lugar);
+  if (g.status !== 'OK' || !g.results.length) { ui.alert('No encontré "' + lugar + '" en Google Maps.'); return; }
+  const loc = g.results[0].geometry.location;
+  const zona = lugar.split(',')[0].trim();
+  const hoja = SpreadsheetApp.getActive().getSheetByName(HOJA_TIENDAS);
+  const enc = encabezados_(hoja);
+  const nuevas = buscarCerca_(loc.lat, loc.lng, 3000);
+  nuevas.forEach(function (t) {
+    const valores = {
+      'Prioridad': 'Media', 'Zona': zona, 'Tipo': t.tipo, 'Nombre': nombreConCalle_(t.nombre, t.ubicacion),
+      'Ubicación': t.ubicacion, 'Visitado': false, 'Maps': t.maps, 'Notas': 'Encontrada en Google Maps',
+      'Estado': 'Prospecto', 'Lat': t.lat, 'Lng': t.lng,
+    };
+    hoja.appendRow(enc.map(function (c) { return c in valores ? valores[c] : ''; }));
+  });
+  ui.alert(nuevas.length + ' tiendas nuevas agregadas en ' + zona + '.');
 }
 
 // Para volver a buscar en todas las zonas (por ejemplo, en unos meses).
