@@ -697,7 +697,7 @@
     health_food: 'Tienda naturista', farm: 'Productos de granja', tortilla: 'Tortillería', bakery: 'Tortillería', marketplace: 'Mercado',
   };
   // Cadenas que no reciben producto a consignación.
-  const CADENAS = /oxxo|7[\s-]?eleven|circle\s?k|kiosko|\bextra\b|go\s?mart|farmacia|walmart|costco|sam'?s|soriana|aurrer|chedraui|la comer|fresko|city market|superama|heb|bodega/i;
+  const CADENAS = /oxxo|7[\s-]?eleven|circle\s?k|kiosko|\bextra\b|go\s?mart|farmacia|walmart|costco|sam'?s|soriana|aurrer|chedraui|la comer|fresko|city market|superama|heb|bodega|coppel|\bneto\b|\b3b\b|\bbara\b|modelorama/i;
   const SERVIDORES_OSM = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
 
   async function consultarOSM(q) {
