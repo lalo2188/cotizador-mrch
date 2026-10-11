@@ -146,6 +146,9 @@ function geocodificarFila_(hoja, enc, fila) {
 // Sin parámetros: devuelve la lista. Con ?d={...}: ejecuta un cambio. El mapa manda
 // los cambios por GET porque algunos navegadores bloquean el POST hacia Apps Script.
 function doGet(e) {
+  // Si el sitio pide JSONP (?callback=...), respondemos como JavaScript: así no depende de CORS.
+  const cb = e && e.parameter && e.parameter.callback;
+  CALLBACK_ = cb && /^[A-Za-z_$][\w$]{0,40}$/.test(cb) ? cb : '';
   if (e && e.parameter && e.parameter.d) {
     let d;
     try { d = JSON.parse(e.parameter.d); } catch (err) { return json_({ ok: false, error: 'Datos inválidos' }); }
@@ -569,6 +572,10 @@ function num_(v) {
   return isNaN(n) ? 0 : n;
 }
 
+var CALLBACK_ = '';
 function json_(obj) {
+  if (CALLBACK_) {
+    return ContentService.createTextOutput(CALLBACK_ + '(' + JSON.stringify(obj) + ');').setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }

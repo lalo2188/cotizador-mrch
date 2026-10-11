@@ -113,7 +113,12 @@
         else throw new Error(d.error || 'respuesta sin tiendas');
       } catch (e) {
         motivoScript = (e.name === 'AbortError' ? 'tardó más de 25 s' : (e.message || String(e))).replace(/\.$/, '');
-        console.warn('Apps Script no respondió (' + motivoScript + '), uso lectura directa');
+        // Segundo intento sin CORS (etiqueta <script>).
+        try {
+          const d = await pedirScript('', 30000);
+          if (d.ok && Array.isArray(d.tiendas)) { crudo = { tiendas: d.tiendas, entregas: d.entregas || [] }; st.fuente = 'script'; motivoScript = ''; }
+        } catch (e2) { /* sigue con lectura directa */ }
+        if (motivoScript) console.warn('Apps Script no respondió (' + motivoScript + '), uso lectura directa');
       }
     }
     if (!crudo) {
@@ -144,7 +149,7 @@
       toast('Leí la hoja pero algo falló al dibujarla: ' + (e.message || e), 15000);
     }
     estadoCarga('');
-    if (motivoScript) toast('Aviso: el Apps Script no respondió (' + motivoScript + '). Se ve el mapa, pero no se podrán guardar cambios.', 9000);
+    if (motivoScript) toast('Aviso: el Apps Script no respondió (' + motivoScript + '). Leí la hoja directo.', 9000);
     geocodificarFaltantes();
   }
 
@@ -538,30 +543,37 @@
   }
 
   // ---------- Formularios ----------
+  // Habla con el Apps Script con una etiqueta <script> (JSONP): no depende de CORS,
+  // que es lo que falla cuando el navegador tiene sesión de Google (o varias cuentas).
+  let jsonpN = 0;
+  function pedirScript(params, ms) {
+    return new Promise((resolve, reject) => {
+      const nombre = '__mm' + Date.now().toString(36) + (jsonpN++);
+      const tag = document.createElement('script');
+      let listo = false;
+      const fin = () => { clearTimeout(espera); tag.remove(); try { delete window[nombre]; } catch (e) { window[nombre] = undefined; } };
+      window[nombre] = (d) => { listo = true; fin(); resolve(d); };
+      // Cargó pero no llamó al callback: Apps Script viejo (sí recibió y ejecutó la petición).
+      tag.onload = () => setTimeout(() => { if (!listo) { fin(); resolve({ ok: true, sinRespuesta: true }); } }, 50);
+      tag.onerror = () => { if (!listo) { fin(); reject(new Error('sin conexión')); } };
+      const espera = setTimeout(() => { if (!listo) { fin(); reject(new Error('tardó demasiado')); } }, ms || 60000);
+      tag.src = CFG.SCRIPT_URL + '?' + (params ? params + '&' : '') + 'callback=' + nombre;
+      document.head.appendChild(tag);
+    });
+  }
+
   async function enviar(datos) {
     if (!CFG.SCRIPT_URL) return { ok: false, sinScript: true };
     let pin = '';
     try { pin = sessionStorage.getItem('mm-pin') || ''; } catch (e) { /* nada */ }
     const cuerpo = JSON.stringify(Object.assign({ pin }, datos));
-    const leer = async (r) => {
-      const txt = await r.text();
-      try { return JSON.parse(txt); } catch (e) {
-        const m = txt.match(/<div[^>]*>([^<]{10,200})<\/div>/) || txt.match(/<title>([^<]+)<\/title>/);
-        throw new Error('Respuesta del Apps Script: ' + (m ? m[1].trim() : 'no es JSON') + '. ¿Publicaste una versión nueva de la implementación?');
-      }
-    };
     let d;
     try {
-      // Los cambios van por GET (?d=...), que es lo que el navegador deja pasar sin problemas.
-      d = await leer(await fetch(CFG.SCRIPT_URL + '?d=' + encodeURIComponent(cuerpo)));
+      d = await pedirScript('d=' + encodeURIComponent(cuerpo));
     } catch (e) {
-      if (e.message && e.message.startsWith('Respuesta del Apps Script')) throw e;
-      throw new Error('El Apps Script no respondió. Revisa que la implementación tenga acceso "Cualquier usuario".');
+      throw new Error('El Apps Script no respondió (' + e.message + '). Abre la URL de SCRIPT_URL en el navegador: si pide iniciar sesión o marca error, revisa la implementación (Ejecutar como: Yo · Acceso: Cualquier usuario).');
     }
-    if (!('accion' in d)) {
-      // Implementación vieja: todavía no entiende cambios por GET.
-      throw new Error('Tu Apps Script tiene una versión vieja: pega el Code.gs nuevo y publica una "Nueva versión" de la implementación.');
-    }
+    if (d.sinRespuesta) d.accion = datos.accion;
     if (!d.ok && /PIN/.test(d.error || '')) {
       const nuevo = prompt('Clave para guardar cambios:');
       if (nuevo) { try { sessionStorage.setItem('mm-pin', nuevo); } catch (e) { /* nada */ } return enviar(datos); }
