@@ -60,6 +60,7 @@ function onOpen() {
     .addItem('Buscar tiendas en un pueblo o colonia nueva…', 'buscarEnLugar')
     .addItem('Actualizar pestaña COLONIAS', 'armarColonias')
     .addItem('Agregar calle a nombres genéricos', 'renombrarGenericas')
+    .addItem('Quitar tiendas que no venden comida (Coppel, ropa…)', 'limpiarNoComida')
     .addItem('Revisar reestocks (correo)', 'revisarReestock')
     .addItem('Configurar (una sola vez)', 'configurar')
     .addToUi();
@@ -254,7 +255,13 @@ var TIPOS_GOOGLE = {
   health_food_store: 'Tienda naturista', liquor_store: 'Vinos y licores', store: 'Tienda', tortilleria: 'Tortillería',
 };
 var TIPOS_UTILES = Object.keys(TIPOS_GOOGLE);
-var CADENAS = /oxxo|7[\s-]?eleven|circle\s?k|kiosko|\bextra\b|go\s?mart|farmacia|walmart|costco|sam'?s|soriana|aurrer|chedraui|la comer|fresko|city market|superama|\bheb\b|mi bodega|bodega aurrera|super g\b|la michoacana/i;
+var CADENAS = /oxxo|7[\s-]?eleven|circle\s?k|kiosko|\bextra\b|go\s?mart|farmacia|walmart|costco|sam'?s|soriana|aurrer|chedraui|la comer|fresko|\bcity market|superama|\bheb\b|mi bodega|bodega aurrera|super g\b|la michoacana|coppel|tiendas neto|\bneto\b|tiendas 3b|\b3b\b|tiendas bara|\bbara\b|modelorama|hogar china|adidas|bershka|ciosa/i;
+// Negocios que no venden comida (ropa, muebles, autopartes…), salvo que el nombre diga abarrotes, cremería, etc.
+var NO_COMIDA = /ropa|zapat|tenis|calzado|boutique de ropa|cosm[eé]tic|perfum|autoparte|refaccion|mueble|telas|pl[aá]stico|desechable|celular|accesorios|showroom|macetas|flores y globos|mercado ?libre|mascotas|escaparate|novedades|shop\b|store\b|suministros|caf[eé]|a[cç]a[ií]/i;
+var SI_COMIDA = /abarrot|cremer|miscel|mini ?s[uú]per|tortill|semillas|cereales|frutas|l[aá]cteos|carnicer/i;
+function noEsComida_(nombre) {
+  return CADENAS.test(nombre) || (NO_COMIDA.test(nombre) && !SI_COMIDA.test(nombre));
+}
 
 function buscarCerca_(lat, lng, radio, consultas) {
   const clave = PropertiesService.getScriptProperties().getProperty('GOOGLE_PLACES_KEY');
@@ -292,7 +299,7 @@ function buscarCerca_(lat, lng, radio, consultas) {
         const tipos = [p.primaryType].concat(p.types || []);
         const esTortilleria = /tortill/i.test(nombre);
         const tipo = esTortilleria ? 'tortilleria' : tipos.filter(function (t) { return TIPOS_GOOGLE[t]; })[0];
-        if (!nombre || !tipo || CADENAS.test(nombre)) return;
+        if (!nombre || !tipo || noEsComida_(nombre)) return;
         if (distanciaKm_(lat, lng, p.location.latitude, p.location.longitude) * 1000 > radio * 1.25) return;
         const repetida = existentes.some(function (x) {
           if (String(x.Maps || '').indexOf(p.googleMapsUri) === 0) return true;
@@ -554,6 +561,35 @@ function renombrarGenericas() {
   });
   rango.setValues(nuevos);
   ss.toast(cambios + ' nombres genéricos ahora llevan su calle.', '🌶️ Mamachita', 8);
+}
+
+// Borra de la lista las tiendas encontradas automáticamente que no venden comida o son cadenas
+// (Coppel, ropa, autopartes, Neto…). Solo toca las que siguen como prospecto sin visitar ni entregas,
+// y antes de borrar te enseña cuáles son.
+function limpiarNoComida() {
+  const ss = SpreadsheetApp.getActive();
+  const ui = SpreadsheetApp.getUi();
+  const hoja = ss.getSheetByName(HOJA_TIENDAS);
+  const conEntregas = {};
+  filas_(ss.getSheetByName(HOJA_ENTREGAS)).forEach(function (e) { conEntregas[norm_(e.Tienda)] = true; });
+  const borrar = [];
+  const datos = hoja.getDataRange().getValues();
+  const enc = datos.shift().map(function (h) { return String(h).trim(); });
+  datos.forEach(function (f, i) {
+    const t = {};
+    enc.forEach(function (h, j) { t[h] = f[j]; });
+    const nombre = String(t.Nombre || '');
+    if (!nombre || !/encontrada en/i.test(String(t.Notas || ''))) return;
+    if (t.Visitado === true || conEntregas[norm_(nombre)]) return;
+    if (t.Estado && t.Estado !== 'Prospecto') return;
+    if (noEsComida_(nombre)) borrar.push({ fila: i + 2, nombre: nombre });
+  });
+  if (!borrar.length) { ui.alert('No hay tiendas para quitar. 👍'); return; }
+  const lista = borrar.slice(0, 40).map(function (b) { return '• ' + b.nombre; }).join('\n') + (borrar.length > 40 ? '\n… y ' + (borrar.length - 40) + ' más' : '');
+  const r = ui.alert('Quitar ' + borrar.length + ' tiendas', lista + '\n\n¿Las borro de la lista?', ui.ButtonSet.YES_NO);
+  if (r !== ui.Button.YES) return;
+  borrar.reverse().forEach(function (b) { hoja.deleteRow(b.fila); });
+  ss.toast(borrar.length + ' tiendas quitadas.', '🌶️ Mamachita', 8);
 }
 
 // ---------- Aviso diario de reestock ----------
