@@ -571,7 +571,7 @@
     try {
       d = await pedirScript('d=' + encodeURIComponent(cuerpo));
     } catch (e) {
-      throw new Error('El Apps Script no respondió (' + e.message + '). Abre la URL de SCRIPT_URL en el navegador: si pide iniciar sesión o marca error, revisa la implementación (Ejecutar como: Yo · Acceso: Cualquier usuario).');
+      throw new Error('No llegó la confirmación del Apps Script (' + e.message + '). Casi siempre es porque falta pegar el Code.gs nuevo y publicar una "Nueva versión" de la implementación. Recarga: puede que el cambio sí se haya guardado.');
     }
     if (d.sinRespuesta) d.accion = datos.accion;
     if (!d.ok && /PIN/.test(d.error || '')) {

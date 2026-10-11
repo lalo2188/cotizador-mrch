@@ -224,6 +224,13 @@ function agregarTienda_(d) {
   d.nombre = nombreConCalle_(d.nombre, d.ubicacion);
   const hoja = SpreadsheetApp.getActive().getSheetByName(HOJA_TIENDAS);
   const enc = encabezados_(hoja);
+  // Evita duplicados si el sitio reintenta: mismo nombre y (misma liga de Maps o a menos de 60 m).
+  const ya = filas_(hoja).some(function (t) {
+    if (norm_(t['Nombre']) !== norm_(d.nombre)) return false;
+    if (d.maps && t['Maps'] === d.maps) return true;
+    return d.lat && t['Lat'] && distanciaKm_(Number(d.lat), Number(d.lng), Number(t['Lat']), Number(t['Lng'])) < 0.06;
+  });
+  if (ya) return { ok: true, yaExistia: true };
   const valores = {
     'Prioridad': d.prioridad || 'Media', 'Zona': d.zona || '', 'Tipo': d.tipo || 'Abarrotes',
     'Nombre': d.nombre, 'Ubicación': d.ubicacion || '', 'Visitado': false,
