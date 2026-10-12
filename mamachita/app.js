@@ -379,18 +379,18 @@
     ].map(([v, l]) => '<div class="kpi"><b>' + esc(v) + '</b><span>' + esc(l) + '</span></div>').join('');
 
     const sabCab = CFG.SABORES.map((s) => '<th class="num" title="' + esc(s.nombre) + '">' + esc(s.corto || s.nombre) + '</th>').join('');
-    $('#tabla-tiendas-activas').innerHTML = activas.length ? '<table><thead><tr><th>Tienda</th>' + sabCab + '<th class="num">Precio</th><th>Reestock</th></tr></thead><tbody>' +
+    $('#tabla-tiendas-activas').innerHTML = activas.length ? '<table><thead><tr><th>Tienda</th>' + sabCab + '<th class="num col-precio">Precio</th><th>Reestock</th></tr></thead><tbody>' +
       activas.sort((a, b) => a.dias - b.dias).map((t) => '<tr data-tienda="' + t.id + '" style="cursor:pointer"><td><b>' + esc(t.nombre) + '</b><br><span style="color:var(--muted);font-size:12px">' + fechaCorta(t.ultima.fecha) + '</span></td>' +
         CFG.SABORES.map((s) => '<td class="num">' + t.ultima.cantidades[s.id] + '</td>').join('') +
-        '<td class="num">' + (t.ultima.precio == null ? '—' : dinero(t.ultima.precio)) + '</td>' +
+        '<td class="num col-precio">' + (t.ultima.precio == null ? '—' : dinero(t.ultima.precio)) + '</td>' +
         '<td><span class="badge" style="background:' + ESTADOS[t.estado].color + '" title="' + esc(textoEstado(t)) + '">' + esc(fechaCorta(t.ultima.reestock)) + '</span></td></tr>').join('') +
       '</tbody></table>' : '<div class="vacio">Aún no hay entregas. Cuando dejes frascos en una tienda, regístralos aquí y su pin se pone verde. 🌶️</div>';
 
     const hist = [...st.entregas].sort((a, b) => b.fecha.localeCompare(a.fecha));
-    $('#tabla-historial').innerHTML = hist.length ? '<table><thead><tr><th>Fecha</th><th>Tienda</th>' + sabCab + '<th class="num">Precio</th><th class="num">Quedaban</th></tr></thead><tbody>' +
+    $('#tabla-historial').innerHTML = hist.length ? '<table><thead><tr><th>Fecha</th><th>Tienda</th>' + sabCab + '<th class="num col-precio">Precio</th><th class="num">Quedaban</th></tr></thead><tbody>' +
       hist.map((e) => '<tr><td>' + fechaCorta(e.fecha) + '</td><td>' + esc(e.tienda) + (e.notas ? '<br><span style="color:var(--muted);font-size:12px">' + esc(e.notas) + '</span>' : '') + '</td>' +
         CFG.SABORES.map((s) => '<td class="num">' + e.cantidades[s.id] + '</td>').join('') +
-        '<td class="num">' + (e.precio == null ? '—' : dinero(e.precio)) + '</td><td class="num">' + (e.quedaban == null ? '—' : e.quedaban) + '</td></tr>').join('') +
+        '<td class="num col-precio">' + (e.precio == null ? '—' : dinero(e.precio)) + '</td><td class="num">' + (e.quedaban == null ? '—' : e.quedaban) + '</td></tr>').join('') +
       '</tbody></table>' : '';
   }
 
@@ -870,6 +870,23 @@
   });
   document.addEventListener('change', (e) => { const s = e.target.closest('[data-estado-de]'); if (s) cambiarEstadoManual(s.dataset.estadoDe, s.value); });
   $('#velo').addEventListener('click', (e) => { if (e.target.id === 'velo') cerrarHoja(); });
+  // En celular la hoja de detalle se cierra deslizándola hacia abajo.
+  (function () {
+    const hoja = $('#hoja');
+    let y0 = null, dy = 0;
+    hoja.addEventListener('touchstart', (e) => { y0 = hoja.scrollTop <= 0 ? e.touches[0].clientY : null; dy = 0; }, { passive: true });
+    hoja.addEventListener('touchmove', (e) => {
+      if (y0 == null) return;
+      dy = e.touches[0].clientY - y0;
+      if (dy > 0) { hoja.style.transform = 'translateY(' + dy + 'px)'; hoja.style.transition = 'none'; }
+    }, { passive: true });
+    hoja.addEventListener('touchend', () => {
+      if (y0 == null) return;
+      hoja.style.transition = 'transform .2s'; hoja.style.transform = '';
+      if (dy > 100) cerrarHoja();
+      y0 = null;
+    });
+  })();
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') cerrarHoja(); });
 
   $('#btn-recargar').onclick = () => cargar();

@@ -7,7 +7,12 @@
 <meta name="description" content="Mapa de tiendas, reestocks y territorio conquistado de Salsa Macha Mamachita en Guadalajara.">
 <meta name="theme-color" content="#B3121B">
 <link rel="icon" type="image/png" href="favicon.png">
-<link rel="apple-touch-icon" href="logo.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mamachita">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -146,6 +151,46 @@
   .ruta-item .num { width: 26px; height: 26px; border-radius: 50%; background: var(--rojo); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 12px; }
   .ruta-item button { border: 0; background: none; color: var(--muted); font-size: 18px; }
 
+
+  /* ---------- Celular ---------- */
+  .tabs button .ic { margin-right: 4px; }
+  .hoja::before { content: none; }
+  @media (max-width: 860px) {
+    header { padding: calc(8px + env(safe-area-inset-top)) 12px 8px; gap: 10px; }
+    header img { width: 38px; height: 38px; }
+    .marca h1 { font-size: 1.25em; }
+    .icono-btn { width: 40px; height: 40px; }
+    /* Pestañas de abajo: ícono arriba, texto abajo, todas iguales y fáciles de tocar */
+    .panel .tabs button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 2px 6px; font-size: 11px; min-height: 56px; -webkit-tap-highlight-color: transparent; }
+    .tabs button .ic { margin: 0; font-size: 20px; line-height: 1; }
+    /* Los campos en 16px evitan que el iPhone haga zoom al escribir */
+    input, select, textarea { font-size: 16px; padding: 11px 12px; }
+    .vista { padding: 12px 12px 16px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+    /* Leyenda en una sola fila que se desliza de lado */
+    .leyenda { flex-wrap: nowrap; overflow-x: auto; margin: 0 -12px 10px; padding: 0 12px 2px; scrollbar-width: none; }
+    .leyenda::-webkit-scrollbar { display: none; }
+    .chip { flex: none; padding: 7px 11px; }
+    .item { padding: 12px; min-height: 60px; }
+    .kpis { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .kpi { padding: 8px 10px; }
+    .kpi b { font-size: 1.25em; }
+    .kpi span { font-size: 11px; line-height: 1.2; display: block; }
+    .fila-btns .btn { flex: 1 1 auto; }
+    .btn { padding: 12px 14px; }
+    table { font-size: 12.5px; }
+    th { letter-spacing: 0; font-size: 10px; }
+    .col-precio { display: none; }
+    /* Detalle como hoja que sube desde abajo, con agarradera */
+    .hoja { max-height: 82dvh; padding-top: 22px; position: relative; overscroll-behavior: contain; }
+    .hoja::before { content: ''; position: absolute; top: 8px; left: 50%; width: 40px; height: 5px; margin-left: -20px; border-radius: 9px; background: var(--line); }
+    .hoja .top h3 { font-size: 1.2em; }
+    .hoja .acciones .btn { min-height: 48px; }
+    .flotantes button { width: 46px; height: 46px; }
+    /* En celular no hacen falta + / − (se usa con los dedos) */
+    .leaflet-control-zoom { display: none; }
+    .alerta { left: 64px; }
+  }
+
   /* ---------- Hoja de detalle / formularios ---------- */
   .velo { position: fixed; inset: 0; background: rgba(20, 8, 4, .45); z-index: 2000; display: none; align-items: flex-end; justify-content: center; }
   .velo.on { display: flex; }
@@ -174,6 +219,7 @@
   .leaflet-popup-content { font-family: 'Nunito', sans-serif; }
   .marca-nueva { font-size: 28px; }
   .pin-nuevo { width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 2px dashed var(--rojo); color: var(--rojo); font-weight: 800; display: grid; place-items: center; font-size: 14px; line-height: 1; box-shadow: 0 2px 6px rgba(0,0,0,.3); }
+  @media (max-width: 860px) { .toast { left: 12px; right: 12px; transform: none; max-width: none; text-align: center; bottom: calc(72px + env(safe-area-inset-bottom)); } }
 </style>
 </head>
 <body>
@@ -209,11 +255,11 @@
 
     <aside class="panel">
       <nav class="tabs">
-        <button class="t-mapa" data-vista="mapa">🗺️ Mapa</button>
-        <button data-vista="tiendas" class="on">🏪 Tiendas</button>
-        <button data-vista="entregas">📦 Entregas</button>
-        <button data-vista="territorio">🚩 Territorio</button>
-        <button data-vista="ruta">🛵 Ruta</button>
+        <button class="t-mapa" data-vista="mapa"><span class="ic">🗺️</span><span>Mapa</span></button>
+        <button data-vista="tiendas" class="on"><span class="ic">🏪</span><span>Tiendas</span></button>
+        <button data-vista="entregas"><span class="ic">📦</span><span>Entregas</span></button>
+        <button data-vista="territorio"><span class="ic">🚩</span><span>Territorio</span></button>
+        <button data-vista="ruta"><span class="ic">🛵</span><span>Ruta</span></button>
       </nav>
       <div style="min-height:0;display:grid">
         <section class="vista on" id="v-tiendas">
