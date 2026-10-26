@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <circle cx="256" cy="256" r="256" fill="#5A3825"/>
+  <circle cx="256" cy="256" r="232" fill="none" stroke="#E8B04B" stroke-width="10"/>
+  <text x="256" y="300" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="300" fill="#FFF8EE">Q</text>
+  <path d="M150 382 Q256 430 362 382" fill="none" stroke="#E8B04B" stroke-width="14" stroke-linecap="round"/>
+</svg>
